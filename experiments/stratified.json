@@ -14,7 +14,7 @@
     "src/search/process.rs": "e374206308a7df2ba39a1227e69b1f2749cec7cee21f63a59f8c5ef39086d770",
     "src/search/semantic.rs": "3a343f8067bf785ff23439c4007bfea854a7e0a59338e37a29c575476870d74e",
     "src/source/mod.rs": "82d1d2d625d28f352b1461311cc30620e9535b89a299343555e694f3658a9074",
-    "src/tools/mod.rs": "88d9a261e41c65c74be2b88ad2e2e684bc92459f465d490309c4db0ad21d30e1",
+    "src/tools/mod.rs": "7c965c786884ede2e71ae1602859800f8c621b5258100361a9d572183c8cb958",
     "examples/ollama_backend.rs": "1bc495791d32c9f6f725c18dece98cf6b855e7cd66c0296f63aef6e02713cd0e",
     "examples/support/cache.rs": "732e62e99e04bbf7f95727d10e57b692fd0699e42352a3865a676189fd1e08d1"
   },

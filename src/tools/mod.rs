@@ -61,11 +61,11 @@ impl RetrievalServer {
         let mut tools = vec![
             definition::<ExactArgs>(
                 "search_exact",
-                "Find literal text or regex matches with ripgrep. Use for known identifiers, strings, errors, or syntax patterns. Returns paths, 1-based lines, and small excerpts. Respects ignore files; hidden files are excluded. Paginate or narrow path when needed.",
+                "Find literal text or regex matches with ripgrep. Queries are literal by default; set regex:true for patterns, where | is alternation and \\| matches a literal pipe. Use for known identifiers, strings, errors, or syntax patterns. Returns paths, 1-based lines, and small excerpts. When has_more is true, pass next_offset for the next page, or narrow the query or path. Respects ignore files; hidden files are excluded.",
             ),
             definition::<ReadArgs>(
                 "read_source",
-                "Read current source at a known repository-relative path and inclusive line range. Use to inspect implementation or verify retrieval evidence. Defaults to 100 lines; at most 500 lines and a bounded response. Follow next_line to continue.",
+                "Read current source at a known repository-relative file path, not a directory, with an inclusive line range. Use to inspect implementation or verify retrieval evidence. Defaults to 100 lines; at most 500 lines and a bounded response. Follow next_line to continue.",
             ),
         ];
         if self.config.profile.structural() {

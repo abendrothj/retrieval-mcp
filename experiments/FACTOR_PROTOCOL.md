@@ -200,6 +200,27 @@ the first call, routing is free again, so the cell measures an opener, not a str
 Eight of the twelve questions name the identifier they ask about, which favours lexical search. A
 description-led set is block 2, with its own control and its own cells, and is not pooled with these.
 
+## Tool descriptions as the intervention (2026-09-08)
+
+The primer was the cheapest thing that moved the mechanism metric, and it was delivered in the
+prompt, where it costs tokens on every request and only reaches callers who send it. Its content is
+syntax, not routing, so it belongs in the tool descriptions, which already ship in the cached prefix:
+free at the margin, and present for every caller regardless of prompt.
+
+`search_exact` now states that queries are literal by default, that `regex:true` makes `|` alternation
+and `\|` a literal pipe, and that `has_more` is followed with `next_offset` or by narrowing.
+`read_source` now says a file path, not a directory. Roughly forty words, and deliberately no steer
+about which tool to choose - the descriptions must not become a routing intervention, or the
+availability and routing factors stop being separable.
+
+This makes the descriptions a pinned experimental condition. Every run manifest already records
+`server_sha256`, which distinguishes them; the v2 stages above all ran the earlier descriptions. Any
+comparison across that boundary is a comparison of two servers, not two conditions.
+
+The cheap readout is `A-free-baseline` on the new server against the twelve trials already run on the
+old one: same questions, same model, no prompt primer, one factor changed. If the empty-result share
+falls from 21.6% toward the primer cell's 13.7%, the description carried the effect for free.
+
 ## Analysis commitments
 
 Primary availability contrasts: B−A, C−A, D−A within each help level under free routing. Primary first-tool contrasts: lexical-first−free and semantic-first−free within each help level under D. Primary syntax contrasts: primer−baseline within each of the six availability/policy combinations. Other generated one-factor contrasts are exploratory, not additional primary claims.
