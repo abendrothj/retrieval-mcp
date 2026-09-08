@@ -99,6 +99,41 @@ the comparative cells on a different model requires re-running this cell on that
 The corpus is therefore usable for this model, and stage 1 — `A-free-baseline` against
 `A-free-primer`, twelve questions, one repetition, no semantic backend — is worth buying.
 
+## Stage 1 result: the syntax contrast (2026-09-08)
+
+Thirty-six trials on `claude-haiku-4-5`, twelve questions in each of `N-free-baseline`,
+`A-free-baseline` and `A-free-primer`, one repetition, release server, `json-answer-v3`, budgets
+pinned at 30 calls and 400 KB. All 36 completed; the control re-ran alongside the comparative cells
+under the same prompt and grader, superseding the stage 0 pilot.
+
+| Cell | Correct (payload) | Calls, median | Calls, mean | Empty-result calls | Budget exhausted |
+|---|---:|---:|---:|---:|---:|
+| N (no tools) | 0/12 | 0 | 0 | — | 0 |
+| A baseline | 4/12 | 6.5 | 9.33 | 24/111 (21.6%) | 1 |
+| A primer | 6/12 | 4.0 | 8.00 | 13/95 (13.7%) | 1 |
+
+The primer is directionally positive on both outcomes and significant on neither. Two questions flip
+to correct and none flip away; a two-to-nothing discordant split is what a coin does one time in four.
+Calls fall by 1.33 on average but 0.5 at the median, and the saving is again a tail: the two largest
+savers supply all sixteen saved calls, and removing them leaves exactly zero, while one question costs
+six calls more with the primer.
+
+The predicted mechanism is the clearest signal. The empty-result share falls from 21.6% to 13.7%,
+into the range v1 measured for profiles that have structural tools, and the baseline's 21.6% closely
+replicates v1's 18.6% on an unrelated corpus with a different model. Pagination abandonment halves
+(6 to 3) and tool errors fall (9 to 5). Multi-word literal queries stay common in both cells (26 and
+20), as they did across every v1 profile.
+
+Two design facts worth keeping. Correctness is nowhere near ceiling here - 4/12 and 6/12 against v1's
+34/36 - so this corpus can discriminate, which was the point of changing it. And format compliance is
+1/12 and 2/12: the model answers correctly inside prose, so payload correctness is the measure and
+the strict score is not.
+
+What is still missing is the yardstick. Without `D-free-baseline` there is no availability effect to
+compare the primer against, and the substitution question - how much of A's penalty is syntax rather
+than missing tools - remains open. That is stage 2: twelve more trials, one cell, plus a warmed
+semantic cache.
+
 ## Analysis commitments
 
 Primary availability contrasts: B−A, C−A, D−A within each help level under free routing. Primary first-tool contrasts: lexical-first−free and semantic-first−free within each help level under D. Primary syntax contrasts: primer−baseline within each of the six availability/policy combinations. Other generated one-factor contrasts are exploratory, not additional primary claims.

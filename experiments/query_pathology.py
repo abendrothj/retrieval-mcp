@@ -49,8 +49,12 @@ def analyze_run(directory):
                          in paged else "page_truncated_not_followed")
         calls.append({"tool":event["tool"], "arguments":arguments, "result_count":event.get("result_count"),
                       "retrieval_bytes":event.get("retrieval_bytes"), "labels":found})
-    return {"run_id":run["run_id"], "task_id":run["task_id"], "profile":run["profile"],
-            "trial":run["trial"], "status":run["status"], "correct":run.get("correct"),
+    # Both harnesses are readable: the v1 runner names the profile, the factor runner names a cell.
+    factors = run.get("condition_factors") or {}
+    return {"run_id":run.get("run_id") or run.get("condition"), "task_id":run["task_id"],
+            "profile":run.get("profile") or factors.get("availability"),
+            "condition":run.get("condition") or run.get("profile"),
+            "trial":run.get("trial") or run.get("repetition"), "status":run["status"], "correct":run.get("correct"),
             "format_correct":run.get("format_correct"), "calls":calls,
             "call_count":len(calls), "empty_calls":sum("empty" in c["labels"] for c in calls),
             "label_counts":dict(Counter(label for c in calls for label in c["labels"]))}
@@ -61,7 +65,7 @@ def report(directory):
     runs = sorted((analyze_run(trial) for trial in trials), key=lambda r: r["run_id"])
     profiles = {}
     for run in runs:
-        row = profiles.setdefault(run["profile"], {"runs":0, "calls":0, "empty_calls":0, "labels":Counter()})
+        row = profiles.setdefault(run["condition"], {"runs":0, "calls":0, "empty_calls":0, "labels":Counter()})
         row["runs"] += 1
         row["calls"] += run["call_count"]
         row["empty_calls"] += run["empty_calls"]
@@ -69,10 +73,10 @@ def report(directory):
     for row in profiles.values():
         row["empty_share"] = row["empty_calls"]/row["calls"] if row["calls"] else None
         row["labels"] = dict(row["labels"])
-    index = {(r["task_id"], r["trial"], r["profile"]):r for r in runs}
+    index = {(r["task_id"], r["trial"], r["condition"]):r for r in runs}
     pairs = []
-    for (task, trial, profile), run in sorted(index.items()):
-        if profile != "A" or (task, trial, "D") not in index:
+    for (task, trial, condition), run in sorted(index.items()):
+        if condition != "A" or (task, trial, "D") not in index:
             continue
         other = index[(task, trial, "D")]
         if run["status"] != "completed" or other["status"] != "completed":
