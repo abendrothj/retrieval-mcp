@@ -81,6 +81,24 @@ include discovery-hard items; selecting questions by their v1 outcomes would fit
 generated the hypothesis. Predictions to record before the run: the primer reduces A's empty-call
 share toward B/C/D levels, and it removes less of the call gap than availability does.
 
+## Stage 0 result: the memorization gate (2026-09-08)
+
+Twelve tool-free control trials on `claude-haiku-4-5`, one per question, against the pinned coreutils
+corpus. **Nothing was answered correctly from priors: 0/12 strict, 0/6 in each stratum.** Every answer
+states the model cannot answer without retrieval; four also announce an intent to search. The single
+payload match is the null-answer question, where abstention coincides with gold, so it is not
+evidence of knowledge. Cost: 43,797 input and 5,666 output tokens, 6.5 s median per trial, zero
+retrieval calls, `control_without_retrieval` true on every trial.
+
+Two caveats travel with that number. Strict grading is 0/12 partly because control answers arrive as
+prose wrapped around a fenced object rather than a bare JSON object, so `format_correct` is 0 across
+the cell; the knowledge claim rests on the answer text, not the strict score. And the gate is
+model-specific: a larger model may recall more, so this clears the corpus for Haiku 4.5 only. Running
+the comparative cells on a different model requires re-running this cell on that model first.
+
+The corpus is therefore usable for this model, and stage 1 — `A-free-baseline` against
+`A-free-primer`, twelve questions, one repetition, no semantic backend — is worth buying.
+
 ## Analysis commitments
 
 Primary availability contrasts: B−A, C−A, D−A within each help level under free routing. Primary first-tool contrasts: lexical-first−free and semantic-first−free within each help level under D. Primary syntax contrasts: primer−baseline within each of the six availability/policy combinations. Other generated one-factor contrasts are exploratory, not additional primary claims.

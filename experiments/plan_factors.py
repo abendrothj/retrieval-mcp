@@ -48,8 +48,9 @@ def plan(tasks, repetitions=1, seed=42, control=False, keep=None):
     cells = conditions(control)
     if keep is not None:
         selected = [cell for cell in cells if cell["id"] in set(keep)]
-        if len(selected) != len(set(keep)) or len(selected) < 2:
-            raise ValueError("unknown or insufficient condition IDs")
+        # One cell is allowed: a staged design runs the control alone before buying any contrast.
+        if len(selected) != len(set(keep)) or not selected:
+            raise ValueError("unknown or empty condition IDs")
         cells = selected
     trials = []
     for task in tasks:
