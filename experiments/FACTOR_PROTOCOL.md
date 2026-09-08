@@ -134,6 +134,38 @@ compare the primer against, and the substitution question - how much of A's pena
 than missing tools - remains open. That is stage 2: twelve more trials, one cell, plus a warmed
 semantic cache.
 
+## Stage 2 result: the availability yardstick (2026-09-08)
+
+Twelve `D-free-baseline` trials on the same questions, same model, release server, shared warm
+semantic cache (314 s to build, 83 MB). The five-hour rate limit rejected three first attempts before
+they reached the model; they consumed no tokens, the runner stopped itself after three consecutive
+failures, and the retries ran after the window reset. Those three substitutions are infrastructure,
+not outcome selection, and are listed in the run summary.
+
+| Cell | Correct | Calls median | Calls mean | Empty-result share |
+|---|---:|---:|---:|---:|
+| N (no tools) | 0/12 | 0 | 0 | — |
+| A baseline | 4/12 | 6.5 | 9.33 | 21.6% |
+| A + primer | 6/12 | 4.0 | 8.00 | 13.7% |
+| D baseline | 5/12 | 5.0 | 6.92 | 11.0% |
+
+**Syntax help bought about as much as adding tools.** Against the A baseline the primer gained two
+correct answers and D gained one, neither lost any. D saved more calls on average, 2.42 against 1.33,
+but both medians are 0.5 and both are tail-driven: the primer's saving disappears entirely without its
+two largest savers, D keeps 3 of 29. With twelve paired questions and one repetition, none of this is
+significant; the direction is consistent, the magnitude is not established.
+
+The mechanism ordering is the cleanest result of the study so far: empty-result share runs 21.6% (A)
+to 13.7% (A + primer) to 11.0% (D). Three sentences of syntax guidance move A most of the way to the
+tool-rich condition without adding a tool, which is exactly the entanglement the retrospective
+analysis could not separate.
+
+One finding was not predicted: **`search_semantic` was never called, in any D trial.** Free routing
+chose `find_symbol` first six times, `search_exact` four, `find_callers` once, `read_source` once, and
+semantic retrieval zero times out of 83 calls. D behaved as A plus structural search, so this study
+has not yet tested semantic retrieval's contribution at all - it has tested whether the model will
+reach for it, and on this corpus and model it does not.
+
 ## Analysis commitments
 
 Primary availability contrasts: B−A, C−A, D−A within each help level under free routing. Primary first-tool contrasts: lexical-first−free and semantic-first−free within each help level under D. Primary syntax contrasts: primer−baseline within each of the six availability/policy combinations. Other generated one-factor contrasts are exploratory, not additional primary claims.
