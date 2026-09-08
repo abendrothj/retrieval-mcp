@@ -17,11 +17,41 @@ class FactorRunnerTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 run(SimpleNamespace(client="claude", allow_model_usage=False, model="test"))
 
+    def test_debug_build_is_refused_unless_explicitly_allowed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            script = Path(__file__).with_name("factor_runner.py")
+            result = subprocess.run([sys.executable, str(script), "--output", str(Path(temporary)/"m")],
+                                    text=True, capture_output=True, timeout=60)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("--allow-debug-build", result.stderr)
+
+    def test_control_cell_runs_without_a_server_or_gate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)/"control"
+            result = subprocess.run([sys.executable, str(Path(__file__).with_name("factor_runner.py")),
+                "--output", str(output), "--allow-debug-build", "--control",
+                "--cells", "A-free-baseline,N-free-baseline"], text=True, capture_output=True, timeout=90)
+            self.assertEqual(json.loads(result.stdout)["planned"], 2, result.stderr)
+            records = {json.loads(p.read_text())["condition_factors"]["availability"]: json.loads(p.read_text())
+                       for p in output.glob("trial-*/attempt-0001/run.json")}
+            self.assertEqual(sorted(records), ["A", "N"])
+            control = records["N"]
+            self.assertEqual(control["status"], "completed")
+            self.assertEqual(control["attempted_calls"], 0)
+            self.assertTrue(control["control_without_retrieval"])
+            self.assertFalse(control["correct"])
+            attempts = [p.parent for p in output.glob("trial-*/attempt-0001/run.json")
+                        if json.loads((p).read_text())["condition_factors"]["availability"] == "N"]
+            self.assertFalse((attempts[0]/"gate.json").exists())
+            self.assertEqual(json.loads((attempts[0]/"mcp.json").read_text()), {"mcpServers": {}})
+            self.assertFalse((attempts[0]/"policy.jsonl").exists())
+            self.assertIsNone(records["A"]["control_without_retrieval"])
+
     def test_real_matrix_resume_and_interrupted_attempt_preservation(self):
         script = Path(__file__).with_name("factor_runner.py")
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)/"matrix"
-            command = [sys.executable, str(script), "--output", str(output)]
+            command = [sys.executable, str(script), "--output", str(output), "--allow-debug-build"]
             def execute(extra=(), expected=0):
                 result = subprocess.run([*command, *extra], text=True, capture_output=True, timeout=90)
                 self.assertEqual(result.returncode, expected, result.stderr + result.stdout)

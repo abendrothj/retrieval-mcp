@@ -18,6 +18,8 @@ TOOLS = {
     "B": ["search_exact", "read_source", "find_symbol", "find_callers"],
     "C": ["search_exact", "read_source", "search_semantic"],
     "D": ["search_exact", "read_source", "find_symbol", "find_callers", "search_semantic"],
+    # Control cell: no retrieval at all, so a correct answer came from the model's priors.
+    "N": [],
 }
 INSTRUCTIONS = (
     "Answer the repository question using the available retrieval MCP tools as needed. "
