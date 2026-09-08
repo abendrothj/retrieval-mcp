@@ -16,7 +16,7 @@
     "src/source/mod.rs": "82d1d2d625d28f352b1461311cc30620e9535b89a299343555e694f3658a9074",
     "src/tools/mod.rs": "88d9a261e41c65c74be2b88ad2e2e684bc92459f465d490309c4db0ad21d30e1",
     "examples/ollama_backend.rs": "1bc495791d32c9f6f725c18dece98cf6b855e7cd66c0296f63aef6e02713cd0e",
-    "examples/support/cache.rs": "5ff37e8f2eed0244fc993879b0c963cfd677d7932b4f2a49c9796331ccbd38cd"
+    "examples/support/cache.rs": "732e62e99e04bbf7f95727d10e57b692fd0699e42352a3865a676189fd1e08d1"
   },
   "tasks": [
     {
