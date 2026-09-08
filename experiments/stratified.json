@@ -15,8 +15,8 @@
     "src/search/semantic.rs": "3a343f8067bf785ff23439c4007bfea854a7e0a59338e37a29c575476870d74e",
     "src/source/mod.rs": "82d1d2d625d28f352b1461311cc30620e9535b89a299343555e694f3658a9074",
     "src/tools/mod.rs": "88d9a261e41c65c74be2b88ad2e2e684bc92459f465d490309c4db0ad21d30e1",
-    "examples/ollama_backend.rs": "e489f18f2d76f7fb0718fcba24a246a0b63747e53fb9cfe341628648764d17b7",
-    "examples/support/cache.rs": "29fa26dd34e4a830905bb5e7d37b3de3cfe8b67b3a262f4ed75754f222efcd96"
+    "examples/ollama_backend.rs": "1bc495791d32c9f6f725c18dece98cf6b855e7cd66c0296f63aef6e02713cd0e",
+    "examples/support/cache.rs": "5ff37e8f2eed0244fc993879b0c963cfd677d7932b4f2a49c9796331ccbd38cd"
   },
   "tasks": [
     {
