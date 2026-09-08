@@ -166,6 +166,40 @@ semantic retrieval zero times out of 83 calls. D behaved as A plus structural se
 has not yet tested semantic retrieval's contribution at all - it has tested whether the model will
 reach for it, and on this corpus and model it does not.
 
+## Stage 3 result: forcing the semantic opener (2026-09-08)
+
+Twelve `D-semantic_first-baseline` trials, same questions, model, corpus and warm cache as stage 2.
+The cell answers a critique of stage 2: semantic retrieval was never called under free routing, and
+zero usage cannot distinguish an incapable tool from a model that will not reach for a capable one.
+
+Two measurements separate those. Offline, with no model in the loop, the question text issued directly
+to `search_semantic` puts a gold evidence file in the top five for **9 of 12 questions** — so the tool
+was capable on three quarters of the set while being chosen zero times in 83 calls. Stripping
+identifiers out of the query lowers that to 5 of 12, which is worth noting: this embedding uses
+identifiers as signal, so "semantic is for when you don't know the name" does not describe it.
+
+With the opener forced, compliance was total: 12 of 12 first calls were `search_semantic`, zero
+enforcement rejections, no silent rerouting needed. And after the mandated call the model never chose
+semantic again — 12 semantic calls out of 102, one per trial.
+
+| | correct | calls median | calls mean | empty share |
+|---|---:|---:|---:|---:|
+| D free routing | 5/12 | 5.0 | 6.92 | 11.0% |
+| D semantic first | 6/12 | 4.5 | 8.58 | 8.8% |
+
+Two questions flip to correct and one flips away — noise at this size. Calls get worse on average,
+8.58 against 6.92, driven by one question that went from six calls to thirty-one. The empty-result
+share, 8.8%, is the lowest measured anywhere in this study.
+
+**The dissociation is the finding.** Semantic retrieval surfaces the right file for nine of twelve
+questions, and starting there converts into neither a better answer nor a cheaper path. The model's
+revealed preference against it is not obviously wrong, which is a different conclusion from either
+"the tool is useless" or "the agent is misrouting". What this does not test is a fixed policy: after
+the first call, routing is free again, so the cell measures an opener, not a strategy.
+
+Eight of the twelve questions name the identifier they ask about, which favours lexical search. A
+description-led set is block 2, with its own control and its own cells, and is not pooled with these.
+
 ## Analysis commitments
 
 Primary availability contrasts: B−A, C−A, D−A within each help level under free routing. Primary first-tool contrasts: lexical-first−free and semantic-first−free within each help level under D. Primary syntax contrasts: primer−baseline within each of the six availability/policy combinations. Other generated one-factor contrasts are exploratory, not additional primary claims.
