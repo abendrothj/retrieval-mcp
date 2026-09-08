@@ -1,0 +1,274 @@
+[
+ {
+  "id": "diag-floor-free-function",
+  "category": "conceptual_lookup",
+  "stratum": "post_cutoff",
+  "question": "A helper takes a string and a byte offset and moves that offset back to the nearest character boundary, clamping an offset past the end of the string. A method elsewhere shares its name; you want the free function. Return {\"answer\": \"repository-relative/file.rs::function\"}.",
+  "expected_json": {
+   "answer": "src/uucore/src/lib/features/diagnostics_boundary.rs::floor_boundary"
+  },
+  "evidence": [
+   {
+    "path": "src/uucore/src/lib/features/diagnostics_boundary.rs",
+    "contains": [
+     "pub fn floor_boundary(text: &str, offset: usize) -> usize {",
+     "let offset = offset.min(text.len());"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "diag-floor-same-name",
+  "category": "symbol_resolution",
+  "stratum": "post_cutoff",
+  "answer_set": true,
+  "question": "Production code defines two items named floor_boundary. Return both as a set of qualified symbols, using repository-relative/file.rs::Type::method for a method and repository-relative/file.rs::function for a free function: {\"answer\": [\"...\", \"...\"]}.",
+  "expected_json": {
+   "answer": [
+    "src/uucore/src/lib/features/diagnostics_boundary.rs::floor_boundary",
+    "src/uucore/src/lib/features/diagnostics.rs::Snapshot::floor_boundary"
+   ]
+  },
+  "evidence": [
+   {
+    "path": "src/uucore/src/lib/features/diagnostics_boundary.rs",
+    "contains": [
+     "pub fn floor_boundary(text: &str, offset: usize) -> usize {"
+    ]
+   },
+   {
+    "path": "src/uucore/src/lib/features/diagnostics.rs",
+    "contains": [
+     "impl Snapshot {",
+     "fn floor_boundary(&self, offset: usize) -> usize {"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "diag-char-span-callers",
+  "category": "direct_caller_lookup",
+  "stratum": "post_cutoff",
+  "answer_set": true,
+  "question": "Which production functions call char_span? Exclude imports and re-exports, doc comments, and code under #[cfg(test)]. Treat a closure as part of its enclosing function. Return a set of qualified symbols: {\"answer\": [\"...\"]}.",
+  "expected_json": {
+   "answer": [
+    "src/uucore/src/lib/features/diagnostics.rs::Snapshot::locate_operand",
+    "src/uu/env/src/diagnostics.rs::span_back_to"
+   ]
+  },
+  "evidence": [
+   {
+    "path": "src/uucore/src/lib/features/diagnostics.rs",
+    "contains": [
+     "fn locate_operand(&self, base: usize, operand: &str, range: Range<usize>) -> Range<usize> {",
+     "let stopped = char_span(&self.text, start);"
+    ]
+   },
+   {
+    "path": "src/uu/env/src/diagnostics.rs",
+    "contains": [
+     "fn span_back_to(payload: &str, pos: usize, opener: char) -> Range<usize> {",
+     "let stopped = diagnostics::char_span(payload, byte_offset(payload, pos));"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "diag-list-items-external-callers",
+  "category": "mixed_discovery_structure",
+  "stratum": "post_cutoff",
+  "answer_set": true,
+  "question": "list_items is defined inside uucore. Which functions outside the uucore crate call it? Exclude imports, doc comments and tests, and treat a closure as part of its enclosing function. Return a set of qualified symbols: {\"answer\": [\"...\"]}.",
+  "expected_json": {
+   "answer": [
+    "src/uu/join/src/join.rs::parse_settings",
+    "src/uu/dd/src/diagnostics.rs::render"
+   ]
+  },
+  "evidence": [
+   {
+    "path": "src/uu/join/src/join.rs",
+    "contains": [
+     "fn parse_settings(matches: &clap::ArgMatches, diag_args: Option<&[OsString]>) -> UResult<Settings> {",
+     "for (part, span) in uucore::diagnostics::list_items(format, &[' ', ',', '\\t']) {"
+    ]
+   },
+   {
+    "path": "src/uu/dd/src/diagnostics.rs",
+    "contains": [
+     "fn render(args: &[OsString], operand: &str, error: &ParseError) -> bool {",
+     "list_items(&operand[value_start..], &[','])"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "diag-floor-chain",
+  "category": "transitive_blast_radius",
+  "stratum": "post_cutoff",
+  "question": "Starting at Snapshot::locate_operand in uucore's diagnostics, give the ordered chain of calls that reaches the free function floor_boundary, including both endpoints. Preserve call order. Return {\"answer\": [\"...\", \"...\", \"...\"]}.",
+  "expected_json": {
+   "answer": [
+    "src/uucore/src/lib/features/diagnostics.rs::Snapshot::locate_operand",
+    "src/uucore/src/lib/features/diagnostics.rs::Snapshot::floor_boundary",
+    "src/uucore/src/lib/features/diagnostics_boundary.rs::floor_boundary"
+   ]
+  },
+  "evidence": [
+   {
+    "path": "src/uucore/src/lib/features/diagnostics.rs",
+    "contains": [
+     "let start = self.floor_boundary(base + range.start.min(operand.len()));",
+     "floor_boundary(&self.text, offset)"
+    ]
+   },
+   {
+    "path": "src/uucore/src/lib/features/diagnostics_boundary.rs",
+    "contains": [
+     "pub fn floor_boundary(text: &str, offset: usize) -> usize {"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "diag-list-items-definition",
+  "category": "exact_lookup",
+  "stratum": "post_cutoff",
+  "question": "Where does the definition of list_items begin? Return the repository-relative path and the 1-based line of its signature: {\"answer\": {\"path\": \"...\", \"line\": 0}}.",
+  "expected_json": {
+   "answer": {
+    "path": "src/uucore/src/lib/features/diagnostics_boundary.rs",
+    "line": 149
+   }
+  },
+  "evidence": [
+   {
+    "path": "src/uucore/src/lib/features/diagnostics_boundary.rs",
+    "contains": [
+     "pub fn list_items<'a>("
+    ]
+   }
+  ]
+ },
+ {
+  "id": "hardware-detect-avx2-reference",
+  "category": "direct_caller_lookup",
+  "stratum": "pre_cutoff",
+  "question": "Which production function mentions detect_avx2, and does it call it directly by name rather than passing it as a value? Exclude tests. Return {\"answer\": {\"symbol\": \"repository-relative/file.rs::Type::method\", \"direct_call\": false}}.",
+  "expected_json": {
+   "answer": {
+    "symbol": "src/uucore/src/lib/features/hardware.rs::CpuFeatures::detect_impl",
+    "direct_call": false
+   }
+  },
+  "evidence": [
+   {
+    "path": "src/uucore/src/lib/features/hardware.rs",
+    "contains": [
+     "impl CpuFeatures {",
+     "fn detect_impl() -> Self {",
+     "(HardwareFeature::Avx2, detect_avx2),",
+     ".filter_map(|(feat, detect)| detect().then_some(feat))"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "sort-numinfo-parse",
+  "category": "exact_lookup",
+  "stratum": "pre_cutoff",
+  "question": "In sort's numeric string comparison module, one type owns a method named parse that returns both the parsed information and a byte range. Return its qualified symbol: {\"answer\": \"repository-relative/file.rs::Type::method\"}.",
+  "expected_json": {
+   "answer": "src/uu/sort/src/numeric_str_cmp.rs::NumInfo::parse"
+  },
+  "evidence": [
+   {
+    "path": "src/uu/sort/src/numeric_str_cmp.rs",
+    "contains": [
+     "impl NumInfo {",
+     "pub fn parse(num: &[u8], parse_settings: &NumInfoParseSettings) -> (Self, Range<usize>) {"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "fmt-knuth-plass-chain",
+  "category": "transitive_blast_radius",
+  "stratum": "pre_cutoff",
+  "question": "In fmt's line-breaking module, when the optimal algorithm is selected rather than the greedy one, give the ordered chain of calls from break_lines to find_kp_breakpoints, including both endpoints. Preserve call order. Return {\"answer\": [\"...\"]}.",
+  "expected_json": {
+   "answer": [
+    "src/uu/fmt/src/linebreak.rs::break_lines",
+    "src/uu/fmt/src/linebreak.rs::break_knuth_plass",
+    "src/uu/fmt/src/linebreak.rs::find_kp_breakpoints"
+   ]
+  },
+  "evidence": [
+   {
+    "path": "src/uu/fmt/src/linebreak.rs",
+    "contains": [
+     "pub fn break_lines(",
+     "break_knuth_plass(p_words_words, &mut break_args)",
+     "let breakpoints = find_kp_breakpoints(iter.clone(), args);"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "fmt-greedy-algorithm",
+  "category": "conceptual_lookup",
+  "stratum": "pre_cutoff",
+  "question": "One line-breaking routine is greedy: it prints words until the line is full rather than optimizing the whole paragraph. Return its qualified symbol: {\"answer\": \"repository-relative/file.rs::function\"}.",
+  "expected_json": {
+   "answer": "src/uu/fmt/src/linebreak.rs::break_simple"
+  },
+  "evidence": [
+   {
+    "path": "src/uu/fmt/src/linebreak.rs",
+    "contains": [
+     "fn break_simple<'a, T: Iterator<Item = &'a WordInfo<'a>>>("
+    ]
+   }
+  ]
+ },
+ {
+  "id": "sort-numeric-no-formatter",
+  "category": "symbol_resolution",
+  "stratum": "pre_cutoff",
+  "question": "Does src/uu/sort/src/numeric_str_cmp.rs define a function that formats a parsed number back into a display string? Return its qualified symbol, or null if the file defines no such function: {\"answer\": null}.",
+  "expected_json": {
+   "answer": null
+  },
+  "evidence": [
+   {
+    "path": "src/uu/sort/src/numeric_str_cmp.rs",
+    "contains": [
+     "pub fn human_numeric_str_cmp(",
+     "fn get_unit(unit: Option<u8>) -> u8 {"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "fmt-break-simple-callers",
+  "category": "mixed_discovery_structure",
+  "stratum": "pre_cutoff",
+  "answer_set": true,
+  "question": "Which production functions call break_simple? Exclude imports and tests, and treat a closure as part of its enclosing function. Return a set of qualified symbols: {\"answer\": [\"...\"]}.",
+  "expected_json": {
+   "answer": [
+    "src/uu/fmt/src/linebreak.rs::break_lines"
+   ]
+  },
+  "evidence": [
+   {
+    "path": "src/uu/fmt/src/linebreak.rs",
+    "contains": [
+     "pub fn break_lines(",
+     "break_simple(p_words_words, &mut break_args)"
+    ]
+   }
+  ]
+ }
+]
