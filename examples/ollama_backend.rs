@@ -17,6 +17,16 @@ use tokio::process::Command;
 #[path = "support/cache.rs"]
 mod cache;
 
+/// Every vector is scanned per query and the whole cache is held in memory, so this ceiling is
+/// storage and scan cost, not accuracy: 20000 chunks of 768 f64 is roughly 120 MB resident and a
+/// linear scan per query. Above it, use an ANN index instead of raising the number again.
+const MAX_CHUNKS: usize = 20000;
+
+/// nomic-embed-text rejects input beyond its context window; on dense table source that limit was
+/// reached near 2800 bytes, so windows are capped well below it. A backend that counts tokens for
+/// the configured model would not need this margin.
+const MAX_CHUNK_BYTES: usize = 2000;
+
 struct Chunk {
     path: String,
     start: usize,
@@ -44,14 +54,20 @@ fn chunks(workspace: &Workspace, files: Vec<String>) -> Result<(Vec<Chunk>, usiz
         };
         let lines: Vec<_> = text.lines().collect();
         for start in (0..lines.len()).step_by(24) {
-            let end = (start + 32).min(lines.len());
-            let text = lines[start..end].join("\n");
+            let mut end = (start + 32).min(lines.len());
+            let mut text = lines[start..end].join("\n");
+            // The embedding model rejects input past its context, so shrink the window to a byte
+            // budget rather than truncating text: the overlap shrinks, coverage does not.
+            while text.len() > MAX_CHUNK_BYTES && end > start + 1 {
+                end -= 1;
+                text = lines[start..end].join("\n");
+            }
             if text.trim().is_empty() {
                 continue;
             }
             ensure!(
-                text.len() <= 8000,
-                "chunk exceeds 8000 bytes; use a backend with token-aware chunking"
+                text.len() <= MAX_CHUNK_BYTES,
+                "one line exceeds the embedding chunk budget; use a backend with token-aware chunking"
             );
             chunks.push(Chunk {
                 path: path.clone(),
@@ -59,10 +75,10 @@ fn chunks(workspace: &Workspace, files: Vec<String>) -> Result<(Vec<Chunk>, usiz
                 end,
                 text,
             });
-            // Linear cosine ranking is limited to 1000 chunks; use an ANN backend above this ceiling.
+            // Linear cosine ranking is limited to MAX_CHUNKS; use an ANN backend above this ceiling.
             ensure!(
-                chunks.len() <= 1000,
-                "semantic backend supports at most 1000 chunks; configure a larger vector store for this repository"
+                chunks.len() <= MAX_CHUNKS,
+                "semantic backend supports at most 20000 chunks; configure a larger vector store for this repository"
             );
         }
     }
@@ -170,7 +186,7 @@ async fn main() -> Result<()> {
     let digest = model_digest(&model, &host).await?;
     // Enumeration and reads happen under the cache lock.
     let (chunks, skipped) = chunks(&workspace, files)?;
-    let identity = json!({"version":1,"root":workspace.root(),"model":model,"digest":digest,"endpoint":endpoint,"chunker":"lines-32-stride-24-v1"});
+    let identity = json!({"version":1,"root":workspace.root(),"model":model,"digest":digest,"endpoint":endpoint,"chunker":"lines-32-stride-24-max2000b-v2"});
     let previous = cache::Snapshot::load(&cache_path)?;
     let mut vectors = cache::reuse(previous.as_ref(), &identity, &chunks);
     let missing: Vec<_> = vectors

@@ -53,12 +53,17 @@ def snapshot(repository, destination):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--repository", type=Path, help="snapshot this checkout instead of the built-in projects")
+    parser.add_argument("--name", help="suite subdirectory for --repository")
     args = parser.parse_args()
+    if bool(args.repository) != bool(args.name):
+        parser.error("--repository and --name are used together")
+    projects = {args.name: args.repository} if args.repository else PROJECTS
     output = args.output.resolve()
-    if any(output.is_relative_to(root) for root in PROJECTS.values()):
+    if any(output.is_relative_to(root.resolve()) for root in projects.values()):
         parser.error("output must be outside the source repositories")
     output.mkdir(parents=True, exist_ok=False, mode=0o700)
-    for name, root in PROJECTS.items():
+    for name, root in projects.items():
         manifest = snapshot(root, output/name)
         print(json.dumps({"project": name, "revision":manifest["revision"],
                           "files":manifest["source_files"], "lines":manifest["source_lines"]}))

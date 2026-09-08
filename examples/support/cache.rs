@@ -11,7 +11,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-const MAX_CACHE_BYTES: u64 = 128 * 1024 * 1024;
+// JSON f64 vectors cost roughly 15 KB per chunk, so this bounds MAX_CHUNKS entries with headroom.
+// A binary vector file would cut it about tenfold if the cache ever needs to grow again.
+const MAX_CACHE_BYTES: u64 = 512 * 1024 * 1024;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 #[serde(deny_unknown_fields)]
@@ -116,7 +118,7 @@ impl Snapshot {
     }
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.identity["version"] == 1 && self.vectors.len() <= 1000,
+            self.identity["version"] == 1 && self.vectors.len() <= super::MAX_CHUNKS,
             "unsupported semantic cache format or size"
         );
         let mut dimensions = None;
