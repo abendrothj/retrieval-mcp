@@ -255,6 +255,41 @@ separate fields so both are checkable and neither is ambiguous, and score names 
 against the pinned corpus with a uniqueness requirement, rather than by string equality on a path.
 Block 1 can then be re-scored under that resolver, blind to condition, with both scores reported.
 
+## Offline quality pass (2026-09-08)
+
+Four graded measures over the 48 completed trials, no model calls: symbol resolution against the
+pinned corpus by ripgrep rather than string equality on a path, graded credit for partly-right sets
+and chains, file-level evidence coverage from the server logs, and wrong answers split into declined
+and fabricated. The resolver disambiguates a repeated name using the crate or module the answer
+itself supplied, and consults nothing about the gold.
+
+| Cell | strict | resolved | credit | evidence found | declined | fabricated |
+|---|---:|---:|---:|---:|---:|---:|
+| A baseline | 4/12 | 7/12 | 0.61 | 12/12 | 4 | 1 |
+| A + primer | 6/12 | 8/12 | 0.69 | 12/12 | 3 | 1 |
+| D free | 5/12 | **9/12** | **0.78** | 12/12 | 2 | 1 |
+| D semantic first | 6/12 | 8/12 | 0.67 | 12/12 | 4 | 0 |
+| N control | 0/12 | 1/12 | 0.08 | 0/12 | 5 | 6 |
+
+Three findings the strict score hid.
+
+**Evidence coverage is saturated.** Every trial in every tool cell retrieved at least one gold
+evidence file - 48 of 48. Finding the evidence is not the bottleneck in any condition, including
+grep and reads alone, so no amount of better search can move these outcomes. The differences are
+entirely downstream of retrieval, in what the model does with material it already has. (File-level;
+whether the right lines were read, and read before the claim, is not measured here.)
+
+**D free routing is the best cell on both graded measures** and was already the cheapest in calls.
+That reverses the efficiency reading twice over: tools earn their keep, and the primer, while still
+positive, buys less than availability does. Forcing the semantic opener is worse than free routing on
+graded quality despite an identical strict score, so the model's reluctance to route semantically
+looks better under the better measure, not worse.
+
+**Retrieval converts fabrication into abstention.** With tools the model invents an answer at most
+once per cell and otherwise declines; without tools it invents six times in twelve. For a production
+audience that is arguably the most useful result here: the server's contribution is not only accuracy
+but the replacement of confident wrong identifiers with an admission of ignorance.
+
 ## Analysis commitments
 
 Primary availability contrasts: B−A, C−A, D−A within each help level under free routing. Primary first-tool contrasts: lexical-first−free and semantic-first−free within each help level under D. Primary syntax contrasts: primer−baseline within each of the six availability/policy combinations. Other generated one-factor contrasts are exploratory, not additional primary claims.

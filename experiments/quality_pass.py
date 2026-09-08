@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""Graded quality measures over completed trials. No model calls, no reruns.
+
+Four axes the strict path-string score cannot express: whether a written symbol resolves to the gold
+definition however it was spelled, how close a partly-right set or chain came, whether the evidence
+was ever retrieved at all, and whether a wrong answer was declined or invented. Symbol resolution
+uses ripgrep over the pinned corpus, never the structural index under test.
+"""
+import argparse
+from collections import Counter
+import json
+from pathlib import Path
+import re
+import subprocess
+
+DEFINITION = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:default\s+|const\s+|async\s+|unsafe\s+|extern\s+\"[^\"]*\"\s+)*"
+                        r"fn\s+([A-Za-z0-9_]+)|^\s*def\s+([A-Za-z0-9_]+)")
+DECLINE = re.compile(r"\b(cannot|can't|could not|couldn't|unable|do not have|don't have|no reliable|not able)\b", re.I)
+
+
+def definitions(corpus):
+    """identifier -> set of paths that define it, from source text alone."""
+    found = subprocess.run(["rg", "--no-config", "-n", "--no-heading", "-e", r"^\s*(pub\s+)?(async\s+)?fn\s+[A-Za-z0-9_]+",
+                            "-e", r"^\s*def\s+[A-Za-z0-9_]+", "-g", "*.rs", "-g", "*.py", "."],
+                           cwd=corpus, capture_output=True, text=True, timeout=120)
+    index = {}
+    for line in found.stdout.splitlines():
+        parts = line.split(":", 2)
+        if len(parts) != 3:
+            continue
+        match = DEFINITION.match(parts[2])
+        if match:
+            name = match.group(1) or match.group(2)
+            index.setdefault(name, set()).add(parts[0].lstrip("./"))
+    return index
+
+
+def parse_symbol(written):
+    """(type, name) from any spelling: a path, a Rust module path, or a bare name."""
+    if not isinstance(written, str):
+        return None
+    parts = [p for p in re.split(r"::|/", written.strip()) if p and not p.endswith((".rs", ".py"))]
+    if not parts:
+        return None
+    name = parts[-1]
+    owner = parts[-2] if len(parts) > 1 and parts[-2][:1].isupper() else None
+    return owner, name
+
+
+def resolve(written, index):
+    """The unique defining path for a written symbol, or None when absent or still ambiguous.
+
+    A name defined in several files is disambiguated by the rest of what was written - a crate,
+    module or directory segment - which is the context the answer actually supplied. Segments are
+    matched against the path mechanically; nothing about the gold answer is consulted.
+    """
+    parsed = parse_symbol(written)
+    if not parsed:
+        return None
+    paths = index.get(parsed[1], set())
+    if len(paths) > 1:
+        segments = [s.lower().removeprefix("uu_") for s in re.split(r"::|/", written)
+                    if s and s not in (parsed[1], parsed[0]) and not s.endswith((".rs", ".py"))]
+        narrowed = {p for p in paths if all(s in p.lower() for s in segments)} if segments else paths
+        paths = narrowed if len(narrowed) == 1 else paths
+    return (sorted(paths)[0], parsed) if len(paths) == 1 else None
+
+
+def same(written, gold, index):
+    if not isinstance(gold, str):
+        return written == gold
+    left, right = resolve(written, index), resolve(gold, index)
+    if left and right:
+        return left[0] == right[0] and left[1][1] == right[1][1] and (
+            left[1][0] == right[1][0] or None in (left[1][0], right[1][0]))
+    return str(written).strip() == gold
+
+
+def credit(got, gold, index):
+    """Graded closeness in [0, 1]; sets by overlap, chains by correct prefix, scalars exact."""
+    if isinstance(gold, list):
+        if not isinstance(got, list):
+            return 0.0
+        matched = sum(any(same(g, expected, index) for g in got) for expected in gold)
+        extra = max(0, len(got) - len(gold))
+        return max(0.0, (matched - extra) / len(gold))
+    if isinstance(gold, dict):
+        if not isinstance(got, dict) or set(got) != set(gold):
+            return 0.0
+        return sum(same(got[k], gold[k], index) for k in gold) / len(gold)
+    return float(same(got, gold, index)) if gold is not None else float(got is None)
+
+
+def answer_json(text):
+    for block in re.findall(r"```(?:json)?[ \t]*\n(.*?)\n?```", text or "", re.DOTALL):
+        try:
+            parsed = json.loads(block.strip())
+        except ValueError:
+            continue
+        if isinstance(parsed, dict) and set(parsed) == {"answer"}:
+            return parsed["answer"]
+    try:
+        parsed = json.loads((text or "").strip())
+        return parsed["answer"] if isinstance(parsed, dict) and set(parsed) == {"answer"} else None
+    except (ValueError, TypeError):
+        return None
+
+
+def evidence_paths(attempt):
+    """Every path the retrieval layer returned or read in this attempt."""
+    seen = set()
+    log = attempt/"server.jsonl"
+    if not log.exists():
+        return seen
+    for line in log.read_text().splitlines():
+        event = json.loads(line)
+        if event.get("event") != "tool_end":
+            continue
+        for location in event.get("locations") or []:
+            if location.get("path"):
+                seen.add(location["path"])
+        path = (event.get("arguments") or {}).get("path")
+        if path and event.get("tool") == "read_source":
+            seen.add(path)
+    return seen
+
+
+def report(directories, questions_path, corpus):
+    questions = {q["id"]: q for q in json.loads(Path(questions_path).read_text())}
+    index = definitions(Path(corpus))
+    cells = {}
+    for directory in directories:
+        for trial in sorted(Path(directory).glob("trial-*")):
+            attempts = sorted(trial.glob("attempt-*/run.json"))
+            record = json.loads(attempts[-1].read_text())
+            if record["status"] != "completed":
+                continue
+            task = questions[record["task_id"]]
+            gold = task["expected_json"]["answer"]
+            got = answer_json(record.get("answer"))
+            score = credit(got, gold, index)
+            wanted = {e["path"] for e in task["evidence"]}
+            retrieved = evidence_paths(attempts[-1].parent)
+            row = cells.setdefault(record["condition"], {"trials":0, "strict":0, "resolved":0,
+                "credit":0.0, "evidence_hits":0, "declined":0, "fabricated":0, "notation_only":[]})
+            row["trials"] += 1
+            row["strict"] += record["payload_matches"] is True
+            row["resolved"] += score == 1.0
+            row["credit"] += score
+            row["evidence_hits"] += bool(wanted & retrieved) if retrieved else 0
+            if score < 1.0:
+                # An empty answer, an explicit null, or a stated inability are all declines;
+                # a named symbol that is simply wrong is not.
+                empty = got in (None, [], "")
+                row["declined" if empty or (got is None and DECLINE.search(record.get("answer") or ""))
+                    else "fabricated"] += 1
+            if score == 1.0 and record["payload_matches"] is not True:
+                row["notation_only"].append(record["task_id"])
+    for row in cells.values():
+        row["credit"] = round(row["credit"]/row["trials"], 3) if row["trials"] else None
+    return {"version":"quality-pass-v1", "cells":cells, "definitions_indexed":len(index),
+            "measures":{"strict":"frozen json-answer-v3 payload equality on the path string",
+                        "resolved":"identifier resolved to a unique definition in the pinned corpus by ripgrep",
+                        "credit":"graded closeness: sets by overlap less extras, dicts per key, scalars exact",
+                        "evidence_hits":"a gold evidence file was returned or read at least once",
+                        "declined":"wrong and the reply states it cannot answer",
+                        "fabricated":"wrong and stated as an answer"},
+            "limitations":"Resolution requires a unique definition, so an ambiguous name scores wrong. "
+                          "Evidence coverage is file-level, not line-level, and says nothing about whether "
+                          "the evidence was read before the claim. Twelve questions, one repetition."}
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("directories", nargs="+")
+    parser.add_argument("--questions", default="experiments/v2_questions_draft.json")
+    parser.add_argument("--corpus", default="../runs/projects-v2-suite/coreutils/corpus")
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args()
+    result = report(args.directories, args.questions, args.corpus)
+    if args.output:
+        with args.output.open("x") as stream:
+            json.dump(result, stream, indent=2)
+            stream.write("\n")
+    print(f"{'cell':28s} {'strict':>7s} {'resolved':>9s} {'credit':>7s} {'evidence':>9s} {'declined':>9s} {'fabricated':>11s}")
+    for cell, row in sorted(result["cells"].items()):
+        n = row["trials"]
+        print(f"{cell:28s} {row['strict']:>4d}/{n:<2d} {row['resolved']:>6d}/{n:<2d} {row['credit']:>7.2f}"
+              f" {row['evidence_hits']:>6d}/{n:<2d} {row['declined']:>9d} {row['fabricated']:>11d}")
