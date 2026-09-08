@@ -7,8 +7,41 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+import benchmark
+
 from factor_runner import run
 from analyze_factors import report
+
+
+class GradingV3Tests(unittest.TestCase):
+    """V3 exists because a model answering about code quotes code; a source block is not an answer."""
+    task = {"expected_json": {"answer": "src/x.rs::T::m"}}
+
+    def grade(self, text):
+        return benchmark.grade_answer(self.task, text, "json-answer-v3")
+
+    def test_a_quoted_source_block_no_longer_hides_the_answer(self):
+        reply = 'Found it.\n```rust\npub fn parse() {}\n```\n```json\n{"answer": "src/x.rs::T::m"}\n```'
+        self.assertEqual(benchmark.grade_answer(self.task, reply)["correct"], False)
+        graded = self.grade(reply)
+        self.assertTrue(graded["correct"])
+        self.assertFalse(graded["format_correct"], "prose and fences still fail compliance")
+
+    def test_bare_object_passes_both(self):
+        graded = self.grade('{"answer": "src/x.rs::T::m"}')
+        self.assertTrue(graded["correct"] and graded["format_correct"])
+
+    def test_two_answer_blocks_stay_ambiguous(self):
+        self.assertFalse(self.grade('```json\n{"answer": "a"}\n```\n```json\n{"answer": "src/x.rs::T::m"}\n```')["correct"])
+
+    def test_prose_alone_and_wrong_values_fail(self):
+        self.assertFalse(self.grade("The answer is T::m in src/x.rs.")["correct"])
+        self.assertFalse(self.grade('```json\n{"answer": "src/y.rs::T::m"}\n```')["correct"])
+
+    def test_v2_callers_are_unchanged(self):
+        reply = '```json\n{"answer": "src/x.rs::T::m"}\n```'
+        self.assertEqual(benchmark.grade_answer(self.task, reply)["grading"], "json-answer-v2")
+        self.assertTrue(benchmark.grade_answer(self.task, reply)["correct"])
 
 
 class FactorRunnerTests(unittest.TestCase):
@@ -46,6 +79,18 @@ class FactorRunnerTests(unittest.TestCase):
             self.assertEqual(json.loads((attempts[0]/"mcp.json").read_text()), {"mcpServers": {}})
             self.assertFalse((attempts[0]/"policy.jsonl").exists())
             self.assertIsNone(records["A"]["control_without_retrieval"])
+
+    def test_unconnected_retrieval_server_fails_the_trial(self):
+        transcript = Path(tempfile.mkdtemp())/"transcript.jsonl"
+        transcript.write_text(json.dumps({"type":"system", "subtype":"init", "tools":[],
+            "mcp_servers":[{"name":"retrieval", "status":"failed"}]}) + "\n" +
+            json.dumps({"type":"result", "is_error":False, "result":"{\"answer\": 1}"}) + "\n")
+        outcome = benchmark.transcript_outcome(transcript)
+        self.assertEqual(outcome["mcp_failures"], ["retrieval:failed"])
+        self.assertIsNotNone(outcome["answer"], "an answer without retrieval must not read as success")
+        transcript.write_text(json.dumps({"type":"system", "subtype":"init", "tools":["mcp__retrieval__search_exact"],
+            "mcp_servers":[{"name":"retrieval", "status":"connected"}]}) + "\n")
+        self.assertEqual(benchmark.transcript_outcome(transcript)["mcp_failures"], [])
 
     def test_real_matrix_resume_and_interrupted_attempt_preservation(self):
         script = Path(__file__).with_name("factor_runner.py")

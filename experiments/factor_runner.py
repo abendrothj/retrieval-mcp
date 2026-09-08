@@ -17,6 +17,8 @@ from types import SimpleNamespace
 import benchmark
 from plan_factors import plan
 
+GRADING = "json-answer-v3"
+
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -74,7 +76,7 @@ def run(args):
     if args.client == "scripted" and (root != Path(__file__).with_name("sample_repo").resolve() or len(tasks) != 1 or tasks[0]["id"] != "delay-cap"):
         raise ValueError("scripted mode is only a plumbing test of the bundled delay-cap fixture")
     for task in tasks:
-        if not benchmark.grade_answer(task, json.dumps(task["expected_json"]))["correct"]:
+        if not benchmark.grade_answer(task, json.dumps(task["expected_json"]), GRADING)["correct"]:
             raise ValueError("invalid typed gold")
     keep = [c.strip() for c in args.cells.split(",") if c.strip()] if args.cells else None
     schedule = plan(tasks, args.repetitions, args.seed, args.control, keep)
@@ -139,8 +141,10 @@ def run(args):
             command = [str(server), "--root", str(root), "--profile", cell["availability"],
                 "--log-file", str(attempt/"server.jsonl"), "--run-id", f"trial-{index:04d}-{len(attempts)+1}",
                 "--timeout-seconds", str(args.tool_timeout)]
-            semantic = args.semantic_command if args.client == "claude" else [sys.executable, str(Path(__file__).with_name("test_experiments.py")), "--fake-semantic"]
-            command += ["--semantic-command", json.dumps(semantic)]
+            if "search_semantic" in benchmark.TOOLS[cell["availability"]]:
+                semantic = args.semantic_command if args.client == "claude" else [sys.executable,
+                    str(Path(__file__).with_name("test_experiments.py")), "--fake-semantic"]
+                command += ["--semantic-command", json.dumps(semantic)]
             gate_config = {"profile":cell["availability"], "policy":cell["routing"], "max_calls":args.max_calls,
                 "max_bytes":args.max_bytes, "gate_log":str(attempt/"policy.jsonl"), "stderr":str(attempt/"server-stderr.log"),
                 "command":command, "root":str(root), "timeout":args.tool_timeout}
@@ -170,10 +174,15 @@ def run(args):
                         benchmark.stop_process(process)
                 outcome = benchmark.transcript_outcome(attempt/"transcript.jsonl")
                 state.update(outcome)
-                state["status"] = "completed" if process.returncode == 0 and outcome["answer"] is not None and not outcome["client_error"] else "failed"
-                state["grading"] = "factor-strict-json-v1"
+                # The control declares no servers, so an empty failure list is right for every cell.
+                healthy = not outcome["mcp_failures"]
+                state["status"] = ("completed" if process.returncode == 0 and outcome["answer"] is not None
+                                   and not outcome["client_error"] and healthy else "failed")
+                if not healthy:
+                    state["error"] = f"retrieval server unavailable: {outcome['mcp_failures']}"
                 # Freeze a conservative primary rule; supplementary prose review is separate.
-                scored = benchmark.grade_answer(questions[trial["task_id"]], outcome["answer"])
+                scored = benchmark.grade_answer(questions[trial["task_id"]], outcome["answer"], GRADING)
+                state["grading"] = scored["grading"]
                 state["payload_matches"] = scored["correct"]
                 state["format_correct"] = scored["format_correct"]
                 state["correct"] = scored["correct"] and scored["format_correct"]

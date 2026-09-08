@@ -172,7 +172,7 @@ def agent_command(args, directory, profile):
 
 
 def transcript_outcome(path):
-    final, usage, client_error, unexpected = None, None, None, set()
+    final, usage, client_error, unexpected, mcp_failures = None, None, None, set(), set()
     with path.open(encoding="utf-8") as stream:
         for line in stream:
             event = json.loads(line)
@@ -180,6 +180,11 @@ def transcript_outcome(path):
                 final, usage = event.get("result"), event.get("usage")
                 if event.get("is_error"):
                     client_error = event.get("subtype", "client_error")
+            # A server that failed to connect leaves the model with no retrieval and no error.
+            if event.get("type") == "system" and event.get("subtype") == "init":
+                for server in event.get("mcp_servers") or []:
+                    if server.get("status") != "connected":
+                        mcp_failures.add(f"{server.get('name')}:{server.get('status')}")
             if event.get("type") == "assistant":
                 for block in event.get("message", {}).get("content", []):
                     if block.get("type") == "tool_use":
@@ -198,10 +203,11 @@ def transcript_outcome(path):
                 unexpected.add(item["type"])
             if item.get("type") == "mcp_tool_call" and item.get("server") != "retrieval":
                 unexpected.add("other_mcp_server")
-    return {"answer": final, "usage": usage, "client_error": client_error, "unexpected_tools": sorted(unexpected)}
+    return {"answer": final, "usage": usage, "client_error": client_error,
+            "unexpected_tools": sorted(unexpected), "mcp_failures": sorted(mcp_failures)}
 
 
-def grade_answer(task, answer):
+def grade_answer(task, answer, version="json-answer-v2"):
     """Versioned, deterministic grading; never infer correctness from a tool sequence."""
     if "expected_json" not in task:
         correct = answer.strip() == task["expected"].strip() if isinstance(answer, str) and "expected" in task else None
@@ -209,8 +215,6 @@ def grade_answer(task, answer):
     # Grade one structured answer, never a value guessed from prose. V2 permits
     # surrounding prose when exactly one fenced JSON answer is present; format still fails.
     text = answer.strip() if isinstance(answer, str) else ""
-    fenced = re.search(r"```(?:json)?[ \t]*\n(.*?)\n```", text, re.DOTALL) if text.count("```") == 2 else None
-    payload = fenced[1].strip() if fenced else text
     def unique_object(pairs):
         result = {}
         for key, value in pairs:
@@ -218,6 +222,24 @@ def grade_answer(task, answer):
                 raise ValueError("duplicate JSON key")
             result[key] = value
         return result
+    if version == "json-answer-v3":
+        # On a code corpus a model quotes source, so a second fence is ordinary. V3 reads the one
+        # fenced block that is an {"answer": ...} object and ignores blocks that are not; two such
+        # blocks stay ambiguous and fail. Format still requires a bare object.
+        candidates = []
+        for block in re.findall(r"```[A-Za-z0-9_+-]*[ \t]*\n(.*?)\n?```", text, re.DOTALL):
+            try:
+                parsed = json.loads(block.strip(), object_pairs_hook=unique_object)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(parsed, dict) and set(parsed) == {"answer"}:
+                candidates.append(block.strip())
+        if len(candidates) > 1:
+            return {"correct": False, "format_correct": False, "grading": version}
+        fenced, payload = (True, candidates[0]) if candidates else (False, text)
+    else:
+        match = re.search(r"```(?:json)?[ \t]*\n(.*?)\n```", text, re.DOTALL) if text.count("```") == 2 else None
+        fenced, payload = (True, match[1].strip()) if match else (False, text)
     try:
         actual = json.loads(payload, object_pairs_hook=unique_object)
         expected = task["expected_json"]
@@ -231,9 +253,9 @@ def grade_answer(task, answer):
         else:
             correct = encode(actual) == encode(expected)
         valid_format = isinstance(actual, dict) and set(actual) == {"answer"} and not fenced
-        return {"correct": correct, "format_correct": bool(valid_format), "grading": "json-answer-v2"}
+        return {"correct": correct, "format_correct": bool(valid_format), "grading": version}
     except (ValueError, TypeError):
-        return {"correct": False, "format_correct": False, "grading": "json-answer-v2"}
+        return {"correct": False, "format_correct": False, "grading": version}
 
 
 def run(args):
