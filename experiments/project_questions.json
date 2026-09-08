@@ -1,0 +1,802 @@
+{
+  "schema_version": 1,
+  "revisions": {
+    "modelshare": "09605b68ef034dd6d2b340d6fdb76f9a1041802c",
+    "pig": "3d0966cd34f4f4ef93b33173c6d137f0a0fc571c",
+    "sigil": "94057b8624bea5dc90728badaddb0321237931fc"
+  },
+  "projects": {
+    "modelshare": [
+      {
+        "id": "modelshare-minimum-size",
+        "repository_id": "modelshare",
+        "category": "exact_lookup",
+        "question": "What is the value of MIN_MODEL_SIZE in bytes? Return the integer.",
+        "expected_json": {
+          "answer": 10485760
+        },
+        "evidence": [
+          {
+            "path": "src/scanner.rs",
+            "contains": [
+              "const MIN_MODEL_SIZE: u64 = 10 * 1024 * 1024"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modelshare-hash-mismatch",
+        "repository_id": "modelshare",
+        "category": "exact_lookup",
+        "question": "Which production function emits the diagnostic beginning 'Canonical artifact hash mismatch: expected'? Return its qualified symbol.",
+        "expected_json": {
+          "answer": "src/transaction.rs::verify_canonical_identity"
+        },
+        "evidence": [
+          {
+            "path": "src/transaction.rs",
+            "contains": [
+              "pub fn verify_canonical_identity(",
+              "Canonical artifact hash mismatch: expected"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modelshare-rollback-link",
+        "repository_id": "modelshare",
+        "category": "conceptual_lookup",
+        "question": "Locate the production routine that renames an existing target to a backup, replaces it with a filesystem link to a canonical artifact, verifies the link, and restores the backup on failure. Return its qualified symbol.",
+        "expected_json": {
+          "answer": "src/operations.rs::safe_replace_with_link"
+        },
+        "evidence": [
+          {
+            "path": "src/operations.rs",
+            "contains": [
+              "pub fn safe_replace_with_link(",
+              "fs::rename(target, &backup_path)",
+              "restore_backup(target, &backup)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modelshare-duplicate-groups",
+        "repository_id": "modelshare",
+        "category": "conceptual_lookup",
+        "question": "Locate the production routine that groups artifact paths by content digest and returns only groups containing multiple copies. Return its qualified symbol.",
+        "expected_json": {
+          "answer": "src/scanner.rs::Scanner::find_duplicates"
+        },
+        "evidence": [
+          {
+            "path": "src/scanner.rs",
+            "contains": [
+              "pub fn find_duplicates(",
+              "filter(|(_, copies)| copies.len() > 1)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modelshare-scanner-constructor",
+        "repository_id": "modelshare",
+        "category": "symbol_resolution",
+        "question": "Resolve the concrete new method whose parameter is search_paths: Vec<PathBuf> and which stores those paths for discovery. Return its qualified symbol, not a database or runtime constructor.",
+        "expected_json": {
+          "answer": "src/scanner.rs::Scanner::new"
+        },
+        "evidence": [
+          {
+            "path": "src/scanner.rs",
+            "contains": [
+              "impl Scanner",
+              "pub fn new(search_paths: Vec<PathBuf>)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modelshare-report-summary",
+        "repository_id": "modelshare",
+        "category": "symbol_resolution",
+        "question": "Resolve the summary method that formats the total_checked, total_ok, and total_issues fields. Return its qualified symbol including the receiver type.",
+        "expected_json": {
+          "answer": "src/verification.rs::DoctorReport::summary"
+        },
+        "evidence": [
+          {
+            "path": "src/verification.rs",
+            "contains": [
+              "impl DoctorReport",
+              "pub fn summary(&self)",
+              "self.total_checked, self.total_ok, self.total_issues"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modelshare-backup-callers",
+        "repository_id": "modelshare",
+        "category": "direct_caller_lookup",
+        "question": "Within production src/operations.rs, identify the distinct direct caller of the free function backup_path. Exclude tests and count repeated call sites only once. Return its qualified symbol.",
+        "expected_json": {
+          "answer": "src/operations.rs::safe_replace_with_link"
+        },
+        "evidence": [
+          {
+            "path": "src/operations.rs",
+            "contains": [
+              "let backup_path = backup_path(target)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modelshare-hash-batch-callers",
+        "repository_id": "modelshare",
+        "category": "direct_caller_lookup",
+        "question": "Which distinct production functions or methods directly call Scanner::hash_batch anywhere under src/? Exclude tests and do not include transitive callers. Return the set of qualified symbols.",
+        "expected_json": {
+          "answer": [
+            "src/adapters/lmstudio.rs::discover_models_in",
+            "src/cli/sync.rs::consolidate_all",
+            "src/scanner.rs::Scanner::scan"
+          ]
+        },
+        "answer_set": true,
+        "evidence": [
+          {
+            "path": "src/adapters/lmstudio.rs",
+            "contains": [
+              "scanner.hash_batch(&candidates)"
+            ]
+          },
+          {
+            "path": "src/cli/sync.rs",
+            "contains": [
+              "fn consolidate_all",
+              "scanner.hash_batch(&scanner.discover())"
+            ]
+          },
+          {
+            "path": "src/scanner.rs",
+            "contains": [
+              "self.hash_batch(&candidates)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modelshare-scan-hash-chain",
+        "repository_id": "modelshare",
+        "category": "transitive_blast_radius",
+        "question": "Give the ordered project-defined call chain from Scanner::scan to Scanner::hash_file along the batch-hashing branch. Include both endpoints; exclude tests, library calls and anonymous closures. Return an ordered array of qualified symbols.",
+        "expected_json": {
+          "answer": [
+            "src/scanner.rs::Scanner::scan",
+            "src/scanner.rs::Scanner::hash_batch",
+            "src/scanner.rs::Scanner::hash_file"
+          ]
+        },
+        "evidence": [
+          {
+            "path": "src/scanner.rs",
+            "contains": [
+              "pub fn scan(",
+              "self.hash_batch(&candidates)",
+              "self.hash_file(p)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modelshare-hash-blast",
+        "repository_id": "modelshare",
+        "category": "transitive_blast_radius",
+        "question": "Within production src/scanner.rs only, which methods other than Scanner::hash_file itself can reach hash_file through one or more explicit calls? Exclude tests and library methods, and treat closure bodies as part of their enclosing method. Return the set of qualified symbols.",
+        "expected_json": {
+          "answer": [
+            "src/scanner.rs::Scanner::hash_batch",
+            "src/scanner.rs::Scanner::scan"
+          ]
+        },
+        "answer_set": true,
+        "evidence": [
+          {
+            "path": "src/scanner.rs",
+            "contains": [
+              "pub fn hash_batch(",
+              "self.hash_file(p)",
+              "pub fn scan(",
+              "self.hash_batch(&candidates)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modelshare-identity-check-caller",
+        "repository_id": "modelshare",
+        "category": "mixed_discovery_structure",
+        "question": "Find the pre-mutation routine that checks a canonical artifact still exists and matches its recorded size and digest. Then identify its direct production caller under src/. Return an object with implementation and caller, both qualified symbols.",
+        "expected_json": {
+          "answer": {
+            "implementation": "src/transaction.rs::verify_canonical_identity",
+            "caller": "src/cli/adopt.rs::run"
+          }
+        },
+        "evidence": [
+          {
+            "path": "src/transaction.rs",
+            "contains": [
+              "pub fn verify_canonical_identity(",
+              "actual_hash != artifact.sha256"
+            ]
+          },
+          {
+            "path": "src/cli/adopt.rs",
+            "contains": [
+              "verify_canonical_identity(&canonical, &scanner)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "modelshare-formatting-fanin",
+        "repository_id": "modelshare",
+        "category": "mixed_discovery_structure",
+        "question": "Discover the helper that formats byte counts using binary scaling and B/KB/MB/GB/TB units. Which methods directly call it within production src/artifact.rs? Return an object with implementation (qualified symbol) and callers (lexicographically sorted array of qualified symbols).",
+        "expected_json": {
+          "answer": {
+            "implementation": "src/artifact.rs::human_bytes",
+            "callers": [
+              "src/artifact.rs::Artifact::size_display",
+              "src/artifact.rs::DuplicateGroup::wasted_display"
+            ]
+          }
+        },
+        "evidence": [
+          {
+            "path": "src/artifact.rs",
+            "contains": [
+              "pub fn human_bytes(",
+              "human_bytes(self.size)",
+              "human_bytes(self.wasted_bytes())"
+            ]
+          }
+        ]
+      }
+    ],
+    "pig": [
+      {
+        "id": "pig-forced-worker-error",
+        "repository_id": "pig",
+        "category": "exact_lookup",
+        "question": "Which production function constructs the exact rejection reason 'forced worker is not registered'? Return its qualified symbol.",
+        "expected_json": {
+          "answer": "core/model/scheduler.rs::schedule"
+        },
+        "evidence": [
+          {
+            "path": "core/model/scheduler.rs",
+            "contains": [
+              "pub fn schedule(",
+              "forced worker is not registered"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pig-queue-penalty",
+        "repository_id": "pig",
+        "category": "exact_lookup",
+        "question": "In score_placement, how many score points are subtracted per active queued request? Return the positive integer magnitude.",
+        "expected_json": {
+          "answer": 5
+        },
+        "evidence": [
+          {
+            "path": "core/model/scheduler.rs",
+            "contains": [
+              "value: -(worker.queue_depth as i64) * 5"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pig-deterministic-placement",
+        "repository_id": "pig",
+        "category": "conceptual_lookup",
+        "question": "Find the pure production routine that evaluates worker/model pairs, retains explicit rejection reasons, ranks eligible placements, and breaks equal scores by worker ID then model ID. Return its qualified symbol.",
+        "expected_json": {
+          "answer": "core/model/scheduler.rs::schedule"
+        },
+        "evidence": [
+          {
+            "path": "core/model/scheduler.rs",
+            "contains": [
+              "pub fn schedule(",
+              "match check_hard_constraints(",
+              "then_with(|| a.worker_id.0.cmp",
+              "then_with(|| a.model_id.0.cmp"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pig-unknown-compatible",
+        "repository_id": "pig",
+        "category": "conceptual_lookup",
+        "question": "Locate the generic production helper that compares two optional values for equality only when both are known, treating either missing value as compatible. Return its qualified symbol.",
+        "expected_json": {
+          "answer": "core/model/benchmark.rs::opt_eq_when_both_known"
+        },
+        "evidence": [
+          {
+            "path": "core/model/benchmark.rs",
+            "contains": [
+              "fn opt_eq_when_both_known",
+              "(Some(x), Some(y)) => x == y",
+              "_ => true"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pig-fingerprint-method",
+        "repository_id": "pig",
+        "category": "symbol_resolution",
+        "question": "Resolve the matches method that compares model_id, backend, worker_hardware_fingerprint, and optional benchmark settings. Return its qualified symbol including the implementing type.",
+        "expected_json": {
+          "answer": "core/model/benchmark.rs::BenchmarkFingerprint::matches"
+        },
+        "evidence": [
+          {
+            "path": "core/model/benchmark.rs",
+            "contains": [
+              "impl BenchmarkFingerprint",
+              "pub fn matches(&self, current: &BenchmarkFingerprint)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pig-queue-depth-method",
+        "repository_id": "pig",
+        "category": "symbol_resolution",
+        "question": "Resolve queue_depth, the method calculating admitted-but-not-running jobs from max_queued and available semaphore permits. Return its qualified symbol including the implementing type.",
+        "expected_json": {
+          "answer": "worker/job.rs::WorkerRuntime::queue_depth"
+        },
+        "evidence": [
+          {
+            "path": "worker/job.rs",
+            "contains": [
+              "impl WorkerRuntime",
+              "pub fn queue_depth(&self)",
+              "saturating_sub(self.queue_slots.available_permits())"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pig-schedule-callers",
+        "repository_id": "pig",
+        "category": "direct_caller_lookup",
+        "question": "Within production worker/coordinator.rs, which distinct methods directly call the free scheduling function schedule from core/model/scheduler.rs? Exclude tests and transitive callers. Return the set of qualified symbols.",
+        "expected_json": {
+          "answer": [
+            "worker/coordinator.rs::Coordinator::route",
+            "worker/coordinator.rs::Coordinator::selected_worker_supports_tools",
+            "worker/coordinator.rs::Coordinator::stream"
+          ]
+        },
+        "answer_set": true,
+        "evidence": [
+          {
+            "path": "worker/coordinator.rs",
+            "contains": [
+              "pub fn route(",
+              "pub fn selected_worker_supports_tools(",
+              "pub async fn stream(",
+              "let route = schedule(",
+              "let explanation = schedule("
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pig-optional-match-caller",
+        "repository_id": "pig",
+        "category": "direct_caller_lookup",
+        "question": "Within production core/model/benchmark.rs, which distinct method directly calls opt_eq_when_both_known? Count its multiple call sites as one caller. Return its qualified symbol.",
+        "expected_json": {
+          "answer": "core/model/benchmark.rs::BenchmarkFingerprint::matches"
+        },
+        "evidence": [
+          {
+            "path": "core/model/benchmark.rs",
+            "contains": [
+              "pub fn matches(",
+              "opt_eq_when_both_known(&self.backend_version"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pig-route-constraints-chain",
+        "repository_id": "pig",
+        "category": "transitive_blast_radius",
+        "question": "Give the ordered project-defined call chain from Coordinator::route to check_hard_constraints along the scheduling branch. Include both endpoints; omit worker snapshot collection, library calls and closures. Return an ordered array of qualified symbols.",
+        "expected_json": {
+          "answer": [
+            "worker/coordinator.rs::Coordinator::route",
+            "core/model/scheduler.rs::schedule",
+            "core/model/scheduler.rs::check_hard_constraints"
+          ]
+        },
+        "evidence": [
+          {
+            "path": "worker/coordinator.rs",
+            "contains": [
+              "schedule(request, &self.registry"
+            ]
+          },
+          {
+            "path": "core/model/scheduler.rs",
+            "contains": [
+              "match check_hard_constraints("
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pig-benchmark-path-impact",
+        "repository_id": "pig",
+        "category": "transitive_blast_radius",
+        "question": "Within production core/model/benchmark.rs, list every function other than benchmark_store_dir itself that can reach benchmark_store_dir by one or more explicit project-defined calls. Exclude tests and library functions. Return the set of qualified symbols.",
+        "expected_json": {
+          "answer": [
+            "core/model/benchmark.rs::benchmark_file_path",
+            "core/model/benchmark.rs::latest_matching_benchmark",
+            "core/model/benchmark.rs::load_benchmark_records",
+            "core/model/benchmark.rs::record_benchmark"
+          ]
+        },
+        "answer_set": true,
+        "evidence": [
+          {
+            "path": "core/model/benchmark.rs",
+            "contains": [
+              "benchmark_store_dir().join(",
+              "let dir = benchmark_store_dir()",
+              "let path = benchmark_file_path(model_id)",
+              "load_benchmark_records(model_id)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pig-history-filter-caller",
+        "repository_id": "pig",
+        "category": "mixed_discovery_structure",
+        "question": "Find the production helper that selects the newest successful stored throughput measurement for a model/worker only when its execution fingerprint is still compatible. Identify its direct production caller in worker/coordinator.rs. Return an object with implementation and caller, both qualified symbols.",
+        "expected_json": {
+          "answer": {
+            "implementation": "core/model/benchmark.rs::latest_matching_benchmark",
+            "caller": "worker/coordinator.rs::Coordinator::parse_snapshot"
+          }
+        },
+        "evidence": [
+          {
+            "path": "core/model/benchmark.rs",
+            "contains": [
+              "pub fn latest_matching_benchmark(",
+              "r.success && r.fingerprint.matches(current)",
+              "max_by_key(|r| r.timestamp_unix_ms)"
+            ]
+          },
+          {
+            "path": "worker/coordinator.rs",
+            "contains": [
+              "fn parse_snapshot(",
+              "let record = latest_matching_benchmark("
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pig-placement-score-caller",
+        "repository_id": "pig",
+        "category": "mixed_discovery_structure",
+        "question": "Find the production routine that itemizes bonuses and penalties for an eligible placement, including queue pressure, locality and measured throughput. Then identify its distinct direct production caller in the same module. Return an object with implementation and caller, both qualified symbols.",
+        "expected_json": {
+          "answer": {
+            "implementation": "core/model/scheduler.rs::score_placement",
+            "caller": "core/model/scheduler.rs::schedule"
+          }
+        },
+        "evidence": [
+          {
+            "path": "core/model/scheduler.rs",
+            "contains": [
+              "fn score_placement(",
+              "pub fn schedule(",
+              "let breakdown = score_placement("
+            ]
+          }
+        ]
+      }
+    ],
+    "sigil": [
+      {
+        "id": "sigil-frame-default",
+        "repository_id": "sigil",
+        "category": "exact_lookup",
+        "question": "What is the declared default max_frames argument of core/perceptual_hash.py's load_video_frames? Return the integer.",
+        "expected_json": {
+          "answer": 60
+        },
+        "evidence": [
+          {
+            "path": "core/perceptual_hash.py",
+            "contains": [
+              "max_frames: Optional[int] = 60"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sigil-missing-signature-fields",
+        "repository_id": "sigil",
+        "category": "exact_lookup",
+        "question": "Which production function or method returns the exact message 'Missing required fields'? Return its qualified symbol.",
+        "expected_json": {
+          "answer": "core/crypto_signatures.py::SigilIdentity::verify_signature"
+        },
+        "evidence": [
+          {
+            "path": "core/crypto_signatures.py",
+            "contains": [
+              "return False, \"Missing required fields\""
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sigil-projection-hash",
+        "repository_id": "sigil",
+        "category": "conceptual_lookup",
+        "question": "Locate the production routine that projects normalized per-frame perceptual feature vectors through a seeded random matrix, maintains an incremental projected mean, and thresholds it at its median to produce bits. Return its qualified symbol.",
+        "expected_json": {
+          "answer": "core/perceptual_hash.py::compute_perceptual_hash"
+        },
+        "evidence": [
+          {
+            "path": "core/perceptual_hash.py",
+            "contains": [
+              "def compute_perceptual_hash(",
+              "projection = np.random.randn",
+              "projected_mean +=",
+              "projected_mean > median_val"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sigil-bit-distance",
+        "repository_id": "sigil",
+        "category": "conceptual_lookup",
+        "question": "Locate the production helper that counts positions where two binary fingerprint arrays differ. Return its qualified symbol.",
+        "expected_json": {
+          "answer": "core/perceptual_hash.py::hamming_distance"
+        },
+        "evidence": [
+          {
+            "path": "core/perceptual_hash.py",
+            "contains": [
+              "def hamming_distance(",
+              "return np.sum(hash1 != hash2)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sigil-sign-hash-definitions",
+        "repository_id": "sigil",
+        "category": "symbol_resolution",
+        "question": "Within core/crypto_signatures.py, identify both definitions named sign_hash, distinguishing the identity instance method from the module-level convenience function. Return the set of qualified symbols.",
+        "expected_json": {
+          "answer": [
+            "core/crypto_signatures.py::SigilIdentity::sign_hash",
+            "core/crypto_signatures.py::sign_hash"
+          ]
+        },
+        "answer_set": true,
+        "evidence": [
+          {
+            "path": "core/crypto_signatures.py",
+            "contains": [
+              "    def sign_hash(self,",
+              "\ndef sign_hash("
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sigil-key-id-definitions",
+        "repository_id": "sigil",
+        "category": "symbol_resolution",
+        "question": "Within core/crypto_signatures.py, identify both definitions named get_key_id, distinguishing the identity method from the module-level convenience function. Return the set of qualified symbols.",
+        "expected_json": {
+          "answer": [
+            "core/crypto_signatures.py::SigilIdentity::get_key_id",
+            "core/crypto_signatures.py::get_key_id"
+          ]
+        },
+        "answer_set": true,
+        "evidence": [
+          {
+            "path": "core/crypto_signatures.py",
+            "contains": [
+              "    def get_key_id(self)",
+              "\ndef get_key_id("
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sigil-gabor-wrapper-caller",
+        "repository_id": "sigil",
+        "category": "direct_caller_lookup",
+        "question": "Within core/perceptual_hash.py, which defined function directly calls the project's getGaborKernel wrapper? Do not count cv2.getGaborKernel as a call to the project wrapper, and exclude module-level execution. Return the caller's qualified symbol.",
+        "expected_json": {
+          "answer": "core/perceptual_hash.py::extract_perceptual_features"
+        },
+        "evidence": [
+          {
+            "path": "core/perceptual_hash.py",
+            "contains": [
+              "kern = getGaborKernel(31, 31, theta)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sigil-signature-verifier-callers",
+        "repository_id": "sigil",
+        "category": "direct_caller_lookup",
+        "question": "Within core/crypto_signatures.py, which distinct functions or methods directly call SigilIdentity.verify_signature? Exclude the target itself. Return the set of qualified symbols.",
+        "expected_json": {
+          "answer": [
+            "core/crypto_signatures.py::SignatureManager::verify_signature_file",
+            "core/crypto_signatures.py::verify_signature"
+          ]
+        },
+        "answer_set": true,
+        "evidence": [
+          {
+            "path": "core/crypto_signatures.py",
+            "contains": [
+              "    def verify_signature_file(",
+              "is_valid, error = SigilIdentity.verify_signature(signature_doc)",
+              "return SigilIdentity.verify_signature(signature_doc)"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sigil-batch-texture-chain",
+        "repository_id": "sigil",
+        "category": "transitive_blast_radius",
+        "question": "Give the ordered project-defined call chain from core/batch_robustness.py's batch_test_videos to the project getGaborKernel wrapper along the perceptual-feature extraction branch. Include both endpoints; exclude library calls and module-level execution. Return an ordered array of qualified symbols.",
+        "expected_json": {
+          "answer": [
+            "core/batch_robustness.py::batch_test_videos",
+            "core/batch_robustness.py::compress_and_compare_video",
+            "core/perceptual_hash.py::extract_perceptual_features",
+            "core/perceptual_hash.py::getGaborKernel"
+          ]
+        },
+        "evidence": [
+          {
+            "path": "core/batch_robustness.py",
+            "contains": [
+              "res = compress_and_compare_video(",
+              "features_orig = extract_perceptual_features("
+            ]
+          },
+          {
+            "path": "core/perceptual_hash.py",
+            "contains": [
+              "kern = getGaborKernel("
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sigil-texture-core-impact",
+        "repository_id": "sigil",
+        "category": "transitive_blast_radius",
+        "question": "Within defined functions in core/ only, which functions other than the project's getGaborKernel wrapper can reach that wrapper through one or more project-defined calls? Exclude cv2's own function, module-level __main__ execution, tests and scripts outside core/. Return the set of qualified symbols.",
+        "expected_json": {
+          "answer": [
+            "core/batch_robustness.py::batch_test_videos",
+            "core/batch_robustness.py::compress_and_compare_video",
+            "core/perceptual_hash.py::extract_perceptual_features"
+          ]
+        },
+        "answer_set": true,
+        "evidence": [
+          {
+            "path": "core/batch_robustness.py",
+            "contains": [
+              "res = compress_and_compare_video(",
+              "features_orig = extract_perceptual_features("
+            ]
+          },
+          {
+            "path": "core/perceptual_hash.py",
+            "contains": [
+              "kern = getGaborKernel("
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sigil-canonical-signing-callers",
+        "repository_id": "sigil",
+        "category": "mixed_discovery_structure",
+        "question": "Find the identity method that signs a canonical JSON payload containing a perceptual digest, metadata and timestamp. Identify its direct callers within core/crypto_signatures.py. Return an object with implementation (qualified symbol) and callers (lexicographically sorted array of qualified symbols).",
+        "expected_json": {
+          "answer": {
+            "implementation": "core/crypto_signatures.py::SigilIdentity::sign_hash",
+            "callers": [
+              "core/crypto_signatures.py::SignatureManager::create_signature_file",
+              "core/crypto_signatures.py::sign_hash"
+            ]
+          }
+        },
+        "evidence": [
+          {
+            "path": "core/crypto_signatures.py",
+            "contains": [
+              "payload_bytes = json.dumps(claim, sort_keys=True",
+              "signature_doc = self.identity.sign_hash(",
+              "return identity.sign_hash("
+            ]
+          }
+        ]
+      },
+      {
+        "id": "sigil-video-sampling-chain",
+        "repository_id": "sigil",
+        "category": "mixed_discovery_structure",
+        "question": "Discover the helper that samples frames from a video and converts selected frames from BGR to RGB. In core/batch_robustness.py, identify its immediate caller and that caller's immediate caller. Return an object with implementation, caller, and caller_of_caller, each a qualified symbol.",
+        "expected_json": {
+          "answer": {
+            "implementation": "core/perceptual_hash.py::load_video_frames",
+            "caller": "core/batch_robustness.py::compress_and_compare_video",
+            "caller_of_caller": "core/batch_robustness.py::batch_test_videos"
+          }
+        },
+        "evidence": [
+          {
+            "path": "core/perceptual_hash.py",
+            "contains": [
+              "frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)"
+            ]
+          },
+          {
+            "path": "core/batch_robustness.py",
+            "contains": [
+              "frames_orig = load_video_frames(",
+              "res = compress_and_compare_video("
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

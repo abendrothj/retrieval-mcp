@@ -1,0 +1,10 @@
+PIPE = "amber|violet"
+LEFT = "amber"
+RIGHT = "violet"
+ENTRY_01 = 11
+ENTRY_02 = 22
+ENTRY_03 = 33
+ENTRY_04 = 44
+ENTRY_05 = 55
+BOUNDARY = "read-only-this-line"
+AFTER_BOUNDARY = "not-requested"

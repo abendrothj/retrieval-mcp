@@ -1,0 +1,225 @@
+use super::lexical::{BackendFuture, pagination, validate_query};
+use crate::source::{Workspace, excerpt};
+use anyhow::{Context, Result, ensure};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use std::{collections::BTreeMap, time::Duration};
+use tokio::process::Command;
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SemanticArgs {
+    /// Natural-language description of the behavior or concept to locate.
+    pub query: String,
+    /// Maximum results, 1..100; default 20.
+    pub limit: Option<usize>,
+    /// Result offset, 0..10000; default 0. Backend ranking must be stable to paginate.
+    pub offset: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SemanticRequest {
+    pub protocol_version: u32,
+    pub root: String,
+    pub query: String,
+    pub limit: usize,
+    pub offset: usize,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BackendHit {
+    pub path: String,
+    pub start_line: usize,
+    pub end_line: usize,
+    pub score: f64,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SemanticResponse {
+    pub protocol_version: u32,
+    pub backend: String,
+    pub index_note: String,
+    pub results: Vec<BackendHit>,
+    pub has_more: bool,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct SemanticHit {
+    pub path: String,
+    pub start_line: usize,
+    pub end_line: usize,
+    pub score: f64,
+    pub excerpt: String,
+    pub excerpt_truncated: bool,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct SemanticResult {
+    pub results: Vec<SemanticHit>,
+    pub has_more: bool,
+    pub next_offset: Option<usize>,
+    pub backend: String,
+    pub index_note: String,
+    pub source_verification: String,
+}
+
+pub trait SemanticBackend: Send + Sync {
+    fn search<'a>(
+        &'a self,
+        workspace: &'a Workspace,
+        args: SemanticArgs,
+    ) -> BackendFuture<'a, SemanticResult>;
+}
+
+pub struct CommandSemantic {
+    pub command: Vec<String>,
+    pub timeout: Duration,
+}
+impl SemanticBackend for CommandSemantic {
+    fn search<'a>(
+        &'a self,
+        workspace: &'a Workspace,
+        args: SemanticArgs,
+    ) -> BackendFuture<'a, SemanticResult> {
+        Box::pin(async move {
+            validate_query(&args.query)?;
+            let (limit, offset) = pagination(args.limit, args.offset)?;
+            let program = self
+                .command
+                .first()
+                .context("semantic command cannot be empty")?;
+            let mut command = Command::new(program);
+            command
+                .args(&self.command[1..])
+                .current_dir(workspace.root());
+            let request = SemanticRequest {
+                protocol_version: 1,
+                root: workspace
+                    .root()
+                    .to_str()
+                    .context("root must be UTF-8")?
+                    .into(),
+                query: args.query,
+                limit,
+                offset,
+            };
+            let (status, output) = super::process::run(
+                &mut command,
+                Some(serde_json::to_vec(&request)?),
+                self.timeout,
+                1024 * 1024,
+            )
+            .await?;
+            ensure!(
+                status == 0,
+                "semantic backend failed (exit {status}); run the adapter directly to diagnose its configuration"
+            );
+            let response: SemanticResponse = serde_json::from_slice(&output)
+                .context("semantic backend must return the documented version-1 JSON response")?;
+            let workspace = workspace.clone();
+            tokio::task::spawn_blocking(move || {
+                validate_response(&workspace, response, limit, offset)
+            })
+            .await?
+        })
+    }
+}
+
+fn validate_response(
+    workspace: &Workspace,
+    response: SemanticResponse,
+    limit: usize,
+    offset: usize,
+) -> Result<SemanticResult> {
+    ensure!(
+        response.protocol_version == 1,
+        "unsupported semantic protocol_version"
+    );
+    ensure!(
+        response.results.len() <= limit,
+        "semantic backend exceeded requested limit"
+    );
+    ensure!(
+        !response.has_more || !response.results.is_empty(),
+        "semantic backend returned an empty page with has_more=true"
+    );
+    ensure!(
+        response.backend.len() <= 200 && response.index_note.len() <= 1000,
+        "semantic backend metadata is too large"
+    );
+    let mut results = Vec::new();
+    let mut files = BTreeMap::new();
+    for hit in response.results {
+        ensure!(hit.score.is_finite(), "semantic score must be finite");
+        ensure!(
+            hit.start_line > 0
+                && hit.end_line >= hit.start_line
+                && hit.end_line - hit.start_line < 500,
+            "semantic backend returned an invalid line range (expected 1..500 lines)"
+        );
+        let path = workspace.relative(&workspace.resolve(&hit.path)?)?;
+        if !files.contains_key(&path) {
+            // Cap total validation I/O for a single page while retaining current source excerpts.
+            ensure!(
+                files.len() < 100,
+                "semantic backend returned too many files"
+            );
+            files.insert(path.clone(), workspace.text(&path)?);
+        }
+        let source = &files[&path];
+        ensure!(
+            hit.end_line <= source.lines().count(),
+            "semantic backend line range is stale or outside the source; rebuild its index"
+        );
+        let text = source
+            .lines()
+            .skip(hit.start_line - 1)
+            .take(hit.end_line - hit.start_line + 1)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let excerpt = excerpt(&text, 500);
+        let excerpt_truncated = excerpt.len() < text.len();
+        results.push(SemanticHit {
+            path,
+            start_line: hit.start_line,
+            end_line: hit.end_line,
+            score: hit.score,
+            excerpt,
+            excerpt_truncated,
+        });
+    }
+    let next_offset = response.has_more.then_some(offset + results.len());
+    Ok(SemanticResult { results, has_more: response.has_more, next_offset, backend: response.backend, index_note: response.index_note,
+        source_verification: "Excerpts re-read from current workspace. Backend ranking/index freshness is not verified; scores are backend-specific, not confidence probabilities.".into() })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn rejects_backend_path_escapes_stale_lines_and_limits() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("safe.rs"), "fn safe() {}\n").unwrap();
+        let ws = Workspace::new(root.path()).unwrap();
+        let response = |path: &str, end_line| SemanticResponse {
+            protocol_version: 1,
+            backend: "test".into(),
+            index_note: "test".into(),
+            has_more: false,
+            results: vec![BackendHit {
+                path: path.into(),
+                start_line: 1,
+                end_line,
+                score: 0.8,
+            }],
+        };
+        assert!(validate_response(&ws, response("../outside", 1), 20, 0).is_err());
+        assert!(validate_response(&ws, response("safe.rs", 2), 20, 0).is_err());
+        assert!(validate_response(&ws, response("safe.rs", 1), 0, 0).is_err());
+        let result = validate_response(&ws, response("safe.rs", 1), 20, 0).unwrap();
+        assert_eq!(result.results[0].excerpt, "fn safe() {}");
+    }
+}

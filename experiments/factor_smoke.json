@@ -1,0 +1,3 @@
+[
+  {"id":"delay-cap", "category":"exact_lookup", "question":"What is MAX_DELAY_SECONDS in policy.py? Return only {\"answer\": integer} without prose or Markdown.", "expected_json":{"answer":32}}
+]

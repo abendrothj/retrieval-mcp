@@ -1,0 +1,653 @@
+{
+  "schema_version": 1,
+  "name": "retrieval-server-stratified-v1",
+  "corpus_files": {
+    "Cargo.toml": "be2ff608767a1bd4eadabc37256e0a590c51122d46e18dc9680fbc930df37706",
+    "Cargo.lock": "54ff7ea4e31da1e05071789040ebf112a525a490860c6afd97f64691a4ec5a7b",
+    "src/lib.rs": "3491d7f875642a69c473c5609a14c4671f9754ff0ef9e29b6ebacb6c2257d153",
+    "src/main.rs": "0d607e676911f428308eecc9866cdd3841cf3e8101a35d4204ad9436696a1ff6",
+    "src/config/mod.rs": "f4c1b671050a41f2ecc84217bf7152b99c520f044dfa373994a8f406848c8536",
+    "src/index/mod.rs": "4800a6e2ca5e78dfa3a0d95be63cd0dd5180ba23ff9aa154f8841ab56ccb9464",
+    "src/logging/mod.rs": "45cc308d50c77ead9cebae858aba354613988dcf46fb76d8f9c0088eabf3ac8e",
+    "src/search/mod.rs": "b90120e8ed00b2871344807d4f914beea1edf6e2ee1d00a400dda7aad80f2e5f",
+    "src/search/lexical.rs": "c94852453bca87992b1689697a474d32388691c6ec9a1dcbe5933c6a8c9e6f89",
+    "src/search/process.rs": "e374206308a7df2ba39a1227e69b1f2749cec7cee21f63a59f8c5ef39086d770",
+    "src/search/semantic.rs": "3a343f8067bf785ff23439c4007bfea854a7e0a59338e37a29c575476870d74e",
+    "src/source/mod.rs": "82d1d2d625d28f352b1461311cc30620e9535b89a299343555e694f3658a9074",
+    "src/tools/mod.rs": "88d9a261e41c65c74be2b88ad2e2e684bc92459f465d490309c4db0ad21d30e1",
+    "examples/ollama_backend.rs": "e489f18f2d76f7fb0718fcba24a246a0b63747e53fb9cfe341628648764d17b7",
+    "examples/support/cache.rs": "29fa26dd34e4a830905bb5e7d37b3de3cfe8b67b3a262f4ed75754f222efcd96"
+  },
+  "tasks": [
+    {
+      "id": "exact-query-error",
+      "category": "exact_lookup",
+      "question": "Which production function emits the exact diagnostic 'query must contain 1..4096 bytes of nonblank text'? Return its qualified symbol.",
+      "expected_json": {
+        "answer": "src/search/lexical.rs::validate_query"
+      },
+      "evidence": [
+        {
+          "path": "src/search/lexical.rs",
+          "contains": [
+            "pub fn validate_query",
+            "query must contain 1..4096 bytes of nonblank text"
+          ]
+        }
+      ],
+      "notes": "Literal diagnostic has one production origin."
+    },
+    {
+      "id": "exact-timeout-default",
+      "category": "exact_lookup",
+      "question": "What numeric default, in seconds, is initialized for --timeout-seconds when it is omitted? Return the integer.",
+      "expected_json": {
+        "answer": 30
+      },
+      "evidence": [
+        {
+          "path": "src/config/mod.rs",
+          "contains": [
+            "timeout: Duration::from_secs(30)",
+            "\"--timeout-seconds\""
+          ]
+        }
+      ],
+      "notes": "Read the initialized value rather than only the help text."
+    },
+    {
+      "id": "exact-stale-range",
+      "category": "exact_lookup",
+      "question": "Which production function emits 'semantic backend line range is stale or outside the source; rebuild its index'? Return its qualified symbol.",
+      "expected_json": {
+        "answer": "src/search/semantic.rs::validate_response"
+      },
+      "evidence": [
+        {
+          "path": "src/search/semantic.rs",
+          "contains": [
+            "fn validate_response(",
+            "semantic backend line range is stale or outside the source; rebuild its index"
+          ]
+        }
+      ],
+      "notes": "Checks the backend's end line against current source."
+    },
+    {
+      "id": "exact-cancelled-drop",
+      "category": "exact_lookup",
+      "question": "Which production method passes the exact error string 'cancelled_or_dropped' to the log emitter? Return its qualified symbol.",
+      "expected_json": {
+        "answer": "src/logging/mod.rs::CallLog::drop"
+      },
+      "evidence": [
+        {
+          "path": "src/logging/mod.rs",
+          "contains": [
+            "impl Drop for CallLog",
+            "self.emit(0, 0, None, Some(\"cancelled_or_dropped\"))"
+          ]
+        }
+      ],
+      "notes": "Distinguish the producer of this error from the generic emitter."
+    },
+    {
+      "id": "concept-child-io",
+      "category": "conceptual_lookup",
+      "question": "Locate the production routine that feeds optional input to a child while draining both output streams concurrently, waits for termination, and kills the child on deadline or I/O failure. Return its qualified symbol.",
+      "expected_json": {
+        "answer": "src/search/process.rs::run"
+      },
+      "evidence": [
+        {
+          "path": "src/search/process.rs",
+          "contains": [
+            "pub async fn run(",
+            "tokio::try_join!(",
+            "let _ = child.kill().await;"
+          ]
+        }
+      ],
+      "notes": "Behavioral description without the function name."
+    },
+    {
+      "id": "concept-root-boundary",
+      "category": "conceptual_lookup",
+      "question": "Locate the production routine that walks path components, refuses indirection through filesystem links, and verifies the canonical destination remains inside the configured workspace. Return its qualified symbol.",
+      "expected_json": {
+        "answer": "src/source/mod.rs::Workspace::resolve"
+      },
+      "evidence": [
+        {
+          "path": "src/source/mod.rs",
+          "contains": [
+            "pub fn resolve(",
+            "Component::Normal(part)",
+            "!metadata.file_type().is_symlink()"
+          ]
+        }
+      ],
+      "notes": "Distinguish boundary checking from the content reader."
+    },
+    {
+      "id": "concept-vector-angle",
+      "category": "conceptual_lookup",
+      "question": "Locate the numeric routine that compares embedding directions by a normalized dot product and rejects invalid dimensions or zero magnitude. Return its qualified symbol.",
+      "expected_json": {
+        "answer": "examples/ollama_backend.rs::cosine"
+      },
+      "evidence": [
+        {
+          "path": "examples/ollama_backend.rs",
+          "contains": [
+            "fn cosine(",
+            "a.iter().zip(b)",
+            "invalid embedding norm"
+          ]
+        }
+      ],
+      "notes": "Local semantic adapter, not the core backend trait."
+    },
+    {
+      "id": "concept-atomic-snapshot",
+      "category": "conceptual_lookup",
+      "question": "Locate the production routine that publishes a validated embedding snapshot through a synchronized temporary file and atomic replacement, so partial serialization is not exposed as the current snapshot. Return its qualified symbol.",
+      "expected_json": {
+        "answer": "examples/support/cache.rs::Snapshot::save"
+      },
+      "evidence": [
+        {
+          "path": "examples/support/cache.rs",
+          "contains": [
+            "pub fn save(",
+            "temporary.as_file().sync_all()?",
+            "persist(path)"
+          ]
+        }
+      ],
+      "notes": "Atomic replacement is not a claim of parent-directory fsync durability."
+    },
+    {
+      "id": "symbol-search-implementations",
+      "category": "symbol_resolution",
+      "question": "Under src/, find all concrete method definitions named search that implement retrieval backend traits. Exclude trait declarations and tests. Return the set of qualified symbols.",
+      "expected_json": {
+        "answer": [
+          "src/search/lexical.rs::Ripgrep::search",
+          "src/search/semantic.rs::CommandSemantic::search"
+        ]
+      },
+      "answer_set": true,
+      "evidence": [
+        {
+          "path": "src/search/lexical.rs",
+          "contains": [
+            "impl LexicalBackend for Ripgrep"
+          ]
+        },
+        {
+          "path": "src/search/semantic.rs",
+          "contains": [
+            "impl SemanticBackend for CommandSemantic"
+          ]
+        }
+      ],
+      "notes": "Same spelling, distinct receivers; not a raw occurrence count."
+    },
+    {
+      "id": "symbol-new-workspace",
+      "category": "symbol_resolution",
+      "question": "Several types define new. Resolve the concrete new method whose argument is a filesystem Path reference and whose result holds a canonical repository root. Return its qualified symbol.",
+      "expected_json": {
+        "answer": "src/source/mod.rs::Workspace::new"
+      },
+      "evidence": [
+        {
+          "path": "src/source/mod.rs",
+          "contains": [
+            "impl Workspace",
+            "pub fn new(root: &Path)",
+            "Ok(Self { root })"
+          ]
+        }
+      ],
+      "notes": "Disambiguates constructors by signature and receiver."
+    },
+    {
+      "id": "symbol-find-symbol",
+      "category": "symbol_resolution",
+      "question": "Resolve the concrete find_symbol implementation that returns StructuralResult<Symbol>, rather than the StructuralBackend trait declaration. Return its qualified symbol.",
+      "expected_json": {
+        "answer": "src/index/mod.rs::StructuralIndex::find_symbol"
+      },
+      "evidence": [
+        {
+          "path": "src/index/mod.rs",
+          "contains": [
+            "impl StructuralBackend for StructuralIndex",
+            "fn find_symbol("
+          ]
+        }
+      ],
+      "notes": "Definition lookup must distinguish declaration from body."
+    },
+    {
+      "id": "symbol-read-workspace",
+      "category": "symbol_resolution",
+      "question": "Resolve the read method taking ReadArgs and returning SourceResult, rather than imported I/O trait methods. Return its qualified symbol.",
+      "expected_json": {
+        "answer": "src/source/mod.rs::Workspace::read"
+      },
+      "evidence": [
+        {
+          "path": "src/source/mod.rs",
+          "contains": [
+            "pub fn read(&self, args: ReadArgs) -> Result<SourceResult>"
+          ]
+        }
+      ],
+      "notes": "Method/type resolution with common spelling."
+    },
+    {
+      "id": "callers-pagination",
+      "category": "direct_caller_lookup",
+      "question": "List every distinct production function or method under src/ that directly invokes the free function pagination defined in src/search/lexical.rs. Exclude tests and examples; count calls inside closures as belonging to their enclosing method. Return the set of qualified symbols.",
+      "expected_json": {
+        "answer": [
+          "src/index/mod.rs::StructuralIndex::find_callers",
+          "src/index/mod.rs::StructuralIndex::find_symbol",
+          "src/search/lexical.rs::Ripgrep::search",
+          "src/search/semantic.rs::CommandSemantic::search"
+        ]
+      },
+      "answer_set": true,
+      "evidence": [
+        {
+          "path": "src/index/mod.rs",
+          "contains": [
+            "pagination(args.limit, args.offset)?"
+          ]
+        },
+        {
+          "path": "src/search/lexical.rs",
+          "contains": [
+            "pagination(args.limit, args.offset)?"
+          ]
+        },
+        {
+          "path": "src/search/semantic.rs",
+          "contains": [
+            "pagination(args.limit, args.offset)?"
+          ]
+        }
+      ],
+      "notes": "Exhaustive within src production code, verified by source occurrence scan."
+    },
+    {
+      "id": "callers-log-writer",
+      "category": "direct_caller_lookup",
+      "question": "Within production src/logging/mod.rs, which methods directly call InvocationLog::write_record? Exclude transitive callers and tests. Return the set of qualified symbols.",
+      "expected_json": {
+        "answer": [
+          "src/logging/mod.rs::CallLog::emit",
+          "src/logging/mod.rs::InvocationLog::start"
+        ]
+      },
+      "answer_set": true,
+      "evidence": [
+        {
+          "path": "src/logging/mod.rs",
+          "contains": [
+            "self.write_record(&fields)",
+            "self.owner.write_record(&record)"
+          ]
+        }
+      ],
+      "notes": "Two direct callers; finish/drop are transitive only."
+    },
+    {
+      "id": "callers-workspace-text",
+      "category": "direct_caller_lookup",
+      "question": "Which distinct production methods or functions under src/ directly call Workspace::text? Exclude tests and examples; do not include transitive callers. Return the set of qualified symbols.",
+      "expected_json": {
+        "answer": [
+          "src/index/mod.rs::StructuralIndex::from_files",
+          "src/search/semantic.rs::validate_response",
+          "src/source/mod.rs::Workspace::read"
+        ]
+      },
+      "answer_set": true,
+      "evidence": [
+        {
+          "path": "src/index/mod.rs",
+          "contains": [
+            "workspace.text(&file)"
+          ]
+        },
+        {
+          "path": "src/search/semantic.rs",
+          "contains": [
+            "workspace.text(&path)?"
+          ]
+        },
+        {
+          "path": "src/source/mod.rs",
+          "contains": [
+            "self.text(&args.path)?"
+          ]
+        }
+      ],
+      "notes": "Three direct callers, including calls not fully represented in the authoring graph."
+    },
+    {
+      "id": "callers-reference-builder",
+      "category": "direct_caller_lookup",
+      "question": "Which distinct production function directly calls the free function reference defined in src/index/mod.rs? Count repeated call sites as one caller and exclude tests. Return its qualified symbol.",
+      "expected_json": {
+        "answer": "src/index/mod.rs::parse_file"
+      },
+      "evidence": [
+        {
+          "path": "src/index/mod.rs",
+          "contains": [
+            "fn parse_file(",
+            "parsed.references.push(reference("
+          ]
+        }
+      ],
+      "notes": "Two call sites in one function; possible_reference text is not another caller."
+    },
+    {
+      "id": "blast-text-tools",
+      "category": "transitive_blast_radius",
+      "question": "Assume the built-in backends, configured semantic adapter, and a fresh server in profile D. Which MCP tool execution paths can transitively reach Workspace::text under src/, including lazy structural indexing? Exclude startup-only paths, tests, and source reads inside the separate adapter process. Return the set of MCP tool names.",
+      "expected_json": {
+        "answer": [
+          "find_callers",
+          "find_symbol",
+          "read_source",
+          "search_semantic"
+        ]
+      },
+      "answer_set": true,
+      "evidence": [
+        {
+          "path": "src/tools/mod.rs",
+          "contains": [
+            "self.index().await?.find_symbol",
+            "self.index().await?.find_callers",
+            "backend.search(&self.workspace",
+            "ws.read(args)"
+          ]
+        },
+        {
+          "path": "src/index/mod.rs",
+          "contains": [
+            "Self::from_files(",
+            "workspace.text(&file)"
+          ]
+        },
+        {
+          "path": "src/search/semantic.rs",
+          "contains": [
+            "validate_response(&workspace",
+            "workspace.text(&path)?"
+          ]
+        },
+        {
+          "path": "src/source/mod.rs",
+          "contains": [
+            "self.text(&args.path)?"
+          ]
+        }
+      ],
+      "notes": "Can-reach relation, not unconditional execution; lexical search never calls Workspace::text."
+    },
+    {
+      "id": "blast-child-cap-tools",
+      "category": "transitive_blast_radius",
+      "question": "Assume built-in backends, a configured semantic adapter, and a fresh profile-D server. Which MCP tool execution paths can fail due to an error from src/search/process.rs::bounded_read, including lazy index construction? Ignore adapter-process internals and tests. Return the set of MCP tool names.",
+      "expected_json": {
+        "answer": [
+          "find_callers",
+          "find_symbol",
+          "search_exact",
+          "search_semantic"
+        ]
+      },
+      "answer_set": true,
+      "evidence": [
+        {
+          "path": "src/search/process.rs",
+          "contains": [
+            "bounded_read(stdout, cap)",
+            "bounded_read(stderr, 64 * 1024)"
+          ]
+        },
+        {
+          "path": "src/index/mod.rs",
+          "contains": [
+            "process::run(&mut command"
+          ]
+        },
+        {
+          "path": "src/search/lexical.rs",
+          "contains": [
+            "super::process::run("
+          ]
+        },
+        {
+          "path": "src/search/semantic.rs",
+          "contains": [
+            "super::process::run("
+          ]
+        },
+        {
+          "path": "src/tools/mod.rs",
+          "contains": [
+            "StructuralIndex::build("
+          ]
+        }
+      ],
+      "notes": "The source-read tool uses filesystem reads, not child-process capture."
+    },
+    {
+      "id": "chain-structural-cold",
+      "category": "transitive_blast_radius",
+      "question": "On the first successful find_symbol MCP invocation, give the ordered chain of project-defined functions/methods from RetrievalServer::call_tool to parse_file. Include only the branch that constructs the cold structural index; omit library functions, anonymous closures, and the final lookup after construction. Return an ordered array of qualified symbols.",
+      "expected_json": {
+        "answer": [
+          "src/tools/mod.rs::RetrievalServer::call_tool",
+          "src/tools/mod.rs::RetrievalServer::execute",
+          "src/tools/mod.rs::RetrievalServer::index",
+          "src/index/mod.rs::StructuralIndex::build",
+          "src/index/mod.rs::StructuralIndex::from_files",
+          "src/index/mod.rs::parse_file"
+        ]
+      },
+      "evidence": [
+        {
+          "path": "src/tools/mod.rs",
+          "contains": [
+            "self.execute(&request.name",
+            "self.index().await?.find_symbol",
+            "StructuralIndex::build("
+          ]
+        },
+        {
+          "path": "src/index/mod.rs",
+          "contains": [
+            "Self::from_files(",
+            "match parse_file("
+          ]
+        }
+      ],
+      "notes": "Six source-level hops including async closures, no fabricated generic-library nodes."
+    },
+    {
+      "id": "blast-log-writer",
+      "category": "transitive_blast_radius",
+      "question": "Within production src/logging/mod.rs, list every method other than InvocationLog::write_record itself that can reach write_record by one or more explicit project-defined calls. Include the unfinished-call destructor path; exclude tests and implicit destructor dispatch from unrelated code. Return the set of qualified symbols.",
+      "expected_json": {
+        "answer": [
+          "src/logging/mod.rs::CallLog::drop",
+          "src/logging/mod.rs::CallLog::emit",
+          "src/logging/mod.rs::CallLog::finish",
+          "src/logging/mod.rs::InvocationLog::start"
+        ]
+      },
+      "answer_set": true,
+      "evidence": [
+        {
+          "path": "src/logging/mod.rs",
+          "contains": [
+            "self.write_record(&fields)",
+            "self.owner.write_record(&record)",
+            "self.emit(count, size, Some(data), error)",
+            "self.emit(0, 0, None"
+          ]
+        }
+      ],
+      "notes": "Bounded transitive impact set: start and emit direct, finish/drop through emit."
+    },
+    {
+      "id": "mixed-child-capture",
+      "category": "mixed_discovery_structure",
+      "question": "Find the shared production routine that bounds a child process's output and stops it when it takes too long. Then identify all of its direct production callers under src/ (excluding tests and the separate adapter). Return an object with implementation (qualified symbol) and callers (lexicographically sorted array of qualified symbols).",
+      "expected_json": {
+        "answer": {
+          "implementation": "src/search/process.rs::run",
+          "callers": [
+            "src/index/mod.rs::StructuralIndex::build",
+            "src/search/lexical.rs::Ripgrep::search",
+            "src/search/semantic.rs::CommandSemantic::search"
+          ]
+        }
+      },
+      "evidence": [
+        {
+          "path": "src/search/process.rs",
+          "contains": [
+            "pub async fn run(",
+            "tokio::time::timeout(timeout, task)"
+          ]
+        },
+        {
+          "path": "src/index/mod.rs",
+          "contains": [
+            "process::run(&mut command"
+          ]
+        },
+        {
+          "path": "src/search/lexical.rs",
+          "contains": [
+            "super::process::run("
+          ]
+        },
+        {
+          "path": "src/search/semantic.rs",
+          "contains": [
+            "super::process::run("
+          ]
+        }
+      ],
+      "notes": "Discover from behavior, then enumerate cross-module callers. Do not mandate a retrieval tool."
+    },
+    {
+      "id": "mixed-lexical-validator",
+      "category": "mixed_discovery_structure",
+      "question": "Discover the shared production helper that rejects blank or overlong search text before retrieval. Then identify all of its direct production callers under src/, excluding tests and the separate adapter. Return an object with implementation (qualified symbol) and callers (lexicographically sorted array of qualified symbols).",
+      "expected_json": {
+        "answer": {
+          "implementation": "src/search/lexical.rs::validate_query",
+          "callers": [
+            "src/index/mod.rs::StructuralIndex::find_callers",
+            "src/index/mod.rs::StructuralIndex::find_symbol",
+            "src/search/lexical.rs::Ripgrep::search",
+            "src/search/semantic.rs::CommandSemantic::search"
+          ]
+        }
+      },
+      "evidence": [
+        {
+          "path": "src/search/lexical.rs",
+          "contains": [
+            "pub fn validate_query(",
+            "validate_query(&args.query)?"
+          ]
+        },
+        {
+          "path": "src/search/semantic.rs",
+          "contains": [
+            "validate_query(&args.query)?"
+          ]
+        },
+        {
+          "path": "src/index/mod.rs",
+          "contains": [
+            "validate_query(&args.name)?"
+          ]
+        }
+      ],
+      "notes": "Behavioral discovery plus direct fan-in, no helper identifier supplied."
+    },
+    {
+      "id": "mixed-invocation-start",
+      "category": "mixed_discovery_structure",
+      "question": "Discover the production method that assigns an invocation sequence and emits the initial event before returning a guard to finish logging later. Which production method directly invokes it under src/? Return an object with implementation and caller, each a qualified symbol.",
+      "expected_json": {
+        "answer": {
+          "implementation": "src/logging/mod.rs::InvocationLog::start",
+          "caller": "src/tools/mod.rs::RetrievalServer::call_tool"
+        }
+      },
+      "evidence": [
+        {
+          "path": "src/logging/mod.rs",
+          "contains": [
+            "pub fn start(",
+            "self.sequence.fetch_add(1",
+            "\"tool_start\""
+          ]
+        },
+        {
+          "path": "src/tools/mod.rs",
+          "contains": [
+            "let log = self.log.start("
+          ]
+        }
+      ],
+      "notes": "Cross-module relationship; logger's implementation may be found conceptually."
+    },
+    {
+      "id": "mixed-untrusted-ranking",
+      "category": "mixed_discovery_structure",
+      "question": "Discover the core production function that checks external ranked hits for valid scores and line ranges and re-reads their excerpts from current workspace files. Identify the concrete backend method that directly invokes it, and the MCP tool that reaches that backend. Return an object with implementation and caller (qualified symbols), and tool (MCP name).",
+      "expected_json": {
+        "answer": {
+          "implementation": "src/search/semantic.rs::validate_response",
+          "caller": "src/search/semantic.rs::CommandSemantic::search",
+          "tool": "search_semantic"
+        }
+      },
+      "evidence": [
+        {
+          "path": "src/search/semantic.rs",
+          "contains": [
+            "fn validate_response(",
+            "validate_response(&workspace",
+            "hit.score.is_finite()",
+            "workspace.text(&path)?"
+          ]
+        },
+        {
+          "path": "src/tools/mod.rs",
+          "contains": [
+            "\"search_semantic\" =>"
+          ]
+        }
+      ],
+      "notes": "Behavioral discovery followed by caller and dispatch tracing; scores are not confidence."
+    }
+  ]
+}

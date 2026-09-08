@@ -1,0 +1,5 @@
+[
+  {"id":"retry-cap","question":"How many seconds does wait_before_retry(7) return? Trace the configuration and helper it uses. Answer with just the integer.","expected":"32"},
+  {"id":"retry-error","question":"Which function raises the error 'retry budget exhausted'? Answer with just the unqualified function name.","expected":"wait_before_retry"},
+  {"id":"backoff-caller","question":"Find the helper that increases waiting time between failed network requests. What function invokes that helper? Answer with just the unqualified caller name.","expected":"wait_before_retry"}
+]
