@@ -290,6 +290,48 @@ once per cell and otherwise declines; without tools it invents six times in twel
 audience that is arguably the most useful result here: the server's contribution is not only accuracy
 but the replacement of confident wrong identifiers with an admission of ignorance.
 
+## Failure decomposition: the dominant failure is cheaper than success (2026-09-08)
+
+Every failed trial split by whether the gold lines were delivered, whether the answer was short, and
+whether it contradicted what was returned. Line coverage comes from what the server actually returned,
+not from what was requested.
+
+| Cell | right | never saw evidence | incomplete | misread |
+|---|---:|---:|---:|---:|
+| A baseline | 7/12 | 0 | 4 | 1 |
+| A + primer | 8/12 | 0 | 3 | 1 |
+| D free | 9/12 | 0 | **2** | 1 |
+| D semantic first | 8/12 | 0 | 4 | 0 |
+
+**No trial ever failed for want of the evidence.** Zero of forty-eight, in every condition including
+grep and reads alone. The mode where a retrieval change wins on both axes - symbol-scoped reads,
+better in-file ranking, anything that delivers the right span - does not occur in this data. There is
+no free lunch on the retrieval side of this corpus.
+
+Thirteen of sixteen failures are **incomplete**: everything the answer named was correct and something
+was missing. Three are misreads. And the token signature is the warning:
+
+| Outcome | n | median calls | median KB delivered |
+|---|---:|---:|---:|
+| correct | 32 | 5.5 | 46.5K |
+| incomplete | 13 | 4.0 | 32.9K |
+| misread | 3 | 6.0 | 12.1K |
+
+**The dominant failure is 27% cheaper in calls and 29% cheaper in bytes than success.** Any naive
+token reduction - narrower reads, tighter budgets, fewer tools - pushes the agent toward the failure
+that already looks efficient, and a token graph would show that as a win. Efficiency work on this
+system must be scored against completeness or it will optimise for stopping early.
+
+The corresponding intervention is the opposite of token reduction: make the agent finish - a
+completeness check, evidence required per claimed member, an explicit prompt to look for further
+callers. That buys quality with tokens, which is a real tradeoff rather than slack.
+
+One mechanism reading ties the study together, on small numbers and offered as a hypothesis rather
+than a result: D free routing has the fewest incomplete failures, and `find_callers` returns a
+complete set in one call where lexical search leaves the model to decide when it has searched enough.
+On this evidence the value of structural tools is not that they find what grep cannot - grep found
+everything - but that they tell the agent when it is done.
+
 ## Analysis commitments
 
 Primary availability contrasts: B−A, C−A, D−A within each help level under free routing. Primary first-tool contrasts: lexical-first−free and semantic-first−free within each help level under D. Primary syntax contrasts: primer−baseline within each of the six availability/policy combinations. Other generated one-factor contrasts are exploratory, not additional primary claims.
