@@ -332,6 +332,39 @@ complete set in one call where lexical search leaves the model to decide when it
 On this evidence the value of structural tools is not that they find what grep cannot - grep found
 everything - but that they tell the agent when it is done.
 
+## Why semantic retrieval did not help (2026-09-08)
+
+Graded credit split by whether the question names the identifier it asks about:
+
+| Question style | A baseline | D free | D semantic first | n |
+|---|---:|---:|---:|---:|
+| identifier named | 0.59 | **0.81** | 0.67 | 9 |
+| description only | 0.67 | 0.67 | 0.67 | 3 |
+
+Four reasons, in descending order of how well the evidence supports them.
+
+**It solves a problem that did not occur.** Semantic search exists to find code you cannot name, and
+evidence coverage was already 48 of 48 without it. There was no discovery failure available to fix.
+
+**It cannot do the thing that actually failed.** Thirteen of sixteen failures were incomplete
+enumeration. Ranked top-k by similarity has no notion of "that is all of them", while `find_callers`
+returns a set with a coverage object and `search_exact` returns `has_more` and `next_offset`. Semantic
+is a ranker in a problem that needs an enumerator, which is consistent with D free routing - the cell
+that uses `find_callers` - having the fewest incomplete failures.
+
+**Where an exact name exists, exact match dominates similarity.** Nine of twelve questions name their
+identifier; on those, structural routing scores 0.81 against 0.59, and forcing a semantic opener drops
+it back to 0.67.
+
+**Forced, it becomes a preamble rather than evidence.** After the mandated call the model did the
+enumeration with lexical and structural tools anyway - twelve semantic calls in one hundred and two,
+all of them mandated - and the cell cost more calls for no quality gain.
+
+None of this says the tool retrieves badly: issued directly, it puts gold evidence in the top five for
+nine of twelve questions. It says being handed the right file was never the binding constraint. The
+description-only stratum, where semantic should have its best case, is three questions and shows
+nothing either way; testing it properly needs a block designed around unnameable targets.
+
 ## Analysis commitments
 
 Primary availability contrasts: B−A, C−A, D−A within each help level under free routing. Primary first-tool contrasts: lexical-first−free and semantic-first−free within each help level under D. Primary syntax contrasts: primer−baseline within each of the six availability/policy combinations. Other generated one-factor contrasts are exploratory, not additional primary claims.
