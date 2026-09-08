@@ -221,6 +221,40 @@ The cheap readout is `A-free-baseline` on the new server against the twelve tria
 old one: same questions, same model, no prompt primer, one factor changed. If the empty-result share
 falls from 21.6% toward the primer cell's 13.7%, the description carried the effect for free.
 
+## The strict score was measuring notation (2026-09-08)
+
+Reading the failed caller answers before writing procedural tool descriptions stopped that work and
+overturned a headline. In every cell, the three caller questions were answered with the right
+functions in the wrong spelling: `["diagnostics::span_back_to", "uucore::diagnostics::Snapshot::locate_operand"]`,
+`["uu_dd::diagnostics::render", "uu_join::parse_settings"]`, `["linebreak::break_lines"]`. The
+transcripts show the model excluding `#[cfg(test)]` code, excluding doc comments and distinguishing
+imports from calls, explicitly and correctly. It then wrote Rust module paths where the contract asked
+for `repository-relative/file.rs::Type::method`.
+
+Scoring identifiers instead of path spelling (`notation_diagnostic.py`, a diagnostic and not a grader):
+
+| Cell | strict | symbol-resolved |
+|---|---:|---:|
+| A baseline | 4/12 | 8/12 |
+| A + primer | 6/12 | 9/12 |
+| D free | 5/12 | 10/12 |
+| D semantic first | 6/12 | 10/12 |
+| N control | 0/12 | 0/12 |
+
+The control stays at zero, so this is not blanket leniency. Every notation-only failure is a
+multi-symbol answer - a caller set or a call chain - where the contract demands two to four file paths
+spelled exactly.
+
+Two conclusions change. **"Syntax help bought about as much as adding tools" was an artifact**: under
+the less brittle measure availability gains two over baseline and the primer gains one, and D free is
+both the best cell on quality and the cheapest on calls. And the procedural additions to the tool
+descriptions are not warranted - the procedure they would teach is already being followed.
+
+What is warranted is fixing the answer contract before block 2: ask for the path and the symbol as
+separate fields so both are checkable and neither is ambiguous, and score names by resolving them
+against the pinned corpus with a uniqueness requirement, rather than by string equality on a path.
+Block 1 can then be re-scored under that resolver, blind to condition, with both scores reported.
+
 ## Analysis commitments
 
 Primary availability contrasts: B−A, C−A, D−A within each help level under free routing. Primary first-tool contrasts: lexical-first−free and semantic-first−free within each help level under D. Primary syntax contrasts: primer−baseline within each of the six availability/policy combinations. Other generated one-factor contrasts are exploratory, not additional primary claims.
