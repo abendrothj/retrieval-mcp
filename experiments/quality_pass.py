@@ -92,18 +92,31 @@ def credit(got, gold, index):
 
 
 def answer_json(text):
-    for block in re.findall(r"```(?:json)?[ \t]*\n(.*?)\n?```", text or "", re.DOTALL):
+    """The answer payload regardless of the reply envelope.
+
+    The frozen strict grader in benchmark.py judges the envelope: a bare {"answer": ...} object.
+    This quality axis must not repeat that judgment, or a correct symbol wrapped in prose scores
+    zero and the measure reports formatting discipline instead of retrieval quality. Fenced answer
+    blocks win; otherwise the last {"answer": ...} object anywhere in the reply is used.
+    """
+    text = text or ""
+    for block in re.findall(r"```(?:json)?[ \t]*\n(.*?)\n?```", text, re.DOTALL):
         try:
             parsed = json.loads(block.strip())
         except ValueError:
             continue
         if isinstance(parsed, dict) and set(parsed) == {"answer"}:
             return parsed["answer"]
-    try:
-        parsed = json.loads((text or "").strip())
-        return parsed["answer"] if isinstance(parsed, dict) and set(parsed) == {"answer"} else None
-    except (ValueError, TypeError):
-        return None
+    decoder = json.JSONDecoder()
+    found = None
+    for match in re.finditer(r"\{", text):
+        try:
+            parsed, _ = decoder.raw_decode(text[match.start():])
+        except ValueError:
+            continue
+        if isinstance(parsed, dict) and set(parsed) == {"answer"}:
+            found = parsed["answer"]
+    return found
 
 
 def evidence_paths(attempt):

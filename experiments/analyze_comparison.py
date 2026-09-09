@@ -9,6 +9,7 @@ from pathlib import Path
 import statistics
 
 import benchmark
+import quality_pass
 
 METRICS = ("attempted_calls", "forwarded_calls", "retrieval_bytes", "delivered_bytes",
            "tool_latency_ms", "wall_time_ms")
@@ -31,7 +32,25 @@ def eligible(run):
                 and not run.get("mcp_failures"))
 
 
-def analyze(directory):
+
+def recompute_credit(runs, questions_path, corpus):
+    """Re-measure the quality axis of archived answers without rerunning a model.
+
+    Trials scored before quality_pass.answer_json accepted prose-wrapped payloads carry a credit of
+    zero for answers whose payload was right, which measures envelope discipline, not retrieval.
+    """
+    questions = {task["id"]: task for task in json.loads(Path(questions_path).read_text(encoding="utf-8"))}
+    index = quality_pass.definitions(Path(corpus))
+    for record in runs:
+        run = record["run"]
+        if not run:
+            continue
+        gold = questions[run["task_id"]]["expected_json"]["answer"]
+        credit = quality_pass.credit(quality_pass.answer_json(run.get("answer")), gold, index)
+        run["resolved_credit"] = credit
+        run["resolved_correct"] = credit == 1.0
+
+def analyze(directory, questions_path=None, corpus=None):
     plan = json.loads((directory / "plan.json").read_text(encoding="utf-8"))
     manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     runs = []
@@ -42,6 +61,8 @@ def analyze(directory):
         record = {"index": index, **trial, "run": run}
         runs.append(record)
         by_key[(trial["task_id"], trial["repetition"], trial["system"])] = run
+    if questions_path and corpus:
+        recompute_credit(runs, questions_path, corpus)
     systems = []
     for system_id in plan["systems"]:
         selected = [record["run"] for record in runs if record["system"] == system_id]
@@ -107,6 +128,7 @@ def analyze(directory):
     return {
         "version": "comparison-analysis-v1",
         "manifest_sha256": hashlib.sha256((directory / "manifest.json").read_bytes()).hexdigest(),
+        "credit_source": "recomputed from archived answers" if questions_path and corpus else "run.json",
         "planned_trials": plan["planned_trials"],
         "systems": systems,
         "pair_summaries": pair_summaries,
@@ -120,8 +142,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--questions", type=Path, help="re-measure archived answers against this gold set")
+    parser.add_argument("--corpus", type=Path, help="pinned corpus used to resolve written symbols")
     args = parser.parse_args()
-    report = analyze(args.input.resolve(strict=True))
+    report = analyze(args.input.resolve(strict=True), args.questions, args.corpus)
     if args.output:
         if args.output.exists():
             raise FileExistsError(args.output)

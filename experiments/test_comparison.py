@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import analyze_comparison
 import benchmark
 import comparison_runner
+import quality_pass
 
 HERE = Path(__file__).resolve()
 
@@ -186,6 +187,20 @@ class ComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "allow-model-usage"):
             comparison_runner.run(SimpleNamespace(client="claude", allow_model_usage=False, model="x"))
 
+
+    def test_quality_axis_scores_payload_independently_of_the_envelope(self):
+        task = {"id": "q", "question": "?", "expected_json": {"answer": "src/a.rs::run"}}
+        prose = 'The helper is `run`.\n\n{"answer": "src/a.rs::run"}'
+        # The frozen grader still fails the envelope, but the quality axis must see the payload.
+        graded = benchmark.grade_answer(task, prose, "json-answer-v3")
+        self.assertFalse(graded["format_correct"])
+        self.assertFalse(graded["correct"])
+        self.assertEqual(quality_pass.answer_json(prose), "src/a.rs::run")
+        self.assertEqual(quality_pass.credit(quality_pass.answer_json(prose),
+                                             task["expected_json"]["answer"], {}), 1.0)
+        quoted = 'Source:\n```rust\nfn run() {}\n```\n```json\n{"answer": "src/a.rs::run"}\n```'
+        self.assertEqual(quality_pass.answer_json(quoted), "src/a.rs::run")
+        self.assertIsNone(quality_pass.answer_json('{"result": "src/a.rs::run"}'))
 
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--fake-server"]:
