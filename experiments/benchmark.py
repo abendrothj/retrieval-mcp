@@ -148,10 +148,11 @@ def preflight(server_command, env, root, directory, profile, warm, timeout):
             client.close()
 
 
-def agent_command(args, directory, profile):
+def agent_command(args, directory, profile=None, *, tools=None, server_name="retrieval"):
     if args.client == "command":
-        substitutions = {"{model}": args.model, "{mcp_config}": str(directory / "mcp.json"),
-                         "{prompt_file}": str(directory / "prompt.txt"), "{run_dir}": str(directory)}
+        substitutions = {"{model}": args.model or "", "{mcp_config}": str(directory / "mcp.json"),
+                         "{prompt_file}": str(directory / "prompt.txt"), "{run_dir}": str(directory),
+                         "{experiments}": str(Path(__file__).resolve().parent)}
         command = []
         for part in args.agent_command:
             for placeholder, value in substitutions.items():
@@ -167,7 +168,8 @@ def agent_command(args, directory, profile):
             "--output-format", "stream-json", "--verbose", "--no-session-persistence",
             "--strict-mcp-config", "--mcp-config", str(directory / "mcp.json"),
             "--tools", "", "--permission-mode", "dontAsk", "--allowedTools",
-            ",".join(f"mcp__retrieval__{tool}" for tool in TOOLS[profile]),
+            ",".join(f"mcp__{server_name}__{tool}" for tool in
+                     (TOOLS[profile] if tools is None else tools)),
             "--max-budget-usd", str(args.max_budget_usd)]
 
 

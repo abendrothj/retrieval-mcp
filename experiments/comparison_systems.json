@@ -1,0 +1,198 @@
+{
+  "version": "comparison-systems-v1",
+  "systems": [
+    {
+      "id": "native-control",
+      "mcp_enabled": false,
+      "command": [],
+      "environment": {},
+      "visible_tools": [],
+      "expected_upstream_tools": [],
+      "prepare_commands": [],
+      "check_commands": [],
+      "version_command": [
+        "opencode",
+        "--version"
+      ]
+    },
+    {
+      "id": "retrieval-mcp",
+      "mcp_enabled": true,
+      "command": [
+        "{server}",
+        "--root",
+        "{root}",
+        "--profile",
+        "D",
+        "--semantic-command",
+        "{semantic_command_json}",
+        "--timeout-seconds",
+        "120"
+      ],
+      "environment": {
+        "RETRIEVAL_SEMANTIC_CACHE_DIR": "{state}/semantic-cache"
+      },
+      "visible_tools": [
+        "search_exact",
+        "read_source",
+        "find_symbol",
+        "find_callers",
+        "search_semantic"
+      ],
+      "expected_upstream_tools": [
+        "search_exact",
+        "read_source",
+        "find_symbol",
+        "find_callers",
+        "search_semantic"
+      ],
+      "prepare_commands": [
+        [
+          "python3",
+          "{experiments}/warm_semantic.py",
+          "--root",
+          "{root}",
+          "--cache",
+          "{state}/semantic-cache",
+          "--server",
+          "{server}",
+          "--semantic-command",
+          "{semantic_command_json}",
+          "--timeout",
+          "600"
+        ]
+      ],
+      "check_commands": [],
+      "version_command": null
+    },
+    {
+      "id": "zvec-grep",
+      "mcp_enabled": true,
+      "command": [
+        "{shared}/zvec/node_modules/.bin/zg",
+        "server",
+        "--stdio",
+        "--listen",
+        "{listen}",
+        "--mcp-toolset",
+        "full"
+      ],
+      "environment": {
+        "ZVEC_GREP_HOME": "{state}/home",
+        "ZVEC_GREP_MODE": "server",
+        "ZVEC_GREP_MCP_TOOLSET": "full",
+        "ZVEC_GREP_MODEL_CACHE": "{shared}/zvec-model-cache"
+      },
+      "visible_tools": [
+        "zvec_grep_search",
+        "zvec_grep_rg"
+      ],
+      "expected_upstream_tools": [
+        "zvec_grep_search",
+        "zvec_grep_rg",
+        "zvec_grep_index",
+        "zvec_grep_index_drop",
+        "zvec_grep_index_status",
+        "zvec_grep_server_status"
+      ],
+      "prepare_commands": [
+        [
+          "npm",
+          "install",
+          "--prefix",
+          "{shared}/zvec",
+          "--save-exact",
+          "--no-audit",
+          "--no-fund",
+          "@zvec/zvec-grep@0.2.2"
+        ],
+        [
+          "{shared}/zvec/node_modules/.bin/zg",
+          "index",
+          "{root}",
+          "--embedding",
+          "local/potion-code-16m-v2",
+          "--mode",
+          "direct"
+        ]
+      ],
+      "check_commands": [
+        [
+          "{shared}/zvec/node_modules/.bin/zg",
+          "status",
+          "{root}",
+          "--mode",
+          "direct",
+          "--check-ready"
+        ]
+      ],
+      "version_command": [
+        "{shared}/zvec/node_modules/.bin/zg",
+        "version"
+      ]
+    },
+    {
+      "id": "codebase-memory",
+      "mcp_enabled": true,
+      "command": [
+        "codebase-memory-mcp",
+        "--tool-profile=analysis",
+        "--ui=false"
+      ],
+      "environment": {
+        "HOME": "{state}/home",
+        "XDG_CONFIG_HOME": "{state}/home/.config",
+        "XDG_DATA_HOME": "{state}/home/.local/share",
+        "XDG_CACHE_HOME": "{state}/home/.cache"
+      },
+      "visible_tools": [
+        "search_graph",
+        "query_graph",
+        "trace_path",
+        "get_code_snippet",
+        "get_graph_schema",
+        "get_architecture",
+        "search_code",
+        "list_projects",
+        "index_status",
+        "check_index_coverage",
+        "detect_changes"
+      ],
+      "expected_upstream_tools": [
+        "search_graph",
+        "query_graph",
+        "trace_path",
+        "get_code_snippet",
+        "get_graph_schema",
+        "get_architecture",
+        "search_code",
+        "list_projects",
+        "index_status",
+        "check_index_coverage",
+        "detect_changes"
+      ],
+      "prepare_commands": [
+        [
+          "codebase-memory-mcp",
+          "cli",
+          "--json",
+          "index_repository",
+          "{\"repo_path\":\"{root}\",\"mode\":\"full\",\"name\":\"comparison\",\"persistence\":false}"
+        ]
+      ],
+      "check_commands": [
+        [
+          "codebase-memory-mcp",
+          "cli",
+          "--json",
+          "index_status",
+          "{\"project\":\"comparison\",\"verbose\":true}"
+        ]
+      ],
+      "version_command": [
+        "codebase-memory-mcp",
+        "--version"
+      ]
+    }
+  ]
+}

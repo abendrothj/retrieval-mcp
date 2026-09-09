@@ -17,6 +17,100 @@ The fake agent and semantic fixture in `test_experiments.py` exercise real MCP t
 
 `audit_answers.py` reads saved project answers and frozen gold, records input hashes, and writes a separate post-hoc report without overwriting existing files. It compares exactly one JSON payload even when preceded by prose; multiple objects, duplicate keys, malformed JSON, and unsupported shapes require manual review. Typed values, set uniqueness, and ordered call chains keep the original comparison rules. This is a sensitivity check, not a replacement for frozen scores or a review of contradictory prose. It excludes unfinished trials and never invokes a model. Resuming model trials remains separate work; these commands do not resume them.
 
+## Native-system comparison
+
+`comparison_runner.py` holds OpenCode and DeepSeek V4 Flash constant across four arms: a native
+codebase-tool control, `retrieval-mcp` profile D, zvec-grep 0.2.2 search plus managed rg, and
+codebase-memory 0.10.2's analysis profile. This estimates the marginal effect of adding each MCP
+bundle to a real agent environment; it is not a common-schema retriever comparison. Native OpenCode
+tools, MCP tool descriptions, and system strategies are part of the declared treatments.
+
+Preparation is model-free. It copies the pinned corpus once per arm, installs the pinned zvec-grep
+package inside the workspace, builds warm indexes, records versions and hashes, and checks that all
+four source copies have the same state-excluding fingerprint. At execution, zvec-grep receives an
+isolated ephemeral loopback endpoint so an unrelated daemon cannot occupy its default port. The
+control receives an empty MCP configuration. Administrative zvec-grep tools are filtered from model
+sessions. The generic gate
+records every attempted MCP call and full response while enforcing identical call and response-byte
+budgets.
+
+```sh
+python3 experiments/comparison_runner.py prepare \
+  --source-root /path/to/pinned-corpus \
+  --workspace /path/to/new-comparison-workspace \
+  --semantic-command '[\"/path/to/ollama_backend\"]'
+
+# Plan only: 22 questions × 4 arms × 1 repetition = 88 trials.
+python3 experiments/comparison_runner.py run \
+  --workspace /path/to/new-comparison-workspace \
+  --output /path/to/new-comparison-plan \
+  --semantic-command '[\"/path/to/ollama_backend\"]' \
+  --client command \
+  --agent-command '[\"python3\",\"{experiments}/opencode_wrapper.py\",\"{model}\",\"{mcp_config}\",\"{prompt_file}\",\"{run_dir}\"]' \
+  --model deepseek/deepseek-v4-flash --variant high --dry-run
+
+# Charges/quota begin here. Use another new output directory and a valid DEEPSEEK_API_KEY.
+python3 experiments/comparison_runner.py run \
+  --workspace /path/to/new-comparison-workspace \
+  --output /path/to/new-comparison-results \
+  --semantic-command '[\"/path/to/ollama_backend\"]' \
+  --client command \
+  --agent-command '[\"python3\",\"{experiments}/opencode_wrapper.py\",\"{model}\",\"{mcp_config}\",\"{prompt_file}\",\"{run_dir}\"]' \
+  --model deepseek/deepseek-v4-flash --variant high --allow-model-usage
+
+python3 experiments/analyze_comparison.py /path/to/new-comparison-results \
+  --output /path/to/new-comparison-analysis.json
+```
+
+The system-specific absolute root is necessarily different because indexes and the native control
+are isolated; pairing uses question ID, question hash, and repetition rather than the full prompt
+hash. OpenCode's native codebase tools remain available in every arm; web/external retrieval and
+source modification are prohibited and recorded as contamination. Analysis retains strict JSON/path
+correctness, the source-resolved quality score, graded credit, failures, calls, bytes, and latency.
+The manifest pins `deepseek/deepseek-v4-flash`, the `high` reasoning variant, and usage approval.
+
+### Question set
+
+`comparison_questions.json` is the frozen, pre-registered workload: the twelve reviewed
+`v2_questions_draft.json` tasks plus ten authored in `comparison_questions_new.json` (ids prefixed
+`comp-`). Every gold answer is verified against the pinned corpus by reading source and by
+independent ripgrep; `test_comparison_questions.py` re-checks each anchor, stratum, and null answer
+without touching the indexes under test.
+
+Distribution by category and stratum:
+
+| Category | Count | What it tests |
+|---|---:|---|
+| conceptual_lookup | 7 | behavior described without the target identifier |
+| symbol_resolution | 4 | same-named items; two are absent-target (`null`) answers |
+| exact_lookup | 3 | literal diagnostic origin and named definitions |
+| direct_caller_lookup | 2 | distinct callers |
+| transitive_blast_radius | 3 | ordered chains, one crossing two files |
+| mixed_discovery_structure | 3 | discover from behavior, then resolve or trace |
+| **pre_cutoff** | 6 | files a model may have memorized |
+| **post_cutoff** | 16 | files a model cannot know; retrieval is required |
+
+The expansion deliberately rebalances toward description-led and absent-target cells, which the
+prior set under-represented, and adds a cross-file chain. Sixteen of twenty-two targets are
+post-cutoff, so correctness provably requires retrieval rather than priors. Efficiency is scored
+per-answer: token and call savings are only meaningful gated on resolved correctness, because the
+prior study found the dominant failure is ~27% cheaper in calls than success.
+
+### Freeze gate
+
+Before any model run, review the answer key, not the model's behavior. `test_comparison_questions.py`
+proves mechanical grounding (anchors exist, paths and strata match, no answer leakage, null answers
+have no candidate definition), but a human still owns semantic correctness:
+
+1. Each gold symbol names the intended target, and each question's wording is unambiguous without
+   naming it.
+2. Each `null` answer genuinely has no candidate in the file, under a reading that includes tests.
+3. The category and stratum labels are the ones the analysis will report.
+4. The description-led questions are solvable from the description alone — not only by guessing the
+   module.
+
+Only after that review is the set frozen for a comparison run.
+
 ## Three-project study
 
 For post-hoc within-ModelShare comparisons, run `python3 experiments/research_review.py /path/to/project-results --output /path/to/new-research-analysis.json`. This preserves frozen scores, reports supplemental payload matches, retains every paired observation, separates all-eligible and both-matching subsets, and includes per-question/category mean/median savings and leave-one-question-out checks. Input run records, transcripts, server logs, and questions are hashed. It makes no model calls and does not infer verification from source-read overlap. Repetitions remain repeated observations of questions, not independent tasks.

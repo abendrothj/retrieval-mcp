@@ -1,0 +1,192 @@
+[
+ {
+  "id": "comp-fold-tab-stop",
+  "category": "conceptual_lookup",
+  "stratum": "post_cutoff",
+  "question": "In fold, a helper advances a column position to the next tab stop, rounding the position up to the next multiple of the tab width. Return its qualified symbol: {\"answer\": \"repository-relative/file.rs::function\"}.",
+  "expected_json": {
+   "answer": "src/uu/fold/src/fold.rs::next_tab_stop"
+  },
+  "evidence": [
+   {
+    "path": "src/uu/fold/src/fold.rs",
+    "contains": [
+     "fn next_tab_stop(col_count: usize) -> usize {",
+     "col_count + TAB_WIDTH - col_count % TAB_WIDTH"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "comp-fold-column-count",
+  "category": "conceptual_lookup",
+  "stratum": "post_cutoff",
+  "question": "In fold, a helper counts how many display columns a byte buffer occupies under a given width mode: a tab advances to the next tab stop, a backspace decreases the count, and a carriage return resets it to zero. Return its qualified symbol: {\"answer\": \"repository-relative/file.rs::function\"}.",
+  "expected_json": {
+   "answer": "src/uu/fold/src/fold.rs::compute_col_count"
+  },
+  "evidence": [
+   {
+    "path": "src/uu/fold/src/fold.rs",
+    "contains": [
+     "fn compute_col_count(buffer: &[u8], mode: WidthMode) -> usize {",
+     "'\\r' => width = 0,"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "comp-truncate-block-size",
+  "category": "conceptual_lookup",
+  "stratum": "post_cutoff",
+  "question": "In truncate, a helper returns the I/O block size of a file, or of its parent directory when the file does not yet exist. Return its qualified symbol: {\"answer\": \"repository-relative/file.rs::function\"}.",
+  "expected_json": {
+   "answer": "src/uu/truncate/src/truncate.rs::io_block_size"
+  },
+  "evidence": [
+   {
+    "path": "src/uu/truncate/src/truncate.rs",
+    "contains": [
+     "fn io_block_size(path: &Path, metadata: Option<&std::fs::Metadata>) -> u64 {",
+     "Block size for file in question, or if file does not yet exist, for the"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "comp-tac-regex-flavor",
+  "category": "conceptual_lookup",
+  "stratum": "post_cutoff",
+  "question": "In tac, a helper rewrites a regular expression into the flavor the regex crate accepts: it toggles escaping of parentheses, alternation and braces, escapes ^ and $ when they are not at the edges, keeps only ASCII bytes inside character classes, and escapes non-ASCII bytes outside them. Return its qualified symbol: {\"answer\": \"repository-relative/file.rs::function\"}.",
+  "expected_json": {
+   "answer": "src/uu/tac/src/tac.rs::translate_regex_flavor"
+  },
+  "evidence": [
+   {
+    "path": "src/uu/tac/src/tac.rs",
+    "contains": [
+     "fn translate_regex_flavor(bytes: &[u8]) -> String {",
+     "Toggle escaping of (), |, {}"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "comp-numfmt-div-round",
+  "category": "conceptual_lookup",
+  "stratum": "post_cutoff",
+  "question": "In numfmt, a helper divides a numerator by a denominator and rounds the quotient: to one decimal place when the result's magnitude is below ten, otherwise to an integer. Return its qualified symbol: {\"answer\": \"repository-relative/file.rs::function\"}.",
+  "expected_json": {
+   "answer": "src/uu/numfmt/src/format.rs::div_round"
+  },
+  "evidence": [
+   {
+    "path": "src/uu/numfmt/src/format.rs",
+    "contains": [
+     "pub fn div_round(n: f64, d: f64, method: RoundMethod) -> f64 {",
+     "if v.abs() < 10.0 {"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "comp-tac-no-dedup",
+  "category": "symbol_resolution",
+  "stratum": "post_cutoff",
+  "question": "Does src/uu/tac/src/tac.rs define a function that removes duplicate adjacent lines? Return its qualified symbol, or null if the file defines no such function: {\"answer\": null}.",
+  "expected_json": {
+   "answer": null
+  },
+  "evidence": [
+   {
+    "path": "src/uu/tac/src/tac.rs",
+    "contains": [
+     "fn buffer_tac(data: &[u8], before: bool, separator: &OsStr) -> std::io::Result<()> {",
+     "fn translate_regex_flavor(bytes: &[u8]) -> String {"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "comp-fold-no-sort",
+  "category": "symbol_resolution",
+  "stratum": "post_cutoff",
+  "question": "Does src/uu/fold/src/fold.rs define a function that sorts lines into order? Return its qualified symbol, or null if the file defines no such function: {\"answer\": null}.",
+  "expected_json": {
+   "answer": null
+  },
+  "evidence": [
+   {
+    "path": "src/uu/fold/src/fold.rs",
+    "contains": [
+     "fn fold_file<T: Read, W: Write>(",
+     "fn next_tab_stop(col_count: usize) -> usize {"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "comp-chroot-no-such-user",
+  "category": "exact_lookup",
+  "stratum": "post_cutoff",
+  "question": "In chroot, a helper resolves a name to a UID: it first looks the name up as a user, and only when that fails interprets the string as a numeric ID, returning the 'no such user' error if both fail. Return its qualified symbol: {\"answer\": \"repository-relative/file.rs::function\"}.",
+  "expected_json": {
+   "answer": "src/uu/chroot/src/chroot.rs::name_to_uid"
+  },
+  "evidence": [
+   {
+    "path": "src/uu/chroot/src/chroot.rs",
+    "contains": [
+     "fn name_to_uid(name: &str) -> Result<libc::uid_t, ChrootError> {",
+     ".map_err(|_| ChrootError::NoSuchUser)"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "comp-numfmt-to-transform",
+  "category": "mixed_discovery_structure",
+  "stratum": "post_cutoff",
+  "question": "In numfmt, a helper applies the --to transformation: it scales a parsed value into the target unit by dividing by that unit, then chooses the suffix that fits. Return its qualified symbol: {\"answer\": \"repository-relative/file.rs::function\"}.",
+  "expected_json": {
+   "answer": "src/uu/numfmt/src/format.rs::transform_to"
+  },
+  "evidence": [
+   {
+    "path": "src/uu/numfmt/src/format.rs",
+    "contains": [
+     "fn transform_to(",
+     "let i2 = s / (opts.to_unit as f64);"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "comp-env-variable-chain",
+  "category": "transitive_blast_radius",
+  "stratum": "post_cutoff",
+  "question": "In env, parsing a single variable reference such as $NAME or ${NAME} is split across two files: one holds the character cursor, the other the variable grammar. Give the ordered chain of calls from the function that parses one variable reference, through the one-character advance, to the cursor method that consumes the next chunk, including all three. Preserve call order. Return {\"answer\": [\"...\"]}.",
+  "expected_json": {
+   "answer": [
+    "src/uu/env/src/variable_parser.rs::VariableParser::parse_variable",
+    "src/uu/env/src/variable_parser.rs::VariableParser::skip_one",
+    "src/uu/env/src/string_parser.rs::StringParser::consume_chunk"
+   ]
+  },
+  "evidence": [
+   {
+    "path": "src/uu/env/src/variable_parser.rs",
+    "contains": [
+     "pub fn parse_variable(&mut self) -> Result<&'a NativeIntStr, EnvError> {",
+     "self.skip_one()?"
+    ]
+   },
+   {
+    "path": "src/uu/env/src/string_parser.rs",
+    "contains": [
+     "pub fn consume_chunk(&mut self) -> Result<Chunk<'a>, Error> {"
+    ]
+   }
+  ]
+ }
+]
