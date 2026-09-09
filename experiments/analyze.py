@@ -8,11 +8,11 @@ import posixpath
 from statistics import mean, median
 
 LOW_LEVEL = {"search_exact", "read_source"}
-ADVANCED = {"find_symbol", "find_callers", "search_semantic"}
+ADVANCED = {"find_symbol", "find_callers", "trace_dependencies", "search_semantic"}
 
 
 def method(tool):
-    return "structural" if tool in {"find_symbol", "find_callers"} else tool
+    return "structural" if tool in {"find_symbol", "find_callers", "trace_dependencies"} else tool
 
 
 def normalized_arguments(tool, arguments):
@@ -21,6 +21,7 @@ def normalized_arguments(tool, arguments):
         "search_exact": {"path": ".", "regex": False, "case_sensitive": True, "limit": 20, "offset": 0},
         "find_symbol": {"path": ".", "limit": 20, "offset": 0},
         "find_callers": {"path": ".", "include_references": False, "limit": 20, "offset": 0},
+        "trace_dependencies": {"direction": "callers", "depth": 3, "path": ".", "limit": 20, "offset": 0},
         "search_semantic": {"limit": 20, "offset": 0},
         "read_source": {"start_line": 1},
     }

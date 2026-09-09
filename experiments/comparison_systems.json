@@ -37,6 +37,7 @@
         "read_source",
         "find_symbol",
         "find_callers",
+        "trace_dependencies",
         "search_semantic"
       ],
       "expected_upstream_tools": [
@@ -44,6 +45,7 @@
         "read_source",
         "find_symbol",
         "find_callers",
+        "trace_dependencies",
         "search_semantic"
       ],
       "prepare_commands": [

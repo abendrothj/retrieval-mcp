@@ -25,6 +25,13 @@ codebase-memory 0.10.2's analysis profile. This estimates the marginal effect of
 bundle to a real agent environment; it is not a common-schema retriever comparison. Native OpenCode
 tools, MCP tool descriptions, and system strategies are part of the declared treatments.
 
+The first four-arm run exposed two routing defects rather than a ranking: the model never called
+`find_callers`, answered mixed discovery/structure questions with exact search alone, and no arm
+solved transitive questions. `retrieval-mcp` therefore gained an explicit server-level routing
+table, tool descriptions that name the tool to prefer instead, and `trace_dependencies` for bounded
+multi-hop callers/callees. Runs before and after that change use different arm definitions and are
+not matched trials; compare them as separate generations, not repetitions.
+
 Preparation is model-free. It copies the pinned corpus once per arm, installs the pinned zvec-grep
 package inside the workspace, builds warm indexes, records versions and hashes, and checks that all
 four source copies have the same state-excluding fingerprint. At execution, zvec-grep receives an

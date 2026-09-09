@@ -177,14 +177,14 @@ async fn profiles_and_structural_queries_over_stdio() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(
         root.path().join("sample.rs"),
-        "fn target() {}\nfn caller() { target(); unknown(); }\n",
+        "fn target() {}\nfn caller() { target(); unknown(); }\nfn outer() { caller(); }\n",
     )
     .unwrap();
     for (profile, count, structural, semantic) in [
         ("A", 2, false, false),
-        ("B", 4, true, false),
+        ("B", 5, true, false),
         ("C", 3, false, true),
-        ("D", 5, true, true),
+        ("D", 6, true, true),
     ] {
         let mut client = Client::start(root.path(), profile).await;
         let listed = client.request("tools/list", json!({})).await;
@@ -211,6 +211,17 @@ async fn profiles_and_structural_queries_over_stdio() {
                 callers["structuredContent"]["results"][0]["resolution"],
                 "unique_name_candidate"
             );
+            let trace = client
+                .tool(
+                    "trace_dependencies",
+                    json!({"name":"target","direction":"callers","depth":2}),
+                )
+                .await;
+            assert_eq!(
+                trace["structuredContent"]["results"][1]["caller"], "outer",
+                "{trace}"
+            );
+            assert_eq!(trace["structuredContent"]["results"][1]["depth"], 2);
             // Full snapshots stay stable until restart; direct reads remain current.
             std::fs::write(root.path().join("new.rs"), "fn added_later() {}\n").unwrap();
             let missing = client

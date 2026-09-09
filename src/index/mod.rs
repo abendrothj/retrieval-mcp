@@ -10,7 +10,7 @@ use anyhow::{Context, Result, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     path::Path,
     time::{Duration, Instant},
 };
@@ -39,6 +39,30 @@ pub struct CallerArgs {
     /// Include possible identifier references as well as call sites. Defaults to false.
     pub include_references: Option<bool>,
     pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TraceDirection {
+    Callers,
+    Callees,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TraceArgs {
+    /// Unqualified function or method name at the root of the trace.
+    pub name: String,
+    /// Traverse callers (inbound) or callees (outbound). Defaults to callers.
+    pub direction: Option<TraceDirection>,
+    /// Maximum transitive call hops, 1..5; default 3.
+    pub depth: Option<usize>,
+    /// Optional repository-relative file or directory containing traversed call sites.
+    pub path: Option<String>,
+    /// Maximum returned edges, 1..100; default 20.
+    pub limit: Option<usize>,
+    /// Number of returned edges to skip, 0..10000; default 0.
     pub offset: Option<usize>,
 }
 
@@ -118,6 +142,28 @@ pub struct CallersResult {
     pub relationships_truncated: bool,
 }
 
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct DependencyEdge {
+    pub direction: TraceDirection,
+    pub depth: usize,
+    pub caller: String,
+    pub callee: String,
+    pub path: String,
+    pub line: usize,
+    pub expression: String,
+    pub confidence: String,
+}
+
+#[derive(Serialize, JsonSchema)]
+pub struct DependencyTraceResult {
+    #[serde(flatten)]
+    pub page: Page<DependencyEdge>,
+    pub root_definitions: Vec<Symbol>,
+    pub roots_truncated: bool,
+    pub coverage: Coverage,
+    pub limitations: String,
+}
+
 #[derive(Serialize, JsonSchema)]
 pub struct FileRelationship {
     pub from: String,
@@ -134,11 +180,18 @@ pub trait StructuralBackend: Send + Sync {
         args: SymbolArgs,
     ) -> Result<StructuralResult<Symbol>>;
     fn find_callers(&self, workspace: &Workspace, args: CallerArgs) -> Result<CallersResult>;
+    fn trace_dependencies(
+        &self,
+        workspace: &Workspace,
+        args: TraceArgs,
+    ) -> Result<DependencyTraceResult>;
 }
 
 pub struct StructuralIndex {
     symbols: BTreeMap<String, Vec<Symbol>>,
-    references: BTreeMap<String, Vec<Reference>>,
+    references: Vec<Reference>,
+    references_by_name: BTreeMap<String, Vec<usize>>,
+    calls_by_caller: BTreeMap<String, Vec<usize>>,
     imports: Vec<Import>,
     pub coverage: Coverage,
 }
@@ -172,11 +225,26 @@ impl StructuralIndex {
 
     fn from_files(workspace: &Workspace, files: Vec<String>, timeout: Duration) -> Result<Self> {
         let timestamp = now_ms();
-        let mut index = Self { symbols: BTreeMap::new(), references: BTreeMap::new(), imports: Vec::new(),
-            coverage: Coverage { snapshot_id: timestamp.to_string(), indexed_at_ms: timestamp, languages: vec!["Rust".into(), "Python".into()],
-                indexed_files: 0, unsupported_files: 0, skipped_files: 0, skipped_examples: Vec::new(), parse_error_files: 0,
-                complete: false, freshness: "Full snapshot built on first structural call; restart the server after edits to rebuild.".into(),
-                limitations: "Syntax only: no type checking, macro expansion, dynamic dispatch, alias/re-export or package resolution. Name matches are candidates, including when unique. Hidden/ignored files are excluded. Verify uncertain results with read_source.".into() } };
+        let mut index = Self {
+            symbols: BTreeMap::new(),
+            references: Vec::new(),
+            references_by_name: BTreeMap::new(),
+            calls_by_caller: BTreeMap::new(),
+            imports: Vec::new(),
+            coverage: Coverage {
+                snapshot_id: timestamp.to_string(),
+                indexed_at_ms: timestamp,
+                languages: vec!["Rust".into(), "Python".into()],
+                indexed_files: 0,
+                unsupported_files: 0,
+                skipped_files: 0,
+                skipped_examples: Vec::new(),
+                parse_error_files: 0,
+                complete: false,
+                freshness: "Full snapshot built on first structural call; restart the server after edits to rebuild.".into(),
+                limitations: "Syntax only: no type checking, macro expansion, dynamic dispatch, alias/re-export or package resolution. Name matches are candidates, including when unique. Hidden/ignored files are excluded. Verify uncertain results with read_source.".into(),
+            },
+        };
         let started = Instant::now();
         let mut total_bytes = 0;
         let mut total_records = 0;
@@ -221,11 +289,22 @@ impl StructuralIndex {
                             .push(symbol);
                     }
                     for reference in parsed.references {
+                        let reference_index = index.references.len();
                         index
-                            .references
+                            .references_by_name
                             .entry(reference.name.clone())
                             .or_default()
-                            .push(reference);
+                            .push(reference_index);
+                        if reference.kind == "call"
+                            && let Some(caller) = &reference.caller
+                        {
+                            index
+                                .calls_by_caller
+                                .entry(caller.clone())
+                                .or_default()
+                                .push(reference_index);
+                        }
+                        index.references.push(reference);
                     }
                     index.imports.extend(parsed.imports);
                     index.coverage.indexed_files += 1;
@@ -250,6 +329,67 @@ impl StructuralIndex {
                 .skipped_examples
                 .push(format!("{file}: {reason}"));
         }
+    }
+
+    fn trace_edges(
+        &self,
+        root: &str,
+        direction: TraceDirection,
+        scope: &str,
+        max_depth: usize,
+        max_results: usize,
+    ) -> Vec<DependencyEdge> {
+        let mut queue = VecDeque::from([(root.to_owned(), 0)]);
+        let mut expanded = BTreeSet::new();
+        let mut seen_edges = BTreeSet::new();
+        let mut results = Vec::new();
+        while let Some((name, depth)) = queue.pop_front() {
+            if depth >= max_depth || !expanded.insert(name.clone()) {
+                continue;
+            }
+            let references = match direction {
+                TraceDirection::Callers => self.references_by_name.get(&name),
+                TraceDirection::Callees => self.calls_by_caller.get(&name),
+            };
+            for reference_index in references.into_iter().flatten() {
+                let reference = &self.references[*reference_index];
+                if reference.kind != "call" || !in_scope(&reference.path, scope) {
+                    continue;
+                }
+                let Some(owner) = &reference.caller else {
+                    continue;
+                };
+                let (caller, callee, next) = match direction {
+                    TraceDirection::Callers => (owner, &name, owner),
+                    TraceDirection::Callees => (&name, &reference.name, &reference.name),
+                };
+                let edge_depth = depth + 1;
+                if seen_edges.insert((
+                    caller.clone(),
+                    callee.clone(),
+                    reference.path.clone(),
+                    reference.line,
+                )) {
+                    results.push(DependencyEdge {
+                        direction,
+                        depth: edge_depth,
+                        caller: caller.clone(),
+                        callee: callee.clone(),
+                        path: reference.path.clone(),
+                        line: reference.line,
+                        expression: reference.expression.clone(),
+                        confidence: "low: unqualified syntax names only; bindings and receiver types are unresolved".into(),
+                    });
+                    if results.len() >= max_results {
+                        return results;
+                    }
+                }
+                if edge_depth < max_depth {
+                    queue.push_back((next.clone(), edge_depth));
+                }
+            }
+        }
+        results
     }
 }
 
@@ -298,10 +438,11 @@ impl StructuralBackend for StructuralIndex {
         let scope = scope(workspace, args.path.as_deref())?;
         let candidates = self.symbols.get(&args.name).cloned().unwrap_or_default();
         let refs = self
-            .references
+            .references_by_name
             .get(&args.name)
             .into_iter()
             .flatten()
+            .map(|index| &self.references[*index])
             .filter(|r| {
                 in_scope(&r.path, &scope)
                     && (args.include_references.unwrap_or(false) || r.kind == "call")
@@ -388,6 +529,49 @@ impl StructuralBackend for StructuralIndex {
             imports_truncated,
             file_relationships,
             relationships_truncated,
+        })
+    }
+
+    fn trace_dependencies(
+        &self,
+        workspace: &Workspace,
+        args: TraceArgs,
+    ) -> Result<DependencyTraceResult> {
+        validate_query(&args.name)?;
+        let (limit, offset) = pagination(args.limit, args.offset)?;
+        let max_depth = args.depth.unwrap_or(3);
+        ensure!((1..=5).contains(&max_depth), "depth must be 1..5");
+        let scope = scope(workspace, args.path.as_deref())?;
+        let direction = args.direction.unwrap_or(TraceDirection::Callers);
+        let mut roots: Vec<_> = self
+            .symbols
+            .get(&args.name)
+            .into_iter()
+            .flatten()
+            .filter(|symbol| in_scope(&symbol.path, &scope))
+            .take(6)
+            .cloned()
+            .collect();
+        let roots_truncated = roots.len() > 5;
+        roots.truncate(5);
+        let edges = self.trace_edges(
+            &args.name,
+            direction,
+            &scope,
+            max_depth,
+            offset + limit + 1,
+        );
+        let has_more = edges.len() > offset + limit;
+        Ok(DependencyTraceResult {
+            page: Page {
+                results: edges.into_iter().skip(offset).take(limit).collect(),
+                has_more,
+                next_offset: has_more.then_some(offset + limit),
+            },
+            root_definitions: roots,
+            roots_truncated,
+            coverage: self.coverage.clone(),
+            limitations: "Candidate call paths only: unqualified syntax names can merge unrelated functions or methods. Verify material edges with read_source.".into(),
         })
     }
 }
@@ -764,6 +948,91 @@ mod tests {
                 .caller
                 .as_deref(),
             Some("launch")
+        );
+    }
+    #[test]
+    fn transitive_traces_respect_depth_direction_cycles_and_paging() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("chain.rs"),
+            "fn leaf() {}\nfn middle() { leaf(); }\nfn top() { middle(); }\nfn spin() { spin_helper(); }\nfn spin_helper() { spin(); }\n",
+        )
+        .unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index =
+            StructuralIndex::from_files(&ws, vec!["chain.rs".into()], Duration::from_secs(5))
+                .unwrap();
+        let trace = |name: &str, direction, depth, limit, offset| {
+            index
+                .trace_dependencies(
+                    &ws,
+                    TraceArgs {
+                        name: name.into(),
+                        direction: Some(direction),
+                        depth: Some(depth),
+                        path: None,
+                        limit,
+                        offset,
+                    },
+                )
+                .unwrap()
+        };
+        let one_hop = trace("leaf", TraceDirection::Callers, 1, None, None);
+        assert_eq!(
+            one_hop
+                .page
+                .results
+                .iter()
+                .map(|e| (e.caller.as_str(), e.callee.as_str(), e.depth))
+                .collect::<Vec<_>>(),
+            vec![("middle", "leaf", 1)]
+        );
+        assert_eq!(one_hop.root_definitions[0].line, 1);
+        // Depth 2 reaches the indirect caller a direct-caller lookup cannot see.
+        let two_hops = trace("leaf", TraceDirection::Callers, 2, None, None);
+        assert_eq!(
+            two_hops
+                .page
+                .results
+                .iter()
+                .map(|e| (e.caller.as_str(), e.callee.as_str(), e.depth))
+                .collect::<Vec<_>>(),
+            vec![("middle", "leaf", 1), ("top", "middle", 2)]
+        );
+        let callees = trace("top", TraceDirection::Callees, 3, None, None);
+        assert_eq!(
+            callees
+                .page
+                .results
+                .iter()
+                .map(|e| (e.caller.as_str(), e.callee.as_str(), e.depth))
+                .collect::<Vec<_>>(),
+            vec![("top", "middle", 1), ("middle", "leaf", 2)]
+        );
+        // A call cycle must terminate instead of revisiting expanded names.
+        let cyclic = trace("spin", TraceDirection::Callees, 5, None, None);
+        assert_eq!(cyclic.page.results.len(), 2);
+        assert!(!cyclic.page.has_more);
+        let first_page = trace("leaf", TraceDirection::Callers, 2, Some(1), None);
+        assert!(first_page.page.has_more);
+        assert_eq!(first_page.page.next_offset, Some(1));
+        let second_page = trace("leaf", TraceDirection::Callers, 2, Some(1), Some(1));
+        assert_eq!(second_page.page.results[0].caller, "top");
+        assert!(!second_page.page.has_more);
+        assert!(
+            index
+                .trace_dependencies(
+                    &ws,
+                    TraceArgs {
+                        name: "leaf".into(),
+                        direction: None,
+                        depth: Some(6),
+                        path: None,
+                        limit: None,
+                        offset: None,
+                    },
+                )
+                .is_err()
         );
     }
     #[test]

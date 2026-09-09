@@ -1,6 +1,6 @@
 # retrieval-mcp
 
-A small Rust MCP server for testing whether a coding model can choose its own retrieval mechanism. It exposes five separate tools over stdio. There is no LLM router, combined search tool, or automatic fallback between methods.
+A small Rust MCP server for testing whether a coding model can choose its own retrieval mechanism. It exposes six separate tools over stdio. There is no LLM router, combined search tool, or automatic fallback between methods. Server instructions and tool descriptions state which tool suits which question shape, but the model performs all routing.
 
 ```text
 Claude Code / Codex
@@ -11,6 +11,7 @@ Rust retrieval server ── invocation events → JSONL
         ├── read_source     → bounded filesystem reads
         ├── find_symbol     → Tree-sitter snapshot (Rust/Python)
         ├── find_callers    → syntactic references + candidate definitions
+        ├── trace_dependencies → bounded transitive call traversal
         └── search_semantic → configurable JSON subprocess
                                    └── example: local Ollama embeddings
 ```
@@ -28,7 +29,7 @@ cargo clippy --locked --all-targets -- -D warnings
 # Baseline: exactly two tools, no structural indexing or semantic backend.
 ./target/release/retrieval-mcp --root /absolute/path/to/repo --profile A
 
-# All five tools, with the example semantic backend.
+# All six tools, with the example semantic backend.
 ./target/release/retrieval-mcp \
   --root /absolute/path/to/repo --profile D \
   --semantic-command '["/absolute/path/to/retrieval-mcp/target/release/examples/ollama_backend"]' \
@@ -86,7 +87,8 @@ All tool inputs reject unknown fields. Results include both MCP `structuredConte
 | `search_exact` | Known text, identifiers, errors, or regex patterns | `{"query":"timeout","path":"src","limit":10}` |
 | `read_source` | Inspect or verify a known source location | `{"path":"src/main.rs","start_line":1,"end_line":50}` |
 | `find_symbol` | Locate exact-name declarations in Rust/Python | `{"name":"Workspace","limit":10}` |
-| `find_callers` | Find likely calls or possible references | `{"name":"resolve","include_references":true,"limit":10}` |
+| `find_callers` | Find direct calls or possible references | `{"name":"resolve","include_references":true,"limit":10}` |
+| `trace_dependencies` | Multi-hop callers, callees, or impact | `{"name":"resolve","direction":"callers","depth":3}` |
 | `search_semantic` | Find behavior when the spelling is unknown | `{"query":"prevent reading files outside the repository","limit":5}` |
 
 `search_exact` is case-sensitive literal search unless `regex:true` or `case_sensitive:false` is supplied. Results represent matching lines, not individual occurrences; excerpts are centered near the first match. Matches remain in stable path/line order for an unchanged repository. It respects ripgrep ignore rules and skips hidden files during traversal; explicit file paths follow ripgrep's explicit-path behavior. It disables ripgrep config files and excludes `.git` and `target` trees during traversal.
@@ -94,6 +96,8 @@ All tool inputs reject unknown fields. Results include both MCP `structuredConte
 `read_source` defaults to 100 lines, allows at most 500 per request, and returns `next_line` when more source remains. The response has a byte budget as well as a line budget. Long individual lines produce an actionable error; use exact search for an excerpt. Reads can explicitly access ignored or hidden regular files within the root.
 
 `find_symbol.path` restricts definitions. `find_callers.path` restricts **call sites**, not target definitions. Caller records include the enclosing symbol, expression, candidate definitions, candidate count, resolution label, confidence explanation, and snippet. At most five candidate definitions accompany each reference; the full count and truncation flag preserve ambiguity. Imports and possible file relationships are bounded context for the returned call-site files.
+
+`trace_dependencies` answers the transitive questions `find_callers` cannot: call chains, dependencies, and impact sets. `direction:"callers"` walks inbound call syntax toward the root; `direction:"callees"` walks outbound from it. Depth defaults to 3 hops and is capped at 5. Each edge names the enclosing caller, the callee name, the call site, the hop distance, and the same low-confidence explanation used elsewhere. Traversal expands each symbol name once, so recursive and mutually recursive code terminates instead of looping. Root definitions accompany the edges, capped at five with a truncation flag. Because names are unqualified, distinct namesakes merge into one traversal node; verify material edges with `read_source`.
 
 ## Structural indexing and its limits
 
@@ -175,11 +179,13 @@ Use `--profile` to control the visible and callable tool set:
 | Profile | Tools |
 |---|---|
 | A | exact + read |
-| B | exact + read + symbol + callers |
+| B | exact + read + symbol + callers + trace |
 | C | exact + read + semantic |
-| D | all five |
+| D | all six |
 
 Tool descriptions and schemas stay identical across profiles. Disabled tools are absent from `tools/list` and rejected if called by name. No semantic failure silently falls back to grep.
+
+Server `instructions` carry an explicit routing table: literals to `search_exact`, unknown behavior to `search_semantic`, declarations to `find_symbol`, direct callers to `find_callers`, transitive relationships to `trace_dependencies`, and mixed questions to semantic discovery followed by structural lookup and `read_source` verification. Tool descriptions repeat the boundary and name the tool to prefer instead. This is routing guidance, not enforcement: no tool is required, blocked, or substituted, and profiles still control availability.
 
 Invocation JSONL has `schema_version:1`, an event (`tool_start` / `tool_end`), epoch-millisecond timestamp, session ID, optional operator run ID, MCP request ID, per-session start sequence, profile, tool name, and argument object. End events add latency, result count, retrieval bytes, MCP response bytes, errors, returned locations, structural coverage, and semantic backend name. Latency includes first-call indexing. Interrupted handlers emit an end event with a cancellation marker; abrupt process termination can leave an unmatched start. Trace diagnostics share stderr but not `--log-file`.
 
