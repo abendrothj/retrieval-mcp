@@ -15,7 +15,7 @@ import quality_pass
 HERE = Path(__file__).resolve()
 
 
-def fake_server():
+def fake_server(name="native_search"):
     for line in sys.stdin:
         request = json.loads(line)
         if "id" not in request:
@@ -26,15 +26,15 @@ def fake_server():
                       "serverInfo": {"name": "comparison-fixture", "version": "1"}}
         elif method == "tools/list":
             result = {"tools": [
-                {"name": "native_search", "description": "Return fixture evidence.",
+                {"name": name, "description": "Return fixture evidence.",
                  "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}},
                                  "required": ["query"]}},
-                {"name": "admin_tool", "description": "Must be filtered.",
+                {"name": f"{name}_admin", "description": "Must be filtered.",
                  "inputSchema": {"type": "object", "properties": {}}},
             ]}
         elif method == "tools/call":
-            result = {"isError": False, "content": [{"type": "text", "text": "fixture evidence"}],
-                      "structuredContent": {"answer": "ok"}}
+            result = {"isError": False, "content": [{"type": "text", "text": f"fixture evidence from {name}"}],
+                      "structuredContent": {"answer": "ok", "served_by": name}}
         elif method == "ping":
             result = {}
         else:
@@ -55,53 +55,73 @@ def fake_agent(config_path, answer):
             client.request("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
                                           "clientInfo": {"name": "comparison-agent-fixture", "version": "1"}})
             client.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
-            tools = client.request("tools/list", {})["tools"]
-            if [tool["name"] for tool in tools] != ["native_search"]:
+            names = [tool["name"] for tool in client.request("tools/list", {})["tools"]]
+            if any(name.endswith("_admin") for name in names) or not names:
                 raise ValueError("gate did not filter administrative tools")
             print(json.dumps({"type": "system", "subtype": "init",
-                              "tools": ["mcp__retrieval__native_search"],
+                              "tools": [f"mcp__retrieval__{name}" for name in names],
                               "mcp_servers": [{"name": "retrieval", "status": "connected"}]}), flush=True)
-            print(json.dumps({"type": "assistant", "message": {"content": [{
-                "type": "tool_use", "id": "1", "name": "mcp__retrieval__native_search",
-                "input": {"query": "fixture"}}]}}), flush=True)
-            result = client.request("tools/call", {"name": "native_search", "arguments": {"query": "fixture"}})
-            print(json.dumps({"type": "user", "message": {"content": [{
-                "type": "tool_result", "tool_use_id": "1", "content": result}]}}), flush=True)
+            # Call every exposed tool so a bundled arm exercises both upstreams on one budget.
+            for index, name in enumerate(names, 1):
+                print(json.dumps({"type": "assistant", "message": {"content": [{
+                    "type": "tool_use", "id": str(index), "name": f"mcp__retrieval__{name}",
+                    "input": {"query": "fixture"}}]}}), flush=True)
+                result = client.request("tools/call", {"name": name, "arguments": {"query": "fixture"}})
+                print(json.dumps({"type": "user", "message": {"content": [{
+                    "type": "tool_result", "tool_use_id": str(index), "content": result}]}}), flush=True)
             print(json.dumps({"type": "result", "is_error": False, "result": answer,
                               "usage": {"input_tokens": 1, "output_tokens": 1}}), flush=True)
         finally:
             client.close()
 
 
+def upstream(identifier, tool):
+    return {
+        "id": identifier,
+        "command": [sys.executable, str(HERE), "--fake-server", tool, "{listen}"],
+        "environment": {},
+        "visible_tools": [tool],
+        "expected_upstream_tools": [tool, f"{tool}_admin"],
+    }
+
+
 def systems(path):
-    system = {
-        "mcp_enabled": True,
-        "command": [sys.executable, str(HERE), "--fake-server", "{listen}"],
-        "environment": {}, "visible_tools": ["native_search"],
-        "expected_upstream_tools": ["native_search", "admin_tool"],
+    single = {
+        "mcp_enabled": True, "upstreams": [upstream("one", "native_search")],
+        "environment": {}, "prompt_policy": "",
         "prepare_commands": [], "check_commands": [], "version_command": [sys.executable, "--version"],
     }
+    bundle = {
+        "id": "bundle", "mcp_enabled": True,
+        "upstreams": [upstream("one", "native_search"), upstream("two", "graph_search")],
+        "environment": {}, "prompt_policy": "Route lexical questions to native_search.",
+        "prepare_commands": [], "check_commands": [], "version_command": None,
+    }
     control = {
-        "id": "native-control", "mcp_enabled": False, "command": [], "environment": {},
-        "visible_tools": [], "expected_upstream_tools": [], "prepare_commands": [],
+        "id": "native-control", "mcp_enabled": False, "upstreams": [], "environment": {},
+        "prompt_policy": "", "prepare_commands": [],
         "check_commands": [], "version_command": [sys.executable, "--version"],
     }
-    path.write_text(json.dumps({"version": "comparison-systems-v1", "systems": [
-        control, {"id": "alpha", **system}, {"id": "beta", **system},
+    path.write_text(json.dumps({"version": "comparison-systems-v2", "systems": [
+        control, {"id": "alpha", **single}, {"id": "beta", **single}, bundle,
     ]}))
 
 
 class ComparisonTests(unittest.TestCase):
-    def test_balanced_plan_uses_question_hash_for_cross_root_pairing(self):
+    def test_balanced_plan_uses_question_hash_and_policy_in_the_prompt(self):
         tasks = [{"id": "q", "question": "Question?", "expected_json": {"answer": "ok"}}]
-        configured = [{"id": "alpha"}, {"id": "beta"}]
-        roots = {"alpha": "/tmp/alpha", "beta": "/tmp/beta"}
+        configured = [{"id": "alpha", "prompt_policy": ""},
+                      {"id": "beta", "prompt_policy": "Route callers to graph_search."}]
+        roots = {"alpha": "/tmp/alpha", "beta": "/tmp/alpha"}
         first = comparison_runner.make_plan(tasks, configured, roots, 2, 42)
         second = comparison_runner.make_plan(tasks, configured, roots, 2, 42)
         self.assertEqual(first, second)
         self.assertEqual(first["planned_trials"], 4)
         self.assertEqual(len({trial["question_sha256"] for trial in first["trials"]}), 1)
+        # Same root, so only the routing policy can separate the two prompts.
         self.assertEqual(len({trial["prompt_sha256"] for trial in first["trials"]}), 2)
+        routed = next(t for t in first["trials"] if t["system"] == "beta")
+        self.assertIn("Route callers to graph_search.", routed["prompt"])
     def test_failed_preparation_preserves_diagnostics(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
@@ -135,7 +155,7 @@ class ComparisonTests(unittest.TestCase):
             prepared = comparison_runner.prepare(SimpleNamespace(
                 source_root=source, workspace=workspace, systems=systems_path,
                 server=Path(sys.executable), semantic_command=["fixture"], prepare_timeout=30))
-            self.assertEqual(len(prepared["systems"]), 3)
+            self.assertEqual(len(prepared["systems"]), 4)
             dry_output = base / "dry-run"
             dry = comparison_runner.run(SimpleNamespace(
                 client="claude", allow_model_usage=False, model=None, agent_command=None,
@@ -154,22 +174,31 @@ class ComparisonTests(unittest.TestCase):
                 workspace=workspace, output=output, systems=systems_path,
                 questions=questions, server=Path(sys.executable), semantic_command=["fixture"],
                 repetitions=1, seed=42))
-            self.assertEqual(result["completed"], 3)
+            self.assertEqual(result["completed"], 4)
             listen_addresses = []
             for run_path in output.glob("trial-*/run.json"):
                 run = json.loads(run_path.read_text())
                 self.assertTrue(run["payload_matches"])
                 self.assertTrue(run["resolved_correct"])
+                tools_path = run_path.parent / "tools.json"
                 if run["system"] == "native-control":
                     self.assertEqual(run["tool_sequence"], [])
-                    self.assertFalse((run_path.parent / "tools.json").exists())
+                    self.assertFalse(tools_path.exists())
+                    continue
+                gate = json.loads((run_path.parent / "gate.json").read_text())
+                listen_addresses += [upstream["command"][-1] for upstream in gate["upstreams"]]
+                names = [tool["name"] for tool in json.loads(tools_path.read_text())["tools"]]
+                if run["system"] == "bundle":
+                    # Both servers are exposed, both are called, and both share one budget.
+                    self.assertEqual(names, ["native_search", "graph_search"])
+                    self.assertEqual(run["tool_sequence"], ["native_search", "graph_search"])
+                    self.assertEqual(run["upstream_calls"], {"one": 1, "two": 1})
                 else:
+                    self.assertEqual(names, ["native_search"])
                     self.assertEqual(run["tool_sequence"], ["native_search"])
-                    tools = json.loads((run_path.parent / "tools.json").read_text())
-                    self.assertEqual([tool["name"] for tool in tools["tools"]], ["native_search"])
-                    gate = json.loads((run_path.parent / "gate.json").read_text())
-                    listen_addresses.append(gate["command"][-1])
-            self.assertEqual(len(set(listen_addresses)), 2)
+                    self.assertEqual(run["upstream_calls"], {"one": 1})
+            # Every upstream process, including both halves of the bundle, gets its own port.
+            self.assertEqual(len(set(listen_addresses)), 4)
             for address in listen_addresses:
                 host, port = address.rsplit(":", 1)
                 self.assertEqual(host, "127.0.0.1")
@@ -178,9 +207,9 @@ class ComparisonTests(unittest.TestCase):
             self.assertEqual(manifest["model"], "fixture-model")
             self.assertEqual(manifest["variant"], "high")
             report = analyze_comparison.analyze(output)
-            self.assertEqual([system["payload_correct"] for system in report["systems"]], [1, 1, 1])
-            self.assertEqual([system["resolved_correct"] for system in report["systems"]], [1, 1, 1])
-            self.assertEqual(len(report["pairs"]), 3)
+            self.assertEqual([system["payload_correct"] for system in report["systems"]], [1, 1, 1, 1])
+            self.assertEqual([system["resolved_correct"] for system in report["systems"]], [1, 1, 1, 1])
+            self.assertEqual(len(report["pairs"]), 6)
             self.assertTrue(all(pair["eligible"] for pair in report["pairs"]))
 
     def test_model_use_requires_both_explicit_gates(self):
@@ -204,7 +233,7 @@ class ComparisonTests(unittest.TestCase):
 
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--fake-server"]:
-        fake_server()
+        fake_server(sys.argv[2])
     elif sys.argv[1:2] == ["--fake-agent"]:
         fake_agent(sys.argv[2], sys.argv[3])
     else:

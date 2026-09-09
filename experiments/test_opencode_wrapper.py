@@ -71,7 +71,10 @@ class OpenCodeParserTests(unittest.TestCase):
             run_dir = root / "run"; run_dir.mkdir()
             prompt = root / "prompt.txt"; prompt.write_text("Return JSON.")
             gate = root / "gate.json"
-            gate.write_text(json.dumps({"visible_tools": ["search_exact"]}))
+            gate.write_text(json.dumps({"upstreams": [
+                {"id": "one", "visible_tools": ["search_exact"]},
+                {"id": "two", "visible_tools": ["search_graph"]},
+            ]}))
             mcp = root / "mcp.json"
             mcp.write_text(json.dumps({"mcpServers": {"retrieval": {
                 "command": sys.executable, "args": ["comparison_gate.py", "--config", str(gate)],
@@ -87,6 +90,7 @@ class OpenCodeParserTests(unittest.TestCase):
                 assert config["permission"]["*"] == "deny"
                 assert config["permission"]["read"] == "allow"
                 assert config["permission"]["retrieval_search_exact"] == "allow"
+                assert config["permission"]["retrieval_search_graph"] == "allow"
                 assert "codebase-memory-mcp" not in config["mcp"]
                 assert Path(os.environ["XDG_CONFIG_HOME"]).parent == Path(os.environ["OPENCODE_CONFIG_DIR"]).parent
                 assert sys.argv[sys.argv.index("--model") + 1] == "deepseek/deepseek-v4-flash"

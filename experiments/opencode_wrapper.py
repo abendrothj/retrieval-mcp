@@ -30,7 +30,11 @@ def load_mcp_retrieval(mcp_path):
 
 
 def load_retrieval_tools(mcp_path):
-    """The comparison gate's visible tool names, read from the gate config it was launched with."""
+    """The comparison gate's visible tool names, read from the gate config it was launched with.
+
+    Every exposed tool must appear here: OpenCode denies by default, so a name missing from this
+    set is silently unusable and the arm degrades into the native-tool control.
+    """
     retrieval = load_mcp_retrieval(mcp_path)
     if not retrieval:
         return set()
@@ -42,7 +46,7 @@ def load_retrieval_tools(mcp_path):
         gate = json.loads(Path(gate_path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return set()
-    return set(gate.get("visible_tools", []))
+    return {tool for upstream in gate.get("upstreams", []) for tool in upstream.get("visible_tools", [])}
 
 
 def classify_tool(name, retrieval_tools):

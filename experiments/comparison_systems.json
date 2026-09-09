@@ -1,13 +1,12 @@
 {
-  "version": "comparison-systems-v1",
+  "version": "comparison-systems-v2",
   "systems": [
     {
       "id": "native-control",
       "mcp_enabled": false,
-      "command": [],
+      "upstreams": [],
       "environment": {},
-      "visible_tools": [],
-      "expected_upstream_tools": [],
+      "prompt_policy": "",
       "prepare_commands": [],
       "check_commands": [],
       "version_command": [
@@ -18,36 +17,43 @@
     {
       "id": "retrieval-mcp",
       "mcp_enabled": true,
-      "command": [
-        "{server}",
-        "--root",
-        "{root}",
-        "--profile",
-        "D",
-        "--semantic-command",
-        "{semantic_command_json}",
-        "--timeout-seconds",
-        "120"
+      "upstreams": [
+        {
+          "id": "retrieval",
+          "command": [
+            "{server}",
+            "--root",
+            "{root}",
+            "--profile",
+            "D",
+            "--semantic-command",
+            "{semantic_command_json}",
+            "--timeout-seconds",
+            "120"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "search_exact",
+            "read_source",
+            "find_symbol",
+            "find_callers",
+            "trace_dependencies",
+            "search_semantic"
+          ],
+          "expected_upstream_tools": [
+            "search_exact",
+            "read_source",
+            "find_symbol",
+            "find_callers",
+            "trace_dependencies",
+            "search_semantic"
+          ]
+        }
       ],
       "environment": {
         "RETRIEVAL_SEMANTIC_CACHE_DIR": "{state}/semantic-cache"
       },
-      "visible_tools": [
-        "search_exact",
-        "read_source",
-        "find_symbol",
-        "find_callers",
-        "trace_dependencies",
-        "search_semantic"
-      ],
-      "expected_upstream_tools": [
-        "search_exact",
-        "read_source",
-        "find_symbol",
-        "find_callers",
-        "trace_dependencies",
-        "search_semantic"
-      ],
+      "prompt_policy": "",
       "prepare_commands": [
         [
           "python3",
@@ -70,14 +76,32 @@
     {
       "id": "zvec-grep",
       "mcp_enabled": true,
-      "command": [
-        "{shared}/zvec/node_modules/.bin/zg",
-        "server",
-        "--stdio",
-        "--listen",
-        "{listen}",
-        "--mcp-toolset",
-        "full"
+      "upstreams": [
+        {
+          "id": "zvec",
+          "command": [
+            "{shared}/zvec/node_modules/.bin/zg",
+            "server",
+            "--stdio",
+            "--listen",
+            "{listen}",
+            "--mcp-toolset",
+            "full"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "zvec_grep_search",
+            "zvec_grep_rg"
+          ],
+          "expected_upstream_tools": [
+            "zvec_grep_search",
+            "zvec_grep_rg",
+            "zvec_grep_index",
+            "zvec_grep_index_drop",
+            "zvec_grep_index_status",
+            "zvec_grep_server_status"
+          ]
+        }
       ],
       "environment": {
         "ZVEC_GREP_HOME": "{state}/home",
@@ -85,18 +109,7 @@
         "ZVEC_GREP_MCP_TOOLSET": "full",
         "ZVEC_GREP_MODEL_CACHE": "{shared}/zvec-model-cache"
       },
-      "visible_tools": [
-        "zvec_grep_search",
-        "zvec_grep_rg"
-      ],
-      "expected_upstream_tools": [
-        "zvec_grep_search",
-        "zvec_grep_rg",
-        "zvec_grep_index",
-        "zvec_grep_index_drop",
-        "zvec_grep_index_status",
-        "zvec_grep_server_status"
-      ],
+      "prompt_policy": "",
       "prepare_commands": [
         [
           "npm",
@@ -136,50 +149,54 @@
     {
       "id": "codebase-memory",
       "mcp_enabled": true,
-      "command": [
-        "codebase-memory-mcp",
-        "--tool-profile=analysis",
-        "--ui=false"
+      "upstreams": [
+        {
+          "id": "memory",
+          "command": [
+            "codebase-memory-mcp",
+            "--tool-profile=analysis",
+            "--ui=false"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "search_graph",
+            "query_graph",
+            "trace_path",
+            "get_code_snippet",
+            "get_graph_schema",
+            "get_architecture",
+            "search_code",
+            "list_projects",
+            "index_status",
+            "check_index_coverage",
+            "detect_changes"
+          ],
+          "expected_upstream_tools": [
+            "search_graph",
+            "query_graph",
+            "trace_path",
+            "get_code_snippet",
+            "get_graph_schema",
+            "get_architecture",
+            "search_code",
+            "list_projects",
+            "index_status",
+            "check_index_coverage",
+            "detect_changes"
+          ]
+        }
       ],
       "environment": {
-        "HOME": "{state}/home",
-        "XDG_CONFIG_HOME": "{state}/home/.config",
-        "XDG_DATA_HOME": "{state}/home/.local/share",
-        "XDG_CACHE_HOME": "{state}/home/.cache"
+        "CBM_CACHE_DIR": "{shared}/cbm-cache"
       },
-      "visible_tools": [
-        "search_graph",
-        "query_graph",
-        "trace_path",
-        "get_code_snippet",
-        "get_graph_schema",
-        "get_architecture",
-        "search_code",
-        "list_projects",
-        "index_status",
-        "check_index_coverage",
-        "detect_changes"
-      ],
-      "expected_upstream_tools": [
-        "search_graph",
-        "query_graph",
-        "trace_path",
-        "get_code_snippet",
-        "get_graph_schema",
-        "get_architecture",
-        "search_code",
-        "list_projects",
-        "index_status",
-        "check_index_coverage",
-        "detect_changes"
-      ],
+      "prompt_policy": "",
       "prepare_commands": [
         [
           "codebase-memory-mcp",
           "cli",
           "--json",
           "index_repository",
-          "{\"repo_path\":\"{root}\",\"mode\":\"full\",\"name\":\"comparison\",\"persistence\":false}"
+          "{\"repo_path\":\"{root}\",\"mode\":\"full\",\"name\":\"{project}\",\"persistence\":false}"
         ]
       ],
       "check_commands": [
@@ -188,13 +205,253 @@
           "cli",
           "--json",
           "index_status",
-          "{\"project\":\"comparison\",\"verbose\":true}"
+          "{\"project\":\"{project}\",\"verbose\":true}"
         ]
       ],
       "version_command": [
         "codebase-memory-mcp",
         "--version"
       ]
+    },
+    {
+      "id": "bundle-unguided",
+      "mcp_enabled": true,
+      "upstreams": [
+        {
+          "id": "zvec",
+          "command": [
+            "{shared}/zvec/node_modules/.bin/zg",
+            "server",
+            "--stdio",
+            "--listen",
+            "{listen}",
+            "--mcp-toolset",
+            "full"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "zvec_grep_search",
+            "zvec_grep_rg"
+          ],
+          "expected_upstream_tools": [
+            "zvec_grep_search",
+            "zvec_grep_rg",
+            "zvec_grep_index",
+            "zvec_grep_index_drop",
+            "zvec_grep_index_status",
+            "zvec_grep_server_status"
+          ]
+        },
+        {
+          "id": "memory",
+          "command": [
+            "codebase-memory-mcp",
+            "--tool-profile=analysis",
+            "--ui=false"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "search_graph",
+            "query_graph",
+            "trace_path",
+            "get_code_snippet",
+            "get_graph_schema",
+            "get_architecture",
+            "search_code",
+            "list_projects",
+            "index_status",
+            "check_index_coverage",
+            "detect_changes"
+          ],
+          "expected_upstream_tools": [
+            "search_graph",
+            "query_graph",
+            "trace_path",
+            "get_code_snippet",
+            "get_graph_schema",
+            "get_architecture",
+            "search_code",
+            "list_projects",
+            "index_status",
+            "check_index_coverage",
+            "detect_changes"
+          ]
+        }
+      ],
+      "environment": {
+        "ZVEC_GREP_HOME": "{state}/zvec-home",
+        "ZVEC_GREP_MODE": "server",
+        "ZVEC_GREP_MCP_TOOLSET": "full",
+        "ZVEC_GREP_MODEL_CACHE": "{shared}/zvec-model-cache",
+        "CBM_CACHE_DIR": "{shared}/cbm-cache"
+      },
+      "prompt_policy": "",
+      "prepare_commands": [
+        [
+          "npm",
+          "install",
+          "--prefix",
+          "{shared}/zvec",
+          "--save-exact",
+          "--no-audit",
+          "--no-fund",
+          "@zvec/zvec-grep@0.2.2"
+        ],
+        [
+          "{shared}/zvec/node_modules/.bin/zg",
+          "index",
+          "{root}",
+          "--embedding",
+          "local/potion-code-16m-v2",
+          "--mode",
+          "direct"
+        ],
+        [
+          "codebase-memory-mcp",
+          "cli",
+          "--json",
+          "index_repository",
+          "{\"repo_path\":\"{root}\",\"mode\":\"full\",\"name\":\"{project}\",\"persistence\":false}"
+        ]
+      ],
+      "check_commands": [
+        [
+          "{shared}/zvec/node_modules/.bin/zg",
+          "status",
+          "{root}",
+          "--mode",
+          "direct",
+          "--check-ready"
+        ],
+        [
+          "codebase-memory-mcp",
+          "cli",
+          "--json",
+          "index_status",
+          "{\"project\":\"{project}\",\"verbose\":true}"
+        ]
+      ],
+      "version_command": null
+    },
+    {
+      "id": "bundle-routed",
+      "mcp_enabled": true,
+      "upstreams": [
+        {
+          "id": "zvec",
+          "command": [
+            "{shared}/zvec/node_modules/.bin/zg",
+            "server",
+            "--stdio",
+            "--listen",
+            "{listen}",
+            "--mcp-toolset",
+            "full"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "zvec_grep_search",
+            "zvec_grep_rg"
+          ],
+          "expected_upstream_tools": [
+            "zvec_grep_search",
+            "zvec_grep_rg",
+            "zvec_grep_index",
+            "zvec_grep_index_drop",
+            "zvec_grep_index_status",
+            "zvec_grep_server_status"
+          ]
+        },
+        {
+          "id": "memory",
+          "command": [
+            "codebase-memory-mcp",
+            "--tool-profile=analysis",
+            "--ui=false"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "search_graph",
+            "query_graph",
+            "trace_path",
+            "get_code_snippet",
+            "get_graph_schema",
+            "get_architecture",
+            "search_code",
+            "list_projects",
+            "index_status",
+            "check_index_coverage",
+            "detect_changes"
+          ],
+          "expected_upstream_tools": [
+            "search_graph",
+            "query_graph",
+            "trace_path",
+            "get_code_snippet",
+            "get_graph_schema",
+            "get_architecture",
+            "search_code",
+            "list_projects",
+            "index_status",
+            "check_index_coverage",
+            "detect_changes"
+          ]
+        }
+      ],
+      "environment": {
+        "ZVEC_GREP_HOME": "{state}/zvec-home",
+        "ZVEC_GREP_MODE": "server",
+        "ZVEC_GREP_MCP_TOOLSET": "full",
+        "ZVEC_GREP_MODEL_CACHE": "{shared}/zvec-model-cache",
+        "CBM_CACHE_DIR": "{shared}/cbm-cache"
+      },
+      "prompt_policy": "Two retrieval servers are attached; route by the question's intent instead of using one server for everything. Known literal, identifier, error, filename, or exhaustive occurrence list: zvec_grep_rg. Behavior or concept whose spelling and location are unknown: zvec_grep_search. Declarations, namesakes, or graph structure: search_graph, then get_code_snippet for the source. Direct or transitive callers, callees, dependencies, impact, or call chains: trace_path. Mixed discovery plus structure: discover with zvec_grep_search, resolve the symbol with search_graph, then confirm relationships with trace_path and read the cited source. Stop once the evidence answers the question.",
+      "prepare_commands": [
+        [
+          "npm",
+          "install",
+          "--prefix",
+          "{shared}/zvec",
+          "--save-exact",
+          "--no-audit",
+          "--no-fund",
+          "@zvec/zvec-grep@0.2.2"
+        ],
+        [
+          "{shared}/zvec/node_modules/.bin/zg",
+          "index",
+          "{root}",
+          "--embedding",
+          "local/potion-code-16m-v2",
+          "--mode",
+          "direct"
+        ],
+        [
+          "codebase-memory-mcp",
+          "cli",
+          "--json",
+          "index_repository",
+          "{\"repo_path\":\"{root}\",\"mode\":\"full\",\"name\":\"{project}\",\"persistence\":false}"
+        ]
+      ],
+      "check_commands": [
+        [
+          "{shared}/zvec/node_modules/.bin/zg",
+          "status",
+          "{root}",
+          "--mode",
+          "direct",
+          "--check-ready"
+        ],
+        [
+          "codebase-memory-mcp",
+          "cli",
+          "--json",
+          "index_status",
+          "{\"project\":\"{project}\",\"verbose\":true}"
+        ]
+      ],
+      "version_command": null
     }
   ]
 }

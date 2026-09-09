@@ -19,11 +19,35 @@ The fake agent and semantic fixture in `test_experiments.py` exercise real MCP t
 
 ## Native-system comparison
 
-`comparison_runner.py` holds OpenCode and DeepSeek V4 Flash constant across four arms: a native
-codebase-tool control, `retrieval-mcp` profile D, zvec-grep 0.2.2 search plus managed rg, and
-codebase-memory 0.10.2's analysis profile. This estimates the marginal effect of adding each MCP
-bundle to a real agent environment; it is not a common-schema retriever comparison. Native OpenCode
-tools, MCP tool descriptions, and system strategies are part of the declared treatments.
+`comparison_runner.py` holds OpenCode and DeepSeek V4 Flash constant across six arms: a native
+codebase-tool control, `retrieval-mcp` profile D, zvec-grep 0.2.2 search plus managed rg,
+codebase-memory 0.10.2's analysis profile, and two bundles that attach zvec-grep and
+codebase-memory together — one with no added guidance, one with an explicit routing policy in the
+prompt. This estimates the marginal effect of adding each MCP bundle to a real agent environment;
+it is not a common-schema retriever comparison. Native OpenCode tools, MCP tool descriptions, and
+system strategies are part of the declared treatments.
+
+`comparison-systems-v2` gives every arm an `upstreams` array, so one arm can attach several MCP
+servers behind a single gate process. The gate routes each tool name to exactly one upstream,
+refuses a name exposed by two servers, concatenates every upstream's `instructions` so the model
+receives each server's own policy, and meters one shared call and response-byte budget across all
+of them. Per-upstream call counts land in `upstream_calls`. `prompt_policy` is the routing-guidance
+channel: it is prepended to the question, so it is covered by `prompt_sha256` and never written
+into the corpus under test, which must stay byte-identical across arms.
+
+The bundle arms ask whether a purpose-built retrieval server beats two off-the-shelf servers plus a
+paragraph of routing policy. `bundle-unguided` versus `bundle-routed` isolates the paragraph;
+`bundle-routed` versus `retrieval-mcp` is bought-and-glued versus built.
+
+Two vendor constraints shape the arms. zvec-grep binds one daemon per listen address, so every
+upstream that needs one receives its own ephemeral loopback port. codebase-memory allows exactly
+one daemon per account, bound to one cache directory: all codebase-memory arms therefore share
+`{shared}/cbm-cache` and separate their graphs by project name, which is the arm id and is stated
+in each arm's prompt. No other codebase-memory session, including an editor or agent with the MCP
+server attached, may run during preparation or trials; a foreign daemon holding a different cache
+fails the arm with an explicit cache-mismatch error rather than silently degrading. Never point a
+run at the operator's default cache: a trial that calls `list_projects` would see unrelated indexed
+repositories and could retrieve outside the corpus under test.
 
 The first four-arm run exposed two routing defects rather than a ranking: the model never called
 `find_callers`, answered mixed discovery/structure questions with exact search alone, and no arm
