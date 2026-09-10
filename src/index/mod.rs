@@ -119,6 +119,25 @@ pub struct StructuralResult<T> {
     #[serde(flatten)]
     pub page: Page<T>,
     pub coverage: Coverage,
+    /// "indexed" when the requested name is a known definition, "unknown_symbol" when it is not.
+    /// An invented identifier must fail loudly: a silent empty page reads as a proven absence.
+    pub symbol_status: String,
+    /// Indexed names closest to an unrecognised request, so a wrong guess is recoverable.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub nearest_indexed_names: Vec<String>,
+}
+
+/// Which way a structural answer looked, and whether the other side of the symbol holds anything.
+/// These are graph facts, not advice: the server states the shape and the caller decides.
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct Orientation {
+    pub symbol: String,
+    pub incoming_callers: usize,
+    pub outgoing_callees: usize,
+    pub returned_relation: String,
+    pub direction: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 /// The symbol a retrieved range falls inside, with its call-graph salience.
@@ -260,6 +279,7 @@ pub struct CallersResult {
     pub retrieval: StructuralResult<CallerHit>,
     pub imports: Vec<Import>,
     pub imports_truncated: bool,
+    pub orientation: Orientation,
     pub file_relationships: Vec<FileRelationship>,
     pub relationships_truncated: bool,
 }
@@ -283,6 +303,10 @@ pub struct DependencyTraceResult {
     pub root_definitions: Vec<Symbol>,
     pub roots_truncated: bool,
     pub coverage: Coverage,
+    pub symbol_status: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub nearest_indexed_names: Vec<String>,
+    pub orientation: Orientation,
     pub limitations: String,
 }
 
@@ -585,9 +609,12 @@ impl StructuralBackend for StructuralIndex {
             .flatten()
             .filter(|s| in_scope(&s.path, &scope))
             .cloned();
+        let (symbol_status, nearest_indexed_names) = self.seed_status(&args.name);
         Ok(StructuralResult {
             page: page(definitions, limit, offset),
             coverage: self.coverage.clone(),
+            symbol_status,
+            nearest_indexed_names,
         })
     }
 
@@ -675,6 +702,7 @@ impl StructuralBackend for StructuralIndex {
                 resolution: "candidate_only".into(),
             })
             .collect();
+        let (symbol_status, nearest_indexed_names) = self.seed_status(&args.name);
         Ok(CallersResult {
             retrieval: StructuralResult {
                 page: Page {
@@ -683,9 +711,12 @@ impl StructuralBackend for StructuralIndex {
                     next_offset: refs.next_offset,
                 },
                 coverage: self.coverage.clone(),
+                symbol_status,
+                nearest_indexed_names,
             },
             imports,
             imports_truncated,
+            orientation: self.orientation(&args.name, "callers", "inbound"),
             file_relationships,
             relationships_truncated,
         })
@@ -721,6 +752,11 @@ impl StructuralBackend for StructuralIndex {
             offset + limit + 1,
         );
         let has_more = edges.len() > offset + limit;
+        let (symbol_status, nearest_indexed_names) = self.seed_status(&args.name);
+        let relation = match direction {
+            TraceDirection::Callers => ("callers", "inbound"),
+            TraceDirection::Callees => ("callees", "outbound"),
+        };
         Ok(DependencyTraceResult {
             page: Page {
                 results: edges.into_iter().skip(offset).take(limit).collect(),
@@ -730,6 +766,9 @@ impl StructuralBackend for StructuralIndex {
             root_definitions: roots,
             roots_truncated,
             coverage: self.coverage.clone(),
+            symbol_status,
+            nearest_indexed_names,
+            orientation: self.orientation(&args.name, relation.0, relation.1),
             limitations: "Candidate call paths only: unqualified syntax names can merge unrelated functions or methods. Verify material edges with read_source.".into(),
         })
     }
@@ -776,6 +815,74 @@ impl StructuralBackend for StructuralIndex {
                 .get(&symbol.name)
                 .map_or(0, calls_named),
         })
+    }
+}
+
+impl StructuralIndex {
+    /// Indexed names sharing tokens or a substring with an unrecognised request, best first.
+    fn nearest_names(&self, name: &str) -> Vec<String> {
+        let wanted: BTreeSet<_> = concept_tokens(name).into_iter().collect();
+        let lowered = name.to_lowercase();
+        let mut scored: Vec<_> = self
+            .symbols
+            .keys()
+            .filter_map(|candidate| {
+                let tokens: BTreeSet<_> = concept_tokens(candidate).into_iter().collect();
+                let shared = wanted.intersection(&tokens).count();
+                let lowered_candidate = candidate.to_lowercase();
+                let contained =
+                    lowered_candidate.contains(&lowered) || lowered.contains(&lowered_candidate);
+                (shared > 0 || contained)
+                    .then(|| (shared * 2 + usize::from(contained), candidate.clone()))
+            })
+            .collect();
+        scored.sort_by(|left, right| right.0.cmp(&left.0).then(left.1.cmp(&right.1)));
+        scored.into_iter().take(5).map(|(_, name)| name).collect()
+    }
+
+    fn call_degrees(&self, name: &str) -> (usize, usize) {
+        let calls = |index: Option<&Vec<usize>>| {
+            index.map_or(0, |positions| {
+                positions
+                    .iter()
+                    .filter(|position| self.references[**position].kind == "call")
+                    .count()
+            })
+        };
+        (
+            calls(self.references_by_name.get(name)),
+            calls(self.calls_by_caller.get(name)),
+        )
+    }
+
+    /// Graph facts about which way an answer looked, never a recommendation of what to call next.
+    fn orientation(&self, name: &str, relation: &str, direction: &str) -> Orientation {
+        let (incoming_callers, outgoing_callees) = self.call_degrees(name);
+        let note = match direction {
+            "inbound" if outgoing_callees > 0 => Some(format!(
+                "this symbol also calls {outgoing_callees} indexed definitions"
+            )),
+            "outbound" if incoming_callers > 0 => Some(format!(
+                "this symbol is also called from {incoming_callers} indexed sites"
+            )),
+            _ => None,
+        };
+        Orientation {
+            symbol: name.to_owned(),
+            incoming_callers,
+            outgoing_callees,
+            returned_relation: relation.to_owned(),
+            direction: direction.to_owned(),
+            note,
+        }
+    }
+
+    fn seed_status(&self, name: &str) -> (String, Vec<String>) {
+        if self.symbols.contains_key(name) {
+            ("indexed".into(), Vec::new())
+        } else {
+            ("unknown_symbol".into(), self.nearest_names(name))
+        }
     }
 }
 
@@ -1403,5 +1510,83 @@ mod tests {
                 .unwrap();
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0].name, "only");
+    }
+    #[test]
+    fn unknown_seeds_fail_loudly_and_answers_state_their_direction() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("shell.ts"),
+            "export function getResolvedShellEnv() { return doResolveUnixShellEnv(); }\nfunction doResolveUnixShellEnv() { return 1; }\nexport function consumer() { return getResolvedShellEnv(); }\n",
+        )
+        .unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index =
+            StructuralIndex::from_files(&ws, vec!["shell.ts".into()], Duration::from_secs(5))
+                .unwrap();
+        let invented = index
+            .find_callers(
+                &ws,
+                CallerArgs {
+                    name: "getShellEnvironment".into(),
+                    path: None,
+                    include_references: None,
+                    limit: None,
+                    offset: None,
+                },
+            )
+            .unwrap();
+        // A hallucinated identifier must not read as a proven absence.
+        assert_eq!(invented.retrieval.symbol_status, "unknown_symbol");
+        assert!(
+            invented
+                .retrieval
+                .nearest_indexed_names
+                .contains(&"getResolvedShellEnv".to_string()),
+            "{:?}",
+            invented.retrieval.nearest_indexed_names
+        );
+        let known = index
+            .find_callers(
+                &ws,
+                CallerArgs {
+                    name: "getResolvedShellEnv".into(),
+                    path: None,
+                    include_references: None,
+                    limit: None,
+                    offset: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(known.retrieval.symbol_status, "indexed");
+        assert!(known.retrieval.nearest_indexed_names.is_empty());
+        // Asking inbound states that an outbound side exists, without prescribing a next call.
+        assert_eq!(known.orientation.returned_relation, "callers");
+        assert_eq!(known.orientation.direction, "inbound");
+        assert_eq!(known.orientation.outgoing_callees, 1);
+        assert_eq!(known.orientation.incoming_callers, 1);
+        assert!(
+            known.orientation.note.as_deref().unwrap().contains("also calls 1"),
+            "{:?}",
+            known.orientation.note
+        );
+        let outbound = index
+            .trace_dependencies(
+                &ws,
+                TraceArgs {
+                    name: "getResolvedShellEnv".into(),
+                    direction: Some(TraceDirection::Callees),
+                    depth: Some(2),
+                    path: None,
+                    limit: None,
+                    offset: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(outbound.orientation.direction, "outbound");
+        assert!(
+            outbound.orientation.note.as_deref().unwrap().contains("also called from"),
+            "{:?}",
+            outbound.orientation.note
+        );
     }
 }
