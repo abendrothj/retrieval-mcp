@@ -29,7 +29,8 @@ INSTRUCTION = (
 )
 
 
-def ask(model, variant, question, timeout):
+def ask(model, variant, prompt, timeout):
+    """One tool-free model call. The caller owns the prompt; this owns the isolation."""
     with tempfile.TemporaryDirectory() as directory:
         home = Path(directory) / "config"
         home.mkdir()
@@ -38,7 +39,7 @@ def ask(model, variant, question, timeout):
         command = ["opencode", "run", "--format", "json", "--pure", "--model", model]
         if variant:
             command += ["--variant", variant]
-        command += ["--dir", directory, f"{INSTRUCTION}\n\nQuestion: {question}"]
+        command += ["--dir", directory, prompt]
         environment = dict(
             os.environ,
             OPENCODE_CONFIG_DIR=str(home),
@@ -65,7 +66,7 @@ def ask(model, variant, question, timeout):
     return text, usage
 
 
-def parse(text):
+def parse(text, required=("concepts", "candidate_identifiers", "terms")):
     decoder = json.JSONDecoder()
     for index, character in enumerate(text):
         if character != "{":
@@ -74,9 +75,8 @@ def parse(text):
             value, _ = decoder.raw_decode(text[index:])
         except ValueError:
             continue
-        if isinstance(value, dict) and {"concepts", "candidate_identifiers", "terms"} <= set(value):
-            return {key: [str(item) for item in value[key] if str(item).strip()]
-                    for key in ("concepts", "candidate_identifiers", "terms")}
+        if isinstance(value, dict) and set(required) <= set(value):
+            return value
     raise ValueError("model did not return the requested JSON object")
 
 
@@ -96,10 +96,13 @@ def main():
     questions = json.loads(args.questions.read_text(encoding="utf-8"))
     entries, spend = {}, 0.0
     for task in questions:
-        text, usage = ask(args.model, args.variant, task["question"], args.timeout)
+        prompt = f"{INSTRUCTION}\n\nQuestion: {task['question']}"
+        text, usage = ask(args.model, args.variant, prompt, args.timeout)
+        parsed = parse(text)
         entries[task["id"]] = {
             "question_sha256": hashlib.sha256(task["question"].encode()).hexdigest(),
-            **parse(text),
+            **{key: [str(item) for item in parsed[key] if str(item).strip()]
+               for key in ("concepts", "candidate_identifiers", "terms")},
             "usage": usage,
         }
         spend += usage.get("cost_usd", 0) or 0
