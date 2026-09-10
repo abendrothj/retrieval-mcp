@@ -38,7 +38,7 @@ def scripted(config_path, policy):
                 "clientInfo":{"name":"scripted-factor-fixture", "version":"1"}})
             client.send({"jsonrpc":"2.0", "method":"notifications/initialized"})
             client.request("tools/list", {})
-            first = "search_semantic" if policy == "semantic_first" else "search_exact"
+            first = "search_concept" if policy == "concept_first" else "search_exact"
             actions = [(first, {"query":"delay"}), ("read_source", {"path":"policy.py", "start_line":1, "end_line":1})]
             response = None
             for i, (name, arguments) in enumerate(actions):
@@ -80,7 +80,7 @@ def run(args):
             raise ValueError("invalid typed gold")
     keep = [c.strip() for c in args.cells.split(",") if c.strip()] if args.cells else None
     schedule = plan(tasks, args.repetitions, args.seed, args.control, keep)
-    semantic_cells = [c for c in schedule["conditions"] if "search_semantic" in benchmark.TOOLS[c["availability"]]]
+    semantic_cells = [c for c in schedule["conditions"] if "search_concept" in benchmark.TOOLS[c["availability"]]]
     if semantic_cells and cache and not any(cache.iterdir()):
         raise ValueError("shared semantic cache is empty; warm it with warm_semantic.py before running")
     before = benchmark.fingerprint(root)
@@ -141,7 +141,7 @@ def run(args):
             command = [str(server), "--root", str(root), "--profile", cell["availability"],
                 "--log-file", str(attempt/"server.jsonl"), "--run-id", f"trial-{index:04d}-{len(attempts)+1}",
                 "--timeout-seconds", str(args.tool_timeout)]
-            if "search_semantic" in benchmark.TOOLS[cell["availability"]]:
+            if "search_concept" in benchmark.TOOLS[cell["availability"]]:
                 semantic = args.semantic_command if args.client == "claude" else [sys.executable,
                     str(Path(__file__).with_name("test_experiments.py")), "--fake-semantic"]
                 command += ["--semantic-command", json.dumps(semantic)]
@@ -195,7 +195,7 @@ def run(args):
                 state["attempted_calls"] = len(events)
                 state["first_attempt"] = events[0]["tool"] if events else None
                 state["policy_violations"] = sum(e["reason"] == "first_tool_policy_violation" for e in events)
-                required = {"free":None, "lexical_first":"search_exact", "semantic_first":"search_semantic"}[cell["routing"]]
+                required = {"free":None, "lexical_first":"search_exact", "concept_first":"search_concept"}[cell["routing"]]
                 state["policy_adherent"] = (required is None or state["first_attempt"] == required) and not state["policy_violations"]
                 # A control trial that reached any retrieval tool is contaminated, not merely adherent.
                 state["control_without_retrieval"] = control and state["attempted_calls"] == 0 and not state["unexpected_tools"] if control else None

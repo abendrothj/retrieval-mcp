@@ -33,8 +33,8 @@ with tempfile.TemporaryFile(mode="w+") as err:
         hits = {"semantic": 0, "description": 0}
         for q in questions:
             gold = {e["path"] for e in q["evidence"]}
-            full = paths("search_semantic", {"query": q["question"], "limit": 5})
-            desc = paths("search_semantic", {"query": strip_identifiers(q["question"]), "limit": 5})
+            full = paths("search_concept", {"query": q["question"], "limit": 5})
+            desc = paths("search_concept", {"query": strip_identifiers(q["question"]), "limit": 5})
             a, b = bool(gold & set(full)), bool(gold & set(desc))
             hits["semantic"] += a; hits["description"] += b
             print(f"{q['id']:34s} {sorted(gold)[0][-44:]:44s} {str(a):>6s} {str(b):>11s}")

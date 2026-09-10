@@ -12,7 +12,7 @@ Rust retrieval server ── invocation events → JSONL
         ├── find_symbol     → Tree-sitter snapshot (Rust/Python)
         ├── find_callers    → syntactic references + candidate definitions
         ├── trace_dependencies → bounded transitive call traversal
-        └── search_semantic → configurable JSON subprocess
+        └── search_concept → configurable JSON subprocess
                                    └── example: local Ollama embeddings
 ```
 
@@ -39,7 +39,7 @@ cargo clippy --locked --all-targets -- -D warnings
 
 The server waits for an MCP client on stdin; it is not an interactive terminal application. Stdout carries MCP messages only. Logs go to stderr; `--log-file` additionally appends invocation events to a file whose parent directory must already exist. The file is never truncated. New log files use mode 0600 on Unix.
 
-Default profile is **D**. Without `--semantic-command`, `search_semantic` remains visible in C/D but returns an explicit configuration error. Configure the backend before collecting C/D measurements. `--root` is mandatory and fixed for the session; clients cannot change it through a tool argument.
+Default profile is **D**. Without `--semantic-command`, `search_concept` remains visible in C/D but returns an explicit configuration error. Configure the backend before collecting C/D measurements. `--root` is mandatory and fixed for the session; clients cannot change it through a tool argument.
 
 The SDK is [`rmcp` 3.2.0](https://github.com/modelcontextprotocol/rust-sdk), the official Tokio-based Rust SDK, selected after checking the published crates.io release and upstream documentation. The SDK handles protocol negotiation and stdio; `Cargo.lock` pins the working dependency set. The integration test negotiates MCP `2025-11-25` and exercises real JSON-RPC subprocess calls.
 
@@ -89,7 +89,7 @@ All tool inputs reject unknown fields. Results include both MCP `structuredConte
 | `find_symbol` | Locate exact-name declarations in Rust/Python | `{"name":"Workspace","limit":10}` |
 | `find_callers` | Find direct calls or possible references | `{"name":"resolve","include_references":true,"limit":10}` |
 | `trace_dependencies` | Multi-hop callers, callees, or impact | `{"name":"resolve","direction":"callers","depth":3}` |
-| `search_semantic` | Find behavior when the spelling is unknown | `{"query":"prevent reading files outside the repository","limit":5}` |
+| `search_concept` | Find behavior when the spelling is unknown | `{"query":"prevent reading files outside the repository","limit":5}` |
 
 `search_exact` is case-sensitive literal search unless `regex:true` or `case_sensitive:false` is supplied. Results represent matching lines, not individual occurrences; excerpts are centered near the first match. Matches remain in stable path/line order for an unchanged repository. It respects ripgrep ignore rules and skips hidden files during traversal; explicit file paths follow ripgrep's explicit-path behavior. It disables ripgrep config files and excludes `.git` and `target` trees during traversal.
 
@@ -185,7 +185,7 @@ Use `--profile` to control the visible and callable tool set:
 
 Tool descriptions and schemas stay identical across profiles. Disabled tools are absent from `tools/list` and rejected if called by name. No semantic failure silently falls back to grep.
 
-Server `instructions` carry an explicit routing table: literals to `search_exact`, unknown behavior to `search_semantic`, declarations to `find_symbol`, direct callers to `find_callers`, transitive relationships to `trace_dependencies`, and mixed questions to semantic discovery followed by structural lookup and `read_source` verification. Tool descriptions repeat the boundary and name the tool to prefer instead. This is routing guidance, not enforcement: no tool is required, blocked, or substituted, and profiles still control availability.
+Server `instructions` carry an explicit routing table: literals to `search_exact`, unknown behavior to `search_concept`, declarations to `find_symbol`, direct callers to `find_callers`, transitive relationships to `trace_dependencies`, and mixed questions to semantic discovery followed by structural lookup and `read_source` verification. Tool descriptions repeat the boundary and name the tool to prefer instead. This is routing guidance, not enforcement: no tool is required, blocked, or substituted, and profiles still control availability.
 
 Invocation JSONL has `schema_version:1`, an event (`tool_start` / `tool_end`), epoch-millisecond timestamp, session ID, optional operator run ID, MCP request ID, per-session start sequence, profile, tool name, and argument object. End events add latency, result count, retrieval bytes, MCP response bytes, errors, returned locations, structural coverage, and semantic backend name. Latency includes first-call indexing. Interrupted handlers emit an end event with a cancellation marker; abrupt process termination can leave an unmatched start. Trace diagnostics share stderr but not `--log-file`.
 

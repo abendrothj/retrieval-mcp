@@ -134,6 +134,115 @@ pub struct SymbolLocation {
     pub callees: usize,
 }
 
+/// One ranked candidate region, whatever ranker produced it.
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct RankedRegion {
+    pub path: String,
+    pub start_line: usize,
+    pub end_line: usize,
+    pub score: f64,
+}
+
+/// BM25 over definition-shaped documents. No model, no service, no persistence: identifiers are
+/// split on camelCase and underscores so a description's words reach a symbol's parts.
+#[derive(Default)]
+struct Bm25 {
+    documents: Vec<RankedRegion>,
+    lengths: Vec<usize>,
+    postings: BTreeMap<String, Vec<(usize, usize)>>,
+    total_length: usize,
+}
+
+pub fn concept_tokens(text: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    for word in text.split(|c: char| !c.is_alphanumeric()) {
+        if word.is_empty() {
+            continue;
+        }
+        let lowered = word.to_lowercase();
+        // Sub-tokens let "wrap width" match wrapWidth and wrap_width without a stemmer.
+        let mut part = String::new();
+        let mut previous_lower = false;
+        for character in word.chars() {
+            if character.is_uppercase() && previous_lower && !part.is_empty() {
+                tokens.push(std::mem::take(&mut part).to_lowercase());
+            }
+            previous_lower = character.is_lowercase() || character.is_numeric();
+            part.push(character);
+        }
+        if !part.is_empty() {
+            let part = part.to_lowercase();
+            if part != lowered {
+                tokens.push(part);
+            }
+        }
+        tokens.push(lowered);
+    }
+    tokens
+}
+
+impl Bm25 {
+    fn add(&mut self, region: RankedRegion, text: &str) {
+        let tokens = concept_tokens(text);
+        if tokens.is_empty() {
+            return;
+        }
+        let document = self.documents.len();
+        let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+        for token in &tokens {
+            *counts.entry(token.clone()).or_default() += 1;
+        }
+        for (token, count) in counts {
+            self.postings.entry(token).or_default().push((document, count));
+        }
+        self.total_length += tokens.len();
+        self.lengths.push(tokens.len());
+        self.documents.push(region);
+    }
+
+    fn search(&self, query: &str, scope: &str, wanted: usize) -> Vec<RankedRegion> {
+        if self.documents.is_empty() {
+            return Vec::new();
+        }
+        let average = self.total_length as f64 / self.documents.len() as f64;
+        let (k1, b) = (1.2_f64, 0.75_f64);
+        let mut scores: BTreeMap<usize, f64> = BTreeMap::new();
+        for token in BTreeSet::from_iter(concept_tokens(query)) {
+            let Some(postings) = self.postings.get(&token) else {
+                continue;
+            };
+            let df = postings.len() as f64;
+            let idf =
+                (((self.documents.len() as f64 - df + 0.5) / (df + 0.5)) + 1.0).ln();
+            for (document, frequency) in postings {
+                let frequency = *frequency as f64;
+                let normalized = 1.0 - b + b * (self.lengths[*document] as f64 / average);
+                *scores.entry(*document).or_default() +=
+                    idf * (frequency * (k1 + 1.0)) / (frequency + k1 * normalized);
+            }
+        }
+        let mut ranked: Vec<_> = scores
+            .into_iter()
+            .filter(|(document, _)| in_scope(&self.documents[*document].path, scope))
+            .collect();
+        ranked.sort_by(|left, right| {
+            right
+                .1
+                .partial_cmp(&left.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(left.0.cmp(&right.0))
+        });
+        ranked
+            .into_iter()
+            .take(wanted)
+            .map(|(document, score)| RankedRegion {
+                score,
+                ..self.documents[document].clone()
+            })
+            .collect()
+    }
+}
+
 #[derive(Serialize, JsonSchema)]
 pub struct CallerHit {
     #[serde(flatten)]
@@ -198,6 +307,14 @@ pub trait StructuralBackend: Send + Sync {
         workspace: &Workspace,
         args: TraceArgs,
     ) -> Result<DependencyTraceResult>;
+    /// Rank definition-shaped regions for a natural-language description, without any model.
+    fn search_concept(
+        &self,
+        workspace: &Workspace,
+        query: &str,
+        path: Option<&str>,
+        wanted: usize,
+    ) -> Result<Vec<RankedRegion>>;
     /// The innermost indexed definition containing the given line, if any.
     fn locate(&self, path: &str, line: usize) -> Option<SymbolLocation>;
 }
@@ -208,6 +325,7 @@ pub struct StructuralIndex {
     references_by_name: BTreeMap<String, Vec<usize>>,
     calls_by_caller: BTreeMap<String, Vec<usize>>,
     imports: Vec<Import>,
+    concepts: Bm25,
     pub coverage: Coverage,
 }
 
@@ -246,6 +364,7 @@ impl StructuralIndex {
             references_by_name: BTreeMap::new(),
             calls_by_caller: BTreeMap::new(),
             imports: Vec::new(),
+            concepts: Bm25::default(),
             coverage: Coverage {
                 snapshot_id: timestamp.to_string(),
                 indexed_at_ms: timestamp,
@@ -296,7 +415,27 @@ impl StructuralIndex {
                     }
                     total_records +=
                         parsed.symbols.len() + parsed.references.len() + parsed.imports.len();
+                    let lines: Vec<_> = source.lines().collect();
                     for symbol in parsed.symbols {
+                        // Containers would re-index every member they hold; keep leaf definitions.
+                        if !matches!(symbol.kind.as_str(), "mod_item" | "impl_item") {
+                            let end = symbol.end_line.min(lines.len());
+                            let body = lines[symbol.line - 1..end].join("\n");
+                            index.concepts.add(
+                                RankedRegion {
+                                    path: symbol.path.clone(),
+                                    start_line: symbol.line,
+                                    end_line: symbol.end_line,
+                                    score: 0.0,
+                                },
+                                &format!(
+                                    "{} {} {} {body}",
+                                    symbol.path,
+                                    symbol.container.clone().unwrap_or_default(),
+                                    symbol.name
+                                ),
+                            );
+                        }
                         index
                             .symbols
                             .entry(symbol.name.clone())
@@ -593,6 +732,19 @@ impl StructuralBackend for StructuralIndex {
             coverage: self.coverage.clone(),
             limitations: "Candidate call paths only: unqualified syntax names can merge unrelated functions or methods. Verify material edges with read_source.".into(),
         })
+    }
+
+    fn search_concept(
+        &self,
+        workspace: &Workspace,
+        query: &str,
+        path: Option<&str>,
+        wanted: usize,
+    ) -> Result<Vec<RankedRegion>> {
+        validate_query(query)?;
+        ensure!((1..=100).contains(&wanted), "wanted must be 1..100");
+        let scope = scope(workspace, path)?;
+        Ok(self.concepts.search(query, &scope, wanted))
     }
     fn locate(&self, path: &str, line: usize) -> Option<SymbolLocation> {
         // The innermost enclosing definition: a method inside an impl inside a module wins.
@@ -1101,6 +1253,54 @@ mod tests {
         assert!(broken.has_error);
         let nested = format!("{}fn deep() {{}}{}", "mod m {".repeat(130), "}".repeat(130));
         assert!(parse_file("deep.rs", &nested, Duration::from_secs(2)).is_err());
+    }
+    #[test]
+    fn bm25_finds_definitions_from_a_description_without_a_model() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("text.rs"),
+            "/// Wrap a paragraph so no output line exceeds the width.\nfn wrapParagraph(width: usize) -> usize { width }\nfn checksum_bytes(data: &[u8]) -> u64 { data.len() as u64 }\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("other.rs"),
+            "fn unrelated_helper() -> bool { true }\n",
+        )
+        .unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index = StructuralIndex::from_files(
+            &ws,
+            vec!["text.rs".into(), "other.rs".into()],
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        // A description that shares no exact identifier with the target still reaches it, because
+        // camelCase is split and the doc comment is part of the document.
+        let hits = index
+            .search_concept(&ws, "wrap lines to a maximum width", None, 5)
+            .unwrap();
+        assert_eq!(hits[0].path, "text.rs");
+        assert_eq!(hits[0].start_line, 2, "{hits:?}");
+        assert!(hits[0].score > 0.0);
+        // Scope restricts candidates; an unrelated file ranks nothing for this query.
+        let scoped = index
+            .search_concept(&ws, "wrap lines to a maximum width", Some("other.rs"), 5)
+            .unwrap();
+        assert!(scoped.is_empty(), "{scoped:?}");
+        let checksum = index.search_concept(&ws, "checksum of bytes", None, 1).unwrap();
+        assert_eq!(checksum[0].start_line, 3);
+        assert!(index.search_concept(&ws, "  ", None, 5).is_err());
+    }
+    #[test]
+    fn identifier_tokens_split_on_case_and_underscore() {
+        // Non-alphanumerics split first, then camelCase, and the whole word is kept as well, so a
+        // query word matches wrapParagraph, wrap_paragraph, and the literal identifier alike.
+        assert_eq!(
+            concept_tokens("wrapParagraph_width"),
+            vec!["wrap", "paragraph", "wrapparagraph", "width"]
+        );
+        assert_eq!(concept_tokens("HTTPServer"), vec!["httpserver"]);
+        assert!(concept_tokens("   ").is_empty());
     }
     #[test]
     fn ranges_resolve_to_the_innermost_definition_with_degrees() {

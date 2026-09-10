@@ -6,15 +6,15 @@
     "Cargo.lock": "54ff7ea4e31da1e05071789040ebf112a525a490860c6afd97f64691a4ec5a7b",
     "src/lib.rs": "3491d7f875642a69c473c5609a14c4671f9754ff0ef9e29b6ebacb6c2257d153",
     "src/main.rs": "0d607e676911f428308eecc9866cdd3841cf3e8101a35d4204ad9436696a1ff6",
-    "src/config/mod.rs": "f4c1b671050a41f2ecc84217bf7152b99c520f044dfa373994a8f406848c8536",
-    "src/index/mod.rs": "f2a8ade1ac2fe118632d56e29de26181ccdc8e53c72b7c0c0309525ff3b238b6",
+    "src/config/mod.rs": "dfc4e3656eedae189b342824b0718fe9c1ff9e9d277015ecc6ef34ad15b97338",
+    "src/index/mod.rs": "d4fc585f6a9858432d844070f6f609fe11916fde335efddab50e5bc0d2910e82",
     "src/logging/mod.rs": "45cc308d50c77ead9cebae858aba354613988dcf46fb76d8f9c0088eabf3ac8e",
     "src/search/mod.rs": "b90120e8ed00b2871344807d4f914beea1edf6e2ee1d00a400dda7aad80f2e5f",
     "src/search/lexical.rs": "c94852453bca87992b1689697a474d32388691c6ec9a1dcbe5933c6a8c9e6f89",
     "src/search/process.rs": "e374206308a7df2ba39a1227e69b1f2749cec7cee21f63a59f8c5ef39086d770",
-    "src/search/semantic.rs": "5d823716df6499430224016e3752f814efc5df0867307ccd6eaf2d1ccd3741dd",
+    "src/search/semantic.rs": "9953a98b2e21b5e0fc7a20a00a06a8e5b1168f0df4f88035d3c7703b041cb44f",
     "src/source/mod.rs": "82d1d2d625d28f352b1461311cc30620e9535b89a299343555e694f3658a9074",
-    "src/tools/mod.rs": "f84092044c2c27d3da92810492635de53ce8f68fff6ca6cbd5b2bf287ea9e349",
+    "src/tools/mod.rs": "76fd63d46fb25803da00284fd4f96b2fd8c78d290825ea2eaf7b6470998f8c69",
     "examples/ollama_backend.rs": "e3a8deeebd365dad7e43f17de6ac6a64b7c2d9a2e8d282a90415ea0d5c576ed4",
     "examples/support/cache.rs": "732e62e99e04bbf7f95727d10e57b692fd0699e42352a3865a676189fd1e08d1"
   },
@@ -367,7 +367,7 @@
           "find_callers",
           "find_symbol",
           "read_source",
-          "search_semantic",
+          "search_concept",
           "trace_dependencies"
         ]
       },
@@ -414,7 +414,7 @@
           "find_callers",
           "find_symbol",
           "search_exact",
-          "search_semantic",
+          "search_concept",
           "trace_dependencies"
         ]
       },
@@ -567,6 +567,7 @@
             "src/index/mod.rs::StructuralIndex::find_callers",
             "src/index/mod.rs::StructuralIndex::find_symbol",
             "src/index/mod.rs::StructuralIndex::trace_dependencies",
+            "src/index/mod.rs::StructuralIndex::search_concept",
             "src/search/lexical.rs::Ripgrep::search",
             "src/search/semantic.rs::CommandSemantic::search"
           ]
@@ -631,7 +632,7 @@
         "answer": {
           "implementation": "src/search/semantic.rs::validate_response",
           "caller": "src/search/semantic.rs::CommandSemantic::search",
-          "tool": "search_semantic"
+          "tool": "search_concept"
         }
       },
       "evidence": [
@@ -647,7 +648,7 @@
         {
           "path": "src/tools/mod.rs",
           "contains": [
-            "\"search_semantic\" =>"
+            "\"search_concept\" =>"
           ]
         }
       ],

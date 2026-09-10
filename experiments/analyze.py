@@ -8,7 +8,7 @@ import posixpath
 from statistics import mean, median
 
 LOW_LEVEL = {"search_exact", "read_source"}
-ADVANCED = {"find_symbol", "find_callers", "trace_dependencies", "search_semantic"}
+ADVANCED = {"find_symbol", "find_callers", "trace_dependencies", "search_concept"}
 
 
 def method(tool):
@@ -22,7 +22,7 @@ def normalized_arguments(tool, arguments):
         "find_symbol": {"path": ".", "limit": 20, "offset": 0},
         "find_callers": {"path": ".", "include_references": False, "limit": 20, "offset": 0},
         "trace_dependencies": {"direction": "callers", "depth": 3, "path": ".", "limit": 20, "offset": 0},
-        "search_semantic": {"limit": 20, "offset": 0},
+        "search_concept": {"limit": 20, "offset": 0},
         "read_source": {"start_line": 1},
     }
     merged = {**defaults.get(tool, {}), **args}
@@ -123,7 +123,7 @@ def analyze_events(events):
                 low_counts = Counter(c["start"]["tool"] for _,c in later if c["start"]["tool"] in LOW_LEVEL)
                 verified = [s for s,c in later if c["start"]["tool"] == "read_source" and "end" in c
                             and c["end"].get("error") is None and any(overlap(a,b) for a in locations for b in intervals(c["end"]))]
-                if start["tool"] == "search_semantic":
+                if start["tool"] == "search_concept":
                     for s, c in later:
                         if c["start"]["tool"] in {"find_symbol", "find_callers"}:
                             results["semantic_to_structural"].append({"semantic_sequence": seq, "structural_sequence": s,

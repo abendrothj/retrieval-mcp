@@ -16,8 +16,8 @@ import time
 TOOLS = {
     "A": ["search_exact", "read_source"],
     "B": ["search_exact", "read_source", "find_symbol", "find_callers", "trace_dependencies"],
-    "C": ["search_exact", "read_source", "search_semantic"],
-    "D": ["search_exact", "read_source", "find_symbol", "find_callers", "trace_dependencies", "search_semantic"],
+    "C": ["search_exact", "read_source", "search_concept"],
+    "D": ["search_exact", "read_source", "find_symbol", "find_callers", "trace_dependencies", "search_concept"],
     # Control cell: no retrieval at all, so a correct answer came from the model's priors.
     "N": [],
 }
@@ -139,8 +139,8 @@ def preflight(server_command, env, root, directory, profile, warm, timeout):
                 raise RuntimeError("server advertised the wrong experiment tool set")
             write_json(directory / "tools.json", tools)
             write_json(directory / "server-info.json", info)
-            if warm and "search_semantic" in TOOLS[profile]:
-                result = client.request("tools/call", {"name": "search_semantic", "arguments": {"query": "index warmup", "limit": 1}})
+            if warm and "search_concept" in TOOLS[profile]:
+                result = client.request("tools/call", {"name": "search_concept", "arguments": {"query": "index warmup", "limit": 1}})
                 write_json(directory / "warmup.json", result)
                 if result.get("isError"):
                     raise RuntimeError("semantic warmup failed; inspect warmup.json")

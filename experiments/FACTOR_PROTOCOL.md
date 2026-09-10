@@ -160,7 +160,7 @@ to 13.7% (A + primer) to 11.0% (D). Three sentences of syntax guidance move A mo
 tool-rich condition without adding a tool, which is exactly the entanglement the retrospective
 analysis could not separate.
 
-One finding was not predicted: **`search_semantic` was never called, in any D trial.** Free routing
+One finding was not predicted: **`search_concept` was never called, in any D trial.** Free routing
 chose `find_symbol` first six times, `search_exact` four, `find_callers` once, `read_source` once, and
 semantic retrieval zero times out of 83 calls. D behaved as A plus structural search, so this study
 has not yet tested semantic retrieval's contribution at all - it has tested whether the model will
@@ -168,17 +168,17 @@ reach for it, and on this corpus and model it does not.
 
 ## Stage 3 result: forcing the semantic opener (2026-09-08)
 
-Twelve `D-semantic_first-baseline` trials, same questions, model, corpus and warm cache as stage 2.
+Twelve `D-concept_first-baseline` trials, same questions, model, corpus and warm cache as stage 2.
 The cell answers a critique of stage 2: semantic retrieval was never called under free routing, and
 zero usage cannot distinguish an incapable tool from a model that will not reach for a capable one.
 
 Two measurements separate those. Offline, with no model in the loop, the question text issued directly
-to `search_semantic` puts a gold evidence file in the top five for **9 of 12 questions** — so the tool
+to `search_concept` puts a gold evidence file in the top five for **9 of 12 questions** — so the tool
 was capable on three quarters of the set while being chosen zero times in 83 calls. Stripping
 identifiers out of the query lowers that to 5 of 12, which is worth noting: this embedding uses
 identifiers as signal, so "semantic is for when you don't know the name" does not describe it.
 
-With the opener forced, compliance was total: 12 of 12 first calls were `search_semantic`, zero
+With the opener forced, compliance was total: 12 of 12 first calls were `search_concept`, zero
 enforcement rejections, no silent rerouting needed. And after the mandated call the model never chose
 semantic again — 12 semantic calls out of 102, one per trial.
 

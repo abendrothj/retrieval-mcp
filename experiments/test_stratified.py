@@ -91,7 +91,7 @@ class SuiteTests(unittest.TestCase):
         self.assertNotIn("--bare", command)
         self.assertIn("--strict-mcp-config", command)
         self.assertEqual(command[command.index("--tools") + 1], "")
-        self.assertNotIn("search_semantic", command[command.index("--allowedTools") + 1])
+        self.assertNotIn("search_concept", command[command.index("--allowedTools") + 1])
         settings = json.loads(command[command.index("--settings") + 1])
         self.assertTrue(settings["disableAllHooks"])
         self.assertFalse(settings["autoMemoryEnabled"])
@@ -102,8 +102,8 @@ class SuiteTests(unittest.TestCase):
 class StratifiedAnalysisTests(unittest.TestCase):
     def test_semantic_before_structural_requires_response_before_request(self):
         location = [{"path":"a.rs","line":4,"end_line":8}]
-        events = [event(1,"search_semantic","tool_start"), event(2,"find_symbol","tool_start"),
-                  event(1,"search_semantic","tool_end",locations=location),
+        events = [event(1,"search_concept","tool_start"), event(2,"find_symbol","tool_start"),
+                  event(1,"search_concept","tool_end",locations=location),
                   event(2,"find_symbol","tool_end",locations=location),
                   event(3,"find_callers","tool_start"), event(3,"find_callers","tool_end",locations=location)]
         metric = analyze.analyze_events(events)["sessions"][0]

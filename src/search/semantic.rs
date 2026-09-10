@@ -8,13 +8,14 @@ use std::{collections::BTreeMap, time::Duration};
 use tokio::process::Command;
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SemanticArgs {
+pub struct ConceptArgs {
     /// Natural-language description of the behavior or concept to locate.
     pub query: String,
+    /// Optional repository-relative file or directory to restrict results.
+    pub path: Option<String>,
     /// Maximum results, 1..100; default 10.
     pub limit: Option<usize>,
-    /// Result offset, 0..10000; default 0. Backend ranking must be stable to paginate.
+    /// Result offset, 0..10000; default 0. Ranking must be stable to paginate.
     pub offset: Option<usize>,
     /// Optional extras per hit. Only "excerpt" is supported; omit it for identity-sized rows.
     pub fields: Option<Vec<String>>,
@@ -50,7 +51,7 @@ pub struct SemanticResponse {
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
-pub struct SemanticHit {
+pub struct ConceptHit {
     pub path: String,
     pub start_line: usize,
     pub end_line: usize,
@@ -66,8 +67,8 @@ pub struct SemanticHit {
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
-pub struct SemanticResult {
-    pub results: Vec<SemanticHit>,
+pub struct ConceptResult {
+    pub results: Vec<ConceptHit>,
     pub has_more: bool,
     pub next_offset: Option<usize>,
     pub backend: String,
@@ -79,8 +80,8 @@ pub trait SemanticBackend: Send + Sync {
     fn search<'a>(
         &'a self,
         workspace: &'a Workspace,
-        args: SemanticArgs,
-    ) -> BackendFuture<'a, SemanticResult>;
+        args: ConceptArgs,
+    ) -> BackendFuture<'a, ConceptResult>;
 }
 
 pub struct CommandSemantic {
@@ -91,8 +92,8 @@ impl SemanticBackend for CommandSemantic {
     fn search<'a>(
         &'a self,
         workspace: &'a Workspace,
-        args: SemanticArgs,
-    ) -> BackendFuture<'a, SemanticResult> {
+        args: ConceptArgs,
+    ) -> BackendFuture<'a, ConceptResult> {
         Box::pin(async move {
             validate_query(&args.query)?;
             let (limit, offset) = pagination(Some(args.limit.unwrap_or(10)), args.offset)?;
@@ -147,7 +148,7 @@ fn validate_response(
     limit: usize,
     offset: usize,
     include_excerpt: bool,
-) -> Result<SemanticResult> {
+) -> Result<ConceptResult> {
     ensure!(
         response.protocol_version == 1,
         "unsupported semantic protocol_version"
@@ -196,7 +197,7 @@ fn validate_response(
             .join("\n");
         let shortened = excerpt(&text, 500);
         let excerpt_truncated = include_excerpt && shortened.len() < text.len();
-        results.push(SemanticHit {
+        results.push(ConceptHit {
             path,
             start_line: hit.start_line,
             end_line: hit.end_line,
@@ -207,8 +208,39 @@ fn validate_response(
         });
     }
     let next_offset = response.has_more.then_some(offset + results.len());
-    Ok(SemanticResult { results, has_more: response.has_more, next_offset, backend: response.backend, index_note: response.index_note,
+    Ok(ConceptResult { results, has_more: response.has_more, next_offset, backend: response.backend, index_note: response.index_note,
         source_verification: "Rows name the enclosing indexed definition and are re-verified against current source; excerpts are returned only when requested. Backend ranking/index freshness is not verified; scores are backend-specific, not confidence probabilities.".into() })
+}
+
+/// Build verified rows from any ranker's regions: the server always re-reads current source.
+pub fn rows(
+    workspace: &Workspace,
+    regions: Vec<crate::index::RankedRegion>,
+    limit: usize,
+    offset: usize,
+    include_excerpt: bool,
+    backend: &str,
+    index_note: &str,
+) -> Result<ConceptResult> {
+    let has_more = regions.len() > offset + limit;
+    let response = SemanticResponse {
+        protocol_version: 1,
+        backend: backend.into(),
+        index_note: index_note.into(),
+        has_more,
+        results: regions
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .map(|region| BackendHit {
+                path: region.path,
+                start_line: region.start_line,
+                end_line: region.end_line.min(region.start_line + 499),
+                score: region.score,
+            })
+            .collect(),
+    };
+    validate_response(workspace, response, limit, offset, include_excerpt)
 }
 
 #[cfg(test)]

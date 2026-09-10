@@ -21,6 +21,7 @@ def warm(server, root, cache, semantic_command, timeout):
     started = time.monotonic()
     with tempfile.TemporaryFile(mode="w+") as stderr:
         client = benchmark.MCP([str(server), "--root", str(root), "--profile", "C",
+                                "--ranker", "semantic",
                                 "--semantic-command", json.dumps(semantic_command),
                                 "--timeout-seconds", str(timeout)],
                                dict(os.environ, RETRIEVAL_SEMANTIC_CACHE_DIR=str(cache)),
@@ -29,7 +30,7 @@ def warm(server, root, cache, semantic_command, timeout):
             client.request("initialize", {"protocolVersion":"2025-11-25", "capabilities":{},
                 "clientInfo":{"name":"semantic-warmup", "version":"1"}})
             client.send({"jsonrpc":"2.0", "method":"notifications/initialized"})
-            result = client.request("tools/call", {"name":"search_semantic",
+            result = client.request("tools/call", {"name":"search_concept",
                                                    "arguments":{"query":"index warmup", "limit":1}})
             if result.get("isError"):
                 raise RuntimeError(f"warmup failed: {result['content'][0]['text']}")

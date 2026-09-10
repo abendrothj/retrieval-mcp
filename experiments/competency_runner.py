@@ -150,9 +150,9 @@ def run(args):
             "--timeout-seconds", str(args.tool_timeout)]
         semantic = args.semantic_command if args.client == "claude" else [sys.executable,
             str(Path(__file__).with_name("test_experiments.py")), "--fake-semantic"]
-        if "search_semantic" in TOOLS[args.profile]:
+        if "search_concept" in TOOLS[args.profile]:
             if args.client == "claude" and not args.semantic_command:
-                raise ValueError("profiles with search_semantic require an explicit semantic backend")
+                raise ValueError("profiles with search_concept require an explicit semantic backend")
             command += ["--semantic-command", json.dumps(semantic)]
         benchmark.write_json(attempt/"gate.json", {"profile":args.profile, "policy":"free",
             "max_calls":args.max_calls, "max_bytes":args.max_bytes, "gate_log":str(attempt/"policy.jsonl"),

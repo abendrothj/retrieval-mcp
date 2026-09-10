@@ -16,9 +16,9 @@ def failure(message):
 
 class PolicyGate:
     def __init__(self, profile, policy, max_calls=20, max_bytes=200000):
-        if profile not in TOOLS or policy not in ("free", "lexical_first", "semantic_first"):
+        if profile not in TOOLS or policy not in ("free", "lexical_first", "concept_first"):
             raise ValueError("invalid profile or policy")
-        self.required = {"free":None, "lexical_first":"search_exact", "semantic_first":"search_semantic"}[policy]
+        self.required = {"free":None, "lexical_first":"search_exact", "concept_first":"search_concept"}[policy]
         if self.required and self.required not in TOOLS[profile]:
             raise ValueError("required first tool is unavailable")
         if type(max_calls) is not int or type(max_bytes) is not int or min(max_calls, max_bytes) < 1:

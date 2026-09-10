@@ -38,7 +38,7 @@
             "find_symbol",
             "find_callers",
             "trace_dependencies",
-            "search_semantic"
+            "search_concept"
           ],
           "expected_upstream_tools": [
             "search_exact",
@@ -46,7 +46,7 @@
             "find_symbol",
             "find_callers",
             "trace_dependencies",
-            "search_semantic"
+            "search_concept"
           ]
         }
       ],

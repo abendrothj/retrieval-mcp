@@ -16,7 +16,7 @@ BASE = ("Answer the repository question using the available retrieval MCP tools.
 ROUTING = {
     "free":"Choose the retrieval methods yourself.\n",
     "lexical_first":"Your first retrieval call must be search_exact. After its response, choose subsequent retrieval methods yourself.\n",
-    "semantic_first":"Your first retrieval call must be search_semantic. After its response, choose subsequent retrieval methods yourself.\n",
+    "concept_first":"Your first retrieval call must be search_concept. After its response, choose subsequent retrieval methods yourself.\n",
 }
 NO_TOOLS = ("Answer the repository question from what you already know. No retrieval tools are "
             "available in this condition. If you cannot answer, say so in the required answer "
@@ -31,7 +31,7 @@ def conditions(control=False):
     cells = [{"id":f"{profile}-{routing}-{help_level}", "availability":profile,
               "routing":routing, "syntax_help":help_level, "tools":TOOLS[profile]}
              for profile in "ABCD"
-             for routing in (("free", "lexical_first", "semantic_first") if profile == "D" else ("free",))
+             for routing in (("free", "lexical_first", "concept_first") if profile == "D" else ("free",))
              for help_level in ("baseline", "primer")]
     if control:
         # A syntax primer for tools the cell does not have would not be the same intervention,

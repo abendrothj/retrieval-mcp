@@ -29,6 +29,8 @@ impl Client {
             "120",
         ]);
         if let Some(backend) = backend {
+            // A backend implies the operator selected the ranker that uses one.
+            command.arg("--ranker").arg("semantic");
             command.arg("--semantic-command").arg(backend.to_string());
         }
         let mut child = command
@@ -238,15 +240,20 @@ async fn profiles_and_structural_queries_over_stdio() {
             assert_eq!(symbol["isError"], true);
         }
         let result = client
-            .tool("search_semantic", json!({"query":"behavior"}))
+            .tool("search_concept", json!({"query":"target behavior"}))
             .await;
-        assert_eq!(result["isError"], true);
-        let error = result["structuredContent"]["error"].as_str().unwrap();
-        assert!(error.contains(if semantic {
-            "not configured"
+        if semantic {
+            // The default lexical ranker answers without any backend or embedding service.
+            assert_ne!(result["isError"], true, "{result}");
+            assert_eq!(
+                result["structuredContent"]["backend"], "bm25/symbol-chunks",
+                "{result}"
+            );
         } else {
-            "disabled"
-        }));
+            assert_eq!(result["isError"], true);
+            let error = result["structuredContent"]["error"].as_str().unwrap();
+            assert!(error.contains("disabled"));
+        }
         client.stop().await;
     }
 }
@@ -266,7 +273,7 @@ async fn semantic_subprocess_contract_over_stdio() {
     let mut client = Client::with_backend(root.path(), "D", Some(command)).await;
     let lean = client
         .tool(
-            "search_semantic",
+            "search_concept",
             json!({"query":"describe behavior","limit":1}),
         )
         .await;
@@ -279,7 +286,7 @@ async fn semantic_subprocess_contract_over_stdio() {
     assert!(row["excerpt"].is_null(), "{lean}");
     let full = client
         .tool(
-            "search_semantic",
+            "search_concept",
             json!({"query":"describe behavior","limit":1,"fields":["excerpt"]}),
         )
         .await;
@@ -304,7 +311,7 @@ async fn real_ollama_semantic_over_stdio() {
         .unwrap()
         .join("examples/ollama_backend");
     let mut client = Client::with_backend(root.path(), "D", Some(json!([backend]))).await;
-    let result = client.tool("search_semantic", json!({"query":"waiting longer between repeated attempts after a network failure","limit":1})).await;
+    let result = client.tool("search_concept", json!({"query":"waiting longer between repeated attempts after a network failure","limit":1})).await;
     assert_ne!(result["isError"], true, "{result}");
     assert_eq!(
         result["structuredContent"]["results"][0]["path"],
@@ -318,7 +325,7 @@ async fn real_ollama_semantic_over_stdio() {
     );
     let repeated = client
         .tool(
-            "search_semantic",
+            "search_concept",
             json!({"query":"waiting longer between attempts","limit":1}),
         )
         .await;
@@ -332,7 +339,7 @@ async fn real_ollama_semantic_over_stdio() {
     std::fs::remove_file(root.path().join("color.rs")).unwrap();
     let refreshed = client
         .tool(
-            "search_semantic",
+            "search_concept",
             json!({"query":"waiting longer between attempts","limit":1}),
         )
         .await;

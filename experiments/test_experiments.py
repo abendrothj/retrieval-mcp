@@ -38,8 +38,8 @@ def fake_agent(config):
             tools = [tool["name"] for tool in client.request("tools/list", {})["tools"]]
             if "find_callers" in tools:
                 name, arguments = "find_symbol", {"name": "delay"}
-            elif "search_semantic" in tools:
-                name, arguments = "search_semantic", {"query": "waiting longer after failures"}
+            elif "search_concept" in tools:
+                name, arguments = "search_concept", {"query": "waiting longer after failures"}
             else:
                 name, arguments = "search_exact", {"query": "delay"}
             print(json.dumps({"type": "assistant", "message": {"content": [
@@ -60,7 +60,7 @@ def fake_agent(config):
 class AnalysisTests(unittest.TestCase):
     def test_fallback_redundancy_and_verification_are_distinct(self):
         data = []
-        specs = [("search_semantic", {"query":"retry"}, [], 0),
+        specs = [("search_concept", {"query":"retry"}, [], 0),
                  ("search_exact", {"query":"delay"}, [{"path":"a.py","line":5}], 1),
                  ("find_symbol", {"name":"delay"}, [{"path":"a.py","line":5,"end_line":8}], 1),
                  ("read_source", {"path":"a.py","start_line":5,"end_line":8}, [{"path":"a.py","line":5,"end_line":8}], 4),
@@ -68,7 +68,7 @@ class AnalysisTests(unittest.TestCase):
         for seq,(tool,args,locations,count) in enumerate(specs,1):
             data.extend([event(seq,tool,"tool_start",args), event(seq,tool,"tool_end",args,locations,count)])
         result = analyze.analyze_events(data)["sessions"][0]
-        self.assertEqual(result["first_tool"], "search_semantic")
+        self.assertEqual(result["first_tool"], "search_concept")
         self.assertEqual(result["fallback_count"], 1)
         self.assertEqual(result["redundant_read_count"], 1)
         self.assertEqual(result["duplicate_request_count"], 1)
