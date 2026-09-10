@@ -383,10 +383,11 @@ def run(args):
     definition_index = quality_pass.definitions(Path(next(iter(roots.values()))))
     failures = Counter()
     completed = 0
+    aborted = None
     listen_addresses = {}
     for index, trial in enumerate(plan["trials"]):
         system = by_id[trial["system"]]
-        if failures[system["id"]] >= 3:
+        if aborted or failures[system["id"]] >= 3:
             continue
         attempt = output / f"trial-{index:04d}"
         attempt.mkdir()
@@ -459,9 +460,17 @@ def run(args):
                 not outcome["mcp_failures"]
                 and (attempt / "tools.json").is_file()
                 and (attempt / "server-info.json").is_file()))
+            provider = (outcome["client_error"] or "").startswith("provider_error")
             state["status"] = ("completed" if process.returncode == 0 and outcome["answer"] is not None
-                               and not outcome["client_error"] and healthy else "failed")
-            if not healthy:
+                               and not outcome["client_error"] and healthy
+                               else "provider_error" if provider else "failed")
+            if provider:
+                # The provider, not the arm, failed. Scoring this as an arm result would be a lie.
+                aborted = {"trial": attempt.name, "system": system["id"],
+                           "reason": outcome["client_error"],
+                           "detail": outcome.get("provider_detail")}
+                state["error"] = f"{outcome['client_error']}: {outcome.get('provider_detail')}"
+            elif not healthy:
                 state["error"] = f"retrieval server unavailable: {outcome['mcp_failures']}"
             task = by_task[trial["task_id"]]
             scored = benchmark.grade_answer(task, outcome["answer"], GRADING)
@@ -497,9 +506,18 @@ def run(args):
         if state["status"] == "completed" and state["repository_unchanged"]:
             completed += 1
             failures[system["id"]] = 0
-        else:
+        elif state["status"] != "provider_error":
             failures[system["id"]] += 1
-    return {"completed": completed, "planned": len(plan["trials"]), "output": str(output)}
+    result = {"completed": completed, "planned": len(plan["trials"]), "output": str(output),
+              "aborted": aborted}
+    benchmark.write_json(output / "status.json", {
+        "version": "comparison-status-v1", "complete": aborted is None and completed == len(plan["trials"]),
+        **result})
+    if aborted:
+        raise RuntimeError(
+            f"provider failure on {aborted['trial']} ({aborted['system']}): {aborted['reason']} "
+            f"{aborted['detail']}; the run is incomplete and its trials must not be compared")
+    return result
 
 
 def common(parser):

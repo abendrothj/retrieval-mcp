@@ -1,0 +1,151 @@
+{
+  "version": "comparison-systems-v2",
+  "systems": [
+    {
+      "id": "native-control",
+      "mcp_enabled": false,
+      "upstreams": [],
+      "environment": {},
+      "prompt_policy": "",
+      "prepare_commands": [],
+      "check_commands": [],
+      "version_command": [
+        "opencode",
+        "--version"
+      ]
+    },
+    {
+      "id": "retrieval-mcp",
+      "mcp_enabled": true,
+      "upstreams": [
+        {
+          "id": "retrieval",
+          "command": [
+            "{server}",
+            "--root",
+            "{root}",
+            "--profile",
+            "D",
+            "--semantic-command",
+            "{semantic_command_json}",
+            "--timeout-seconds",
+            "120"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "search_exact",
+            "read_source",
+            "inspect_symbol",
+            "find_symbol",
+            "find_callers",
+            "trace_dependencies",
+            "search_concept"
+          ],
+          "expected_upstream_tools": [
+            "search_exact",
+            "read_source",
+            "inspect_symbol",
+            "find_symbol",
+            "find_callers",
+            "trace_dependencies",
+            "search_concept"
+          ]
+        }
+      ],
+      "environment": {
+        "RETRIEVAL_SEMANTIC_CACHE_DIR": "{state}/semantic-cache"
+      },
+      "prompt_policy": "",
+      "prepare_commands": [
+        [
+          "python3",
+          "{experiments}/warm_semantic.py",
+          "--root",
+          "{root}",
+          "--cache",
+          "{state}/semantic-cache",
+          "--server",
+          "{server}",
+          "--semantic-command",
+          "{semantic_command_json}",
+          "--timeout",
+          "600"
+        ]
+      ],
+      "check_commands": [],
+      "version_command": null
+    },
+    {
+      "id": "zvec-grep",
+      "mcp_enabled": true,
+      "upstreams": [
+        {
+          "id": "zvec",
+          "command": [
+            "{shared}/zvec/node_modules/.bin/zg",
+            "server",
+            "--stdio",
+            "--listen",
+            "{listen}",
+            "--mcp-toolset",
+            "full"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "zvec_grep_search",
+            "zvec_grep_rg"
+          ],
+          "expected_upstream_tools": [
+            "zvec_grep_search",
+            "zvec_grep_rg",
+            "zvec_grep_index",
+            "zvec_grep_index_drop",
+            "zvec_grep_index_status",
+            "zvec_grep_server_status"
+          ]
+        }
+      ],
+      "environment": {
+        "ZVEC_GREP_HOME": "{state}/home",
+        "ZVEC_GREP_MODE": "server",
+        "ZVEC_GREP_MCP_TOOLSET": "full",
+        "ZVEC_GREP_MODEL_CACHE": "{shared}/zvec-model-cache"
+      },
+      "prompt_policy": "",
+      "prepare_commands": [
+        [
+          "npm",
+          "install",
+          "--prefix",
+          "{shared}/zvec",
+          "--no-audit",
+          "--no-fund",
+          "/tmp/zvec-package/zvec-zvec-grep-0.2.2.tgz"
+        ],
+        [
+          "{shared}/zvec/node_modules/.bin/zg",
+          "index",
+          "{root}",
+          "--embedding",
+          "local/potion-code-16m-v2",
+          "--mode",
+          "direct"
+        ]
+      ],
+      "check_commands": [
+        [
+          "{shared}/zvec/node_modules/.bin/zg",
+          "status",
+          "{root}",
+          "--mode",
+          "direct",
+          "--check-ready"
+        ]
+      ],
+      "version_command": [
+        "{shared}/zvec/node_modules/.bin/zg",
+        "version"
+      ]
+    }
+  ]
+}

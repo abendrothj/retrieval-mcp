@@ -24,6 +24,43 @@ class ResolverTests(unittest.TestCase):
         self.assertIsNone(resolve("nonexistent_symbol", INDEX))
 
 
+TS_INDEX = {"getResolvedShellEnv": {"src/vs/platform/shell/node/shellEnv.ts"},
+            "isSuccess": {"src/vs/platform/request/common/request.ts",
+                          "src/vs/platform/userDataSync/common/userDataSyncStoreService.ts"},
+            "hasNoContent": {"src/vs/platform/request/common/request.ts"},
+            "statusCode": {"src/vs/platform/request/node/requestService.ts"},
+            "request": {"src/vs/platform/request/node/requestService.ts"}}
+
+
+class ProseSpellingTests(unittest.TestCase):
+    """A right answer must not fail because it was written as a sentence."""
+
+    GOLD = "src/vs/platform/shell/node/shellEnv.ts::getResolvedShellEnv"
+
+    def test_a_sentence_naming_one_definition_resolves_like_a_qualified_symbol(self):
+        for written in ("getResolvedShellEnv in src/vs/platform/shell/node/shellEnv.ts",
+                        "src/vs/platform/shell/node/shellEnv.ts::getResolvedShellEnv",
+                        "getResolvedShellEnv"):
+            self.assertEqual(credit(written, self.GOLD, TS_INDEX), 1.0, written)
+
+    def test_a_different_symbol_is_still_wrong_however_it_is_spelled(self):
+        self.assertEqual(
+            credit("isSuccess in src/vs/platform/request/common/request.ts", self.GOLD, TS_INDEX), 0.0)
+
+    def test_listing_candidates_earns_nothing(self):
+        self.assertEqual(credit("either getResolvedShellEnv or isSuccess", self.GOLD, TS_INDEX), 0.0)
+        self.assertEqual(
+            credit("isSuccess or hasNoContent in src/vs/platform/request/common/request.ts",
+                   "src/vs/platform/request/common/request.ts::isSuccess", TS_INDEX), 0.0)
+
+    def test_a_namesake_needs_the_file_the_answer_supplied(self):
+        gold = "src/vs/platform/request/common/request.ts::isSuccess"
+        self.assertEqual(credit("isSuccess", gold, TS_INDEX), 0.0)
+        self.assertEqual(
+            credit("isSuccess, defined in src/vs/platform/request/common/request.ts near the "
+                   "statusCode check", gold, TS_INDEX), 1.0)
+
+
 class CreditTests(unittest.TestCase):
     def test_sets_score_by_overlap_and_are_penalised_for_extras(self):
         gold = ["src/uu/fmt/src/linebreak.rs::break_lines", "src/uu/dd/src/diagnostics.rs::render"]

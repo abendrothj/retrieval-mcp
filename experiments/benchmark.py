@@ -175,6 +175,7 @@ def agent_command(args, directory, profile=None, *, tools=None, server_name="ret
 
 def transcript_outcome(path):
     final, usage, client_error, unexpected, mcp_failures = None, None, None, set(), set()
+    provider_detail = None
     with path.open(encoding="utf-8") as stream:
         for line in stream:
             event = json.loads(line)
@@ -182,6 +183,7 @@ def transcript_outcome(path):
                 final, usage = event.get("result"), event.get("usage")
                 if event.get("is_error"):
                     client_error = event.get("subtype", "client_error")
+                    provider_detail = event.get("provider_detail")
             # A server that failed to connect leaves the model with no retrieval and no error.
             if event.get("type") == "system" and event.get("subtype") == "init":
                 for server in event.get("mcp_servers") or []:
@@ -206,6 +208,7 @@ def transcript_outcome(path):
             if item.get("type") == "mcp_tool_call" and item.get("server") != "retrieval":
                 unexpected.add("other_mcp_server")
     return {"answer": final, "usage": usage, "client_error": client_error,
+            "provider_detail": provider_detail,
             "unexpected_tools": sorted(unexpected), "mcp_failures": sorted(mcp_failures)}
 
 

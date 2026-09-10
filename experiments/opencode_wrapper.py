@@ -10,6 +10,7 @@ The retrieval MCP calls themselves are already recorded by the comparison gate i
 this wrapper only needs to surface the final answer, token usage, and contamination.
 """
 import json
+import re
 import os
 from pathlib import Path
 import subprocess
@@ -19,6 +20,24 @@ import sys
 # (web, webfetch, edit, write, patch, a second MCP server) is contamination and excludes the trial.
 NATIVE_TOOLS = {"read", "grep", "glob", "list", "bash", "lsp"}
 NATIVE_PREFIXES = ("todo",)
+# A provider that is out of credit, rate limited, or rejecting the key is not a result about
+# retrieval. It must abort the experiment, never be scored as an arm that failed to answer.
+PROVIDER_STATUS = {401, 402, 403, 407, 429}
+PROVIDER_MESSAGE = re.compile(
+    r"insufficient\s+balance|quota|billing|payment|credit|rate.?limit|unauthor|forbidden"
+    r"|invalid\s+api\s+key|no\s+auth|expired\s+token", re.I)
+
+
+def provider_failure(error):
+    """(reason, detail) when an error is the provider's, not the model's or the harness's."""
+    if not isinstance(error, dict):
+        return None
+    data = error.get("data") if isinstance(error.get("data"), dict) else {}
+    status = data.get("statusCode") or data.get("status")
+    message = str(data.get("message") or error.get("message") or "")
+    if status in PROVIDER_STATUS or PROVIDER_MESSAGE.search(message):
+        return f"provider_error:{status or error.get('name') or 'unknown'}", message[:300]
+    return None
 
 
 def load_mcp_retrieval(mcp_path):
@@ -62,6 +81,7 @@ def parse_events(events, retrieval_tools):
     final = None
     usage = None
     client_error = None
+    provider_detail = None
     tool_calls = []
     unexpected = set()
     text_by_message = {}
@@ -88,7 +108,13 @@ def parse_events(events, retrieval_tools):
             usage["cost_usd"] += float(part.get("cost") or 0.0)
         elif kind == "error":
             error = event.get("error") or {}
-            client_error = error.get("name", "client_error") if isinstance(error, dict) else "client_error"
+            provider = provider_failure(error)
+            if provider:
+                client_error, provider_detail = provider[0], provider[1]
+            elif isinstance(error, dict):
+                client_error = error.get("name", "client_error")
+            else:
+                client_error = "client_error"
         elif kind == "text":
             message_id = part.get("messageID")
             text_by_message.setdefault(message_id, []).append(part.get("text") or "")
@@ -107,6 +133,7 @@ def parse_events(events, retrieval_tools):
         "final": final,
         "usage": usage,
         "client_error": client_error,
+        "provider_detail": provider_detail,
         "tool_calls": tool_calls,
         "unexpected_tools": sorted(unexpected),
     }
@@ -180,6 +207,7 @@ def main():
         "type": "result",
         "is_error": outcome["client_error"] is not None or process.returncode != 0,
         "subtype": outcome["client_error"] or ("client_error" if process.returncode != 0 else None),
+        "provider_detail": outcome["provider_detail"],
         "result": outcome["final"],
         "usage": outcome["usage"] or {},
     }))

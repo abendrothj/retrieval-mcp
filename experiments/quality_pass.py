@@ -15,53 +15,102 @@ import subprocess
 
 DEFINITION = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:default\s+|const\s+|async\s+|unsafe\s+|extern\s+\"[^\"]*\"\s+)*"
                         r"fn\s+([A-Za-z0-9_]+)|^\s*def\s+([A-Za-z0-9_]+)")
+# TypeScript declares the same things in more ways than Rust or Python do; each alternative
+# names exactly one definition, and methods are matched only where a body follows.
+TS_DEFINITION = re.compile(
+    r"^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?"
+    r"(?:class|interface|enum|type)\s+([A-Za-z_$][\w$]*)"
+    r"|^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)"
+    r"|^\s*(?:export\s+)?(?:declare\s+)?const\s+([A-Za-z_$][\w$]*)\s*[:=]"
+    r"|^\s*(?:public|private|protected|static|readonly|abstract|override|async|\*)[\s*]+"
+    r"([A-Za-z_$][\w$]*)\s*[(<]")
+SOURCE_SUFFIXES = (".rs", ".py", ".ts", ".tsx")
+PATH_TOKEN = re.compile(r"[\w./$-]+\.(?:rs|py|ts|tsx)\b")
+IDENTIFIER = re.compile(r"[A-Za-z_$][\w$]*")
 DECLINE = re.compile(r"\b(cannot|can't|could not|couldn't|unable|do not have|don't have|no reliable|not able)\b", re.I)
 
 
 def definitions(corpus):
-    """identifier -> set of paths that define it, from source text alone."""
-    found = subprocess.run(["rg", "--no-config", "-n", "--no-heading", "-e", r"^\s*(pub\s+)?(async\s+)?fn\s+[A-Za-z0-9_]+",
-                            "-e", r"^\s*def\s+[A-Za-z0-9_]+", "-g", "*.rs", "-g", "*.py", "."],
-                           cwd=corpus, capture_output=True, text=True, timeout=120)
+    """identifier -> set of paths that define it, from source text alone.
+
+    Independent of every system under test: ripgrep over the corpus, no index consulted.
+    """
     index = {}
-    for line in found.stdout.splitlines():
-        parts = line.split(":", 2)
-        if len(parts) != 3:
-            continue
-        match = DEFINITION.match(parts[2])
-        if match:
-            name = match.group(1) or match.group(2)
-            index.setdefault(name, set()).add(parts[0].lstrip("./"))
+    passes = (
+        ([r"^\s*(pub\s+)?(async\s+)?fn\s+[A-Za-z0-9_]+", r"^\s*def\s+[A-Za-z0-9_]+"],
+         ["-g", "*.rs", "-g", "*.py"], DEFINITION),
+        ([r"^\s*(export\s+)?(default\s+)?(declare\s+)?(abstract\s+)?(class|interface|enum|type)\s+[A-Za-z_$]",
+          r"^\s*(export\s+)?(default\s+)?(declare\s+)?(async\s+)?function\s*\*?\s*[A-Za-z_$]",
+          r"^\s*(export\s+)?(declare\s+)?const\s+[A-Za-z_$][\w$]*\s*[:=]",
+          r"^\s*(public|private|protected|static|readonly|abstract|override|async|\*)[\s*]+[A-Za-z_$][\w$]*\s*[(<]"],
+         ["-g", "*.ts", "-g", "*.tsx"], TS_DEFINITION),
+    )
+    for patterns, globs, expression in passes:
+        command = ["rg", "--no-config", "-n", "--no-heading"]
+        for pattern in patterns:
+            command += ["-e", pattern]
+        found = subprocess.run(command + globs + ["."], cwd=corpus,
+                               capture_output=True, text=True, timeout=300)
+        for line in found.stdout.splitlines():
+            parts = line.split(":", 2)
+            if len(parts) != 3:
+                continue
+            match = expression.match(parts[2])
+            if match:
+                name = next(group for group in match.groups() if group)
+                index.setdefault(name, set()).add(parts[0].lstrip("./"))
     return index
 
 
-def parse_symbol(written):
-    """(type, name) from any spelling: a path, a Rust module path, or a bare name."""
+def parse_symbol(written, index=None):
+    """(type, name) from any spelling: a path, a module path, a bare name, or one prose clause.
+
+    With an index, an answer that reads `getResolvedShellEnv in src/.../shellEnv.ts` is parsed by
+    keeping the identifiers that are actually defined somewhere in the corpus. A clause naming two
+    unrelated definitions stays ambiguous and is not parsed, so prose cannot win by listing names.
+    """
     if not isinstance(written, str):
         return None
-    parts = [p for p in re.split(r"::|/", written.strip()) if p and not p.endswith((".rs", ".py"))]
-    if not parts:
+    parts = [p for p in re.split(r"::|/", written.strip())
+             if p and not p.endswith(SOURCE_SUFFIXES)]
+    if parts and all(IDENTIFIER.fullmatch(part) for part in parts):
+        name = parts[-1]
+        owner = parts[-2] if len(parts) > 1 and parts[-2][:1].isupper() else None
+        return owner, name
+    if index is None:
         return None
-    name = parts[-1]
-    owner = parts[-2] if len(parts) > 1 and parts[-2][:1].isupper() else None
-    return owner, name
+    # Path segments are location, not the name being claimed; read identifiers from the prose only.
+    prose = PATH_TOKEN.sub(" ", written)
+    named = [token for token in dict.fromkeys(IDENTIFIER.findall(prose)) if token in index]
+    if len(named) > 1:
+        # The answer's own file reference is the context it supplied; use it to pick the claim.
+        mentioned = {match.group(0).lstrip("./") for match in PATH_TOKEN.finditer(written)}
+        named = [token for token in named if index[token] & mentioned] if mentioned else named
+    if len(named) != 1:
+        return None
+    return None, named[0]
 
 
 def resolve(written, index):
     """The unique defining path for a written symbol, or None when absent or still ambiguous.
 
     A name defined in several files is disambiguated by the rest of what was written - a crate,
-    module or directory segment - which is the context the answer actually supplied. Segments are
-    matched against the path mechanically; nothing about the gold answer is consulted.
+    module, directory or file segment - which is the context the answer actually supplied.
+    Segments are matched against the path mechanically; nothing about the gold answer is consulted.
     """
-    parsed = parse_symbol(written)
+    parsed = parse_symbol(written, index)
     if not parsed:
         return None
     paths = index.get(parsed[1], set())
     if len(paths) > 1:
-        segments = [s.lower().removeprefix("uu_") for s in re.split(r"::|/", written)
-                    if s and s not in (parsed[1], parsed[0]) and not s.endswith((".rs", ".py"))]
-        narrowed = {p for p in paths if all(s in p.lower() for s in segments)} if segments else paths
+        mentioned = {match.group(0).lstrip("./") for match in PATH_TOKEN.finditer(written)}
+        narrowed = {path for path in paths if path in mentioned} if mentioned else set()
+        if len(narrowed) != 1:
+            segments = [s.lower().removeprefix("uu_") for s in re.split(r"::|/", written)
+                        if s and s not in (parsed[1], parsed[0])
+                        and not s.endswith(SOURCE_SUFFIXES) and IDENTIFIER.fullmatch(s)]
+            narrowed = {p for p in paths
+                        if all(s in p.lower() for s in segments)} if segments else paths
         paths = narrowed if len(narrowed) == 1 else paths
     return (sorted(paths)[0], parsed) if len(paths) == 1 else None
 

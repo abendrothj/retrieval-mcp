@@ -133,6 +133,24 @@ class OpenCodeParserTests(unittest.TestCase):
         self.assertEqual(outcome["client_error"], "APIError")
         self.assertIsNone(outcome["final"])
 
+    def test_a_provider_outage_is_distinguished_from_a_model_error(self):
+        """A 402 or a quota message must be reported as the provider's failure, not the arm's."""
+        for error, expected in (
+            ({"name": "APIError", "data": {"message": "Insufficient Balance", "statusCode": 402}},
+             "provider_error:402"),
+            ({"name": "APIError", "data": {"message": "rate limit exceeded", "statusCode": 429}},
+             "provider_error:429"),
+            ({"name": "AuthError", "data": {"message": "invalid api key"}},
+             "provider_error:AuthError"),
+            ({"name": "APIError", "data": {"message": "model produced invalid tool call"}},
+             "APIError"),
+        ):
+            outcome = parse_events([event("error", error=error)], set())
+            self.assertEqual(outcome["client_error"], expected, error)
+        outcome = parse_events([event("error", error={"name": "APIError", "data": {
+            "message": "Insufficient Balance", "statusCode": 402}})], set())
+        self.assertEqual(outcome["provider_detail"], "Insufficient Balance")
+
 
 if __name__ == "__main__":
     unittest.main()

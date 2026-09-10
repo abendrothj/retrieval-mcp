@@ -75,6 +75,13 @@ def fake_agent(config_path, answer):
             client.close()
 
 
+def broke_agent():
+    """An agent whose provider refuses to serve: the shape opencode_wrapper emits for a 402."""
+    print(json.dumps({"type": "result", "is_error": True, "subtype": "provider_error:402",
+                      "provider_detail": "Insufficient Balance", "result": None,
+                      "usage": {}}), flush=True)
+
+
 def upstream(identifier, tool):
     return {
         "id": identifier,
@@ -222,6 +229,37 @@ class ComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "allow-model-usage"):
             comparison_runner.run(SimpleNamespace(client="claude", allow_model_usage=False, model="x"))
 
+    def test_a_provider_outage_aborts_the_whole_run_and_marks_it_incomplete(self):
+        """Billing and quota failures are not results about retrieval; they must stop everything."""
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            source = base / "source"; source.mkdir()
+            (source / "evidence.txt").write_text("fixture evidence\n")
+            systems_path = base / "systems.json"; systems(systems_path)
+            questions = base / "questions.json"
+            questions.write_text(json.dumps([{"id": "q", "question": "Return the fixture answer.",
+                                              "expected_json": {"answer": "ok"}}]))
+            workspace = base / "workspace"
+            comparison_runner.prepare(SimpleNamespace(
+                source_root=source, workspace=workspace, systems=systems_path,
+                server=Path(sys.executable), semantic_command=["fixture"], prepare_timeout=30))
+            output = base / "results"
+            with self.assertRaisesRegex(RuntimeError, "provider failure"):
+                comparison_runner.run(SimpleNamespace(
+                    client="command", allow_model_usage=True, model="fixture-model", variant=None,
+                    agent_command=[sys.executable, str(HERE), "--broke-agent"],
+                    max_budget_usd=1, timeout=30, tool_timeout=20, max_calls=3, max_bytes=10000,
+                    workspace=workspace, output=output, systems=systems_path,
+                    questions=questions, server=Path(sys.executable), semantic_command=["fixture"],
+                    repetitions=1, seed=42))
+            status = json.loads((output / "status.json").read_text())
+            self.assertFalse(status["complete"])
+            self.assertEqual(status["completed"], 0)
+            self.assertEqual(status["aborted"]["reason"], "provider_error:402")
+            # Exactly one trial ran: the outage stopped the plan instead of burning three per arm.
+            states = [json.loads(path.read_text()) for path in output.glob("trial-*/run.json")]
+            self.assertEqual([state["status"] for state in states], ["provider_error"])
+
 
     def test_quality_axis_scores_payload_independently_of_the_envelope(self):
         task = {"id": "q", "question": "?", "expected_json": {"answer": "src/a.rs::run"}}
@@ -242,5 +280,7 @@ if __name__ == "__main__":
         fake_server(sys.argv[2])
     elif sys.argv[1:2] == ["--fake-agent"]:
         fake_agent(sys.argv[2], sys.argv[3])
+    elif sys.argv[1:2] == ["--broke-agent"]:
+        broke_agent()
     else:
         unittest.main()
