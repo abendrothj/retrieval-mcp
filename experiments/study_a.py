@@ -19,6 +19,7 @@ import tempfile
 import time
 
 import benchmark
+import comparison_runner
 
 RANKERS = ("lexical", "semantic", "hybrid")
 CUTOFFS = (1, 3, 5, 10)
@@ -92,6 +93,13 @@ def query_all(server, root, ranker, semantic_command, questions, limit, timeout,
 def report(args):
     questions = json.loads(args.questions.read_text(encoding="utf-8"))
     graded = [task for task in questions if gold_symbols(task)]
+    cache = args.cache.resolve()
+    # A retrieval system must never be able to alter the corpus it is judged against: the first
+    # run of this study wrote 93 MB of vectors into the corpus before this check existed.
+    if cache == args.root or cache.is_relative_to(args.root):
+        raise ValueError("the vector cache must live outside the corpus")
+    cache.mkdir(parents=True, exist_ok=True)
+    before = comparison_runner.source_fingerprint(args.root)
     conditions = {}
     for ranker in args.rankers:
         rows, cold, latencies = query_all(args.server, args.root, ranker, args.semantic_command,
@@ -122,12 +130,15 @@ def report(args):
             },
             "cells": cells,
         }
+    if comparison_runner.source_fingerprint(args.root) != before:
+        raise RuntimeError("the corpus changed while it was being ranked; results are void")
     return {
         "version": "study-a-v1",
         "questions_graded": len(graded),
         "questions_skipped": [task["id"] for task in questions if not gold_symbols(task)],
         "limit": args.limit,
         "conditions": conditions,
+        "corpus": before,
         "overlap": overlap(conditions),
         "limitations": "One corpus and one question set; gold is symbol-level and set-valued. "
                        "Queries are the raw question text, so this understates lexical ranking as "

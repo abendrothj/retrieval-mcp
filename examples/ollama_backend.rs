@@ -40,7 +40,7 @@ struct Chunk {
 fn symbol_chunks(path: &str, text: &str, lines: &[&str]) -> Option<Vec<Chunk>> {
     if !matches!(
         Path::new(path).extension().and_then(|s| s.to_str()),
-        Some("rs" | "py")
+        Some("rs" | "py" | "ts" | "tsx")
     ) {
         return None;
     }

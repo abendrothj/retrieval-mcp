@@ -368,7 +368,7 @@ impl StructuralIndex {
             coverage: Coverage {
                 snapshot_id: timestamp.to_string(),
                 indexed_at_ms: timestamp,
-                languages: vec!["Rust".into(), "Python".into()],
+                languages: vec!["Rust".into(), "Python".into(), "TypeScript".into()],
                 indexed_files: 0,
                 unsupported_files: 0,
                 skipped_files: 0,
@@ -385,7 +385,7 @@ impl StructuralIndex {
         for file in files {
             if !matches!(
                 Path::new(&file).extension().and_then(|s| s.to_str()),
-                Some("rs" | "py")
+                Some("rs" | "py" | "ts" | "tsx")
             ) {
                 index.coverage.unsupported_files += 1;
                 continue;
@@ -792,6 +792,7 @@ fn node_text<'a>(node: Node<'_>, source: &'a str) -> &'a str {
 fn is_definition(kind: &str) -> bool {
     matches!(
         kind,
+        // Rust
         "function_item"
             | "function_signature_item"
             | "struct_item"
@@ -801,9 +802,35 @@ fn is_definition(kind: &str) -> bool {
             | "mod_item"
             | "const_item"
             | "static_item"
+            // Python
             | "function_definition"
             | "class_definition"
+            // TypeScript: an arrow function bound to a const is a definition in practice, and it
+            // is named by its variable_declarator rather than by the function node.
+            | "function_declaration"
+            | "generator_function_declaration"
+            | "method_definition"
+            | "class_declaration"
+            | "abstract_class_declaration"
+            | "interface_declaration"
+            | "type_alias_declaration"
+            | "enum_declaration"
+            | "variable_declarator"
     )
+}
+
+/// `const x = 5` is not a definition worth indexing; `const run = () => {}` is. Only a declarator
+/// bound to a function shape counts, so TypeScript does not flood the index with every constant.
+fn holds_definition(node: Node<'_>) -> bool {
+    if node.kind() != "variable_declarator" {
+        return true;
+    }
+    node.child_by_field_name("value").is_some_and(|value| {
+        matches!(
+            value.kind(),
+            "arrow_function" | "function_expression" | "function" | "class"
+        )
+    })
 }
 fn is_import(kind: &str) -> bool {
     matches!(
@@ -844,13 +871,14 @@ fn call_name(mut node: Node<'_>) -> Option<Node<'_>> {
 }
 
 fn parse_file(path: &str, source: &str, timeout: Duration) -> Result<ParsedFile> {
-    let language = if path.ends_with(".rs") {
-        tree_sitter_rust::LANGUAGE
-    } else {
-        tree_sitter_python::LANGUAGE
+    let language = match Path::new(path).extension().and_then(|s| s.to_str()) {
+        Some("rs") => tree_sitter_rust::LANGUAGE.into(),
+        Some("py") => tree_sitter_python::LANGUAGE.into(),
+        Some("tsx") => tree_sitter_typescript::LANGUAGE_TSX.into(),
+        _ => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
     };
     let mut parser = Parser::new();
-    parser.set_language(&language.into())?;
+    parser.set_language(&language)?;
     let start = Instant::now();
     let mut stop = |_: &tree_sitter::ParseState| {
         if start.elapsed() >= timeout {
@@ -908,6 +936,7 @@ fn parse_file(path: &str, source: &str, timeout: Duration) -> Result<ParsedFile>
     for node in &nodes {
         ensure!(start.elapsed() < timeout, "syntax budget exceeded");
         if is_definition(node.kind())
+            && holds_definition(*node)
             && let Some(name) = node.child_by_field_name("name")
         {
             definitions.insert(name.id());
@@ -1290,6 +1319,52 @@ mod tests {
         let checksum = index.search_concept(&ws, "checksum of bytes", None, 1).unwrap();
         assert_eq!(checksum[0].start_line, 3);
         assert!(index.search_concept(&ws, "  ", None, 5).is_err());
+    }
+    #[test]
+    fn typescript_definitions_calls_and_generic_names_are_indexed() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("service.ts"),
+            "const RETRIES = 3;\n\
+             /** Trim each incoming record to the configured column budget. */\n\
+             export const handler = (rows: string[]) => rows.map((row) => row.trim());\n\
+             export class Manager {\n  process(data: string[]) { return handler(data); }\n}\n\
+             export interface Options { width: number }\n\
+             export function service(options: Options) { return new Manager(); }\n",
+        )
+        .unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index =
+            StructuralIndex::from_files(&ws, vec!["service.ts".into()], Duration::from_secs(5))
+                .unwrap();
+        let names: BTreeSet<_> = index.symbols.keys().cloned().collect();
+        assert!(names.contains("handler"), "{names:?}");
+        assert!(names.contains("Manager") && names.contains("process"), "{names:?}");
+        assert!(names.contains("Options") && names.contains("service"), "{names:?}");
+        // A plain constant is not a definition, so TypeScript does not flood the index.
+        assert!(!names.contains("RETRIES"), "{names:?}");
+        let callers = index
+            .find_callers(
+                &ws,
+                CallerArgs {
+                    name: "handler".into(),
+                    path: None,
+                    include_references: None,
+                    limit: None,
+                    offset: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            callers.retrieval.page.results[0].reference.caller.as_deref(),
+            Some("process")
+        );
+        // Generic identifiers are exactly where lexical ranking is supposed to struggle; the doc
+        // comment is what carries the description into the BM25 document.
+        let hits = index
+            .search_concept(&ws, "trim incoming records to a column budget", None, 3)
+            .unwrap();
+        assert_eq!(index.locate(&hits[0].path, hits[0].start_line).unwrap().name, "handler");
     }
     #[test]
     fn identifier_tokens_split_on_case_and_underscore() {
