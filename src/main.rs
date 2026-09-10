@@ -14,7 +14,7 @@ async fn main() -> Result<()> {
         .with_max_level(tracing::Level::INFO)
         .init();
     let server = RetrievalServer::new(config)?;
-    tracing::info!(event = "server_start", profile = ?server.config.profile);
+    tracing::info!(event = "server_start", tools = ?server.config.label);
     server
         .serve(rmcp::transport::stdio())
         .await?

@@ -33,6 +33,9 @@ impl Client {
             command.arg("--ranker").arg("semantic");
             command.arg("--semantic-command").arg(backend.to_string());
         }
+        Self::spawn(command).await
+    }
+    async fn spawn(mut command: Command) -> Self {
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -256,6 +259,34 @@ async fn profiles_and_structural_queries_over_stdio() {
         }
         client.stop().await;
     }
+}
+
+#[tokio::test]
+async fn an_explicit_tool_list_gates_exactly_what_it_names() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("sample.rs"), "fn target() {}\n").unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"));
+    command.args([
+        "--root",
+        root.path().to_str().unwrap(),
+        "--tools",
+        "read_source,inspect_symbol",
+    ]);
+    let mut client = Client::spawn(command).await;
+    let listed = client.request("tools/list", json!({})).await;
+    let names: Vec<&str> = listed["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|tool| tool["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["read_source", "inspect_symbol"]);
+    // An unlisted tool is absent from the catalogue and refused by name, exactly like a profile.
+    let refused = client.tool("find_callers", json!({"name":"target"})).await;
+    assert_eq!(refused["isError"], true);
+    let allowed = client.tool("inspect_symbol", json!({"name":"target"})).await;
+    assert_eq!(allowed["structuredContent"]["symbol_status"], "indexed");
+    client.stop().await;
 }
 
 #[cfg(unix)]

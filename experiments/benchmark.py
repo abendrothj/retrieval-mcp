@@ -13,6 +13,9 @@ import subprocess
 import threading
 import time
 
+# The availability levels of the original routing study. The server takes an explicit --tools
+# allowlist; these presets are the experiment's own names for four points in that space, and the
+# server still accepts them as --profile so recorded commands replay unchanged.
 TOOLS = {
     "A": ["search_exact", "read_source"],
     "B": ["search_exact", "read_source", "inspect_symbol", "find_symbol", "find_callers", "trace_dependencies"],

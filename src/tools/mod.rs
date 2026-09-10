@@ -34,9 +34,14 @@ Route repository retrieval by the question's intent:
 - Known literal, identifier, error, filename, or exhaustive occurrence list: use search_exact.
 - Behavior or concept whose spelling or location is unknown: start with search_concept.
 - Exact declaration or namesake disambiguation: use find_symbol.
-- Direct callers or references: use find_callers; do not approximate relationships with search_exact.
+- A symbol's relationships when you have a candidate name: start with inspect_symbol. It returns \
+definitions, callers, callees, and members in one capped call, so you never have to guess the \
+direction first.
+- Direct callers or references, once the direction is known: use find_callers; do not approximate \
+relationships with search_exact.
 - Transitive callers, callees, dependencies, impact, or call chains: use trace_dependencies.
-- Mixed discovery plus structure: search_concept, then find_symbol, then find_callers or trace_dependencies, and verify material edges with read_source.
+- Mixed discovery plus structure: search_concept, then inspect_symbol, then find_callers or \
+trace_dependencies, and verify material edges with read_source.
 - Read a known location or verify retrieved evidence with read_source. Stop when evidence is sufficient.
 Write conceptual queries in the vocabulary the code is likely to use, not the vocabulary of the \
 question: name the identifiers, API terms, constants, and implementation concepts a programmer \
@@ -74,7 +79,7 @@ impl RetrievalServer {
                 }) as Arc<dyn SemanticBackend>
             }),
             log: InvocationLog::new(
-                format!("{:?}", config.profile),
+                config.label.clone(),
                 config.run_id.clone(),
                 config.log_file.as_deref(),
             )?,
@@ -83,7 +88,9 @@ impl RetrievalServer {
     }
 
     pub fn definitions(&self) -> Vec<Tool> {
-        let mut tools = vec![
+        // One catalogue, filtered by the configured allowlist, so a tool is described identically
+        // however it was enabled.
+        let mut catalogue = vec![
             definition::<ExactArgs>(
                 "search_exact",
                 "Find literal text or regex matches with ripgrep. Use first for a known identifier, string, error, filename, syntax pattern, or exhaustive occurrence list. Do not use it as the primary tool for natural-language behavior, callers, dependencies, architecture, or multi-file synthesis; use semantic or structural retrieval instead. Queries are literal by default; set regex:true for patterns, where | is alternation and \\| matches a literal pipe. Returns paths, 1-based lines, and small excerpts. When has_more is true, pass next_offset, or narrow the query or path. Respects ignore files; hidden files are excluded.",
@@ -92,27 +99,26 @@ impl RetrievalServer {
                 "read_source",
                 "Read current source at a known repository-relative file path, not a directory, with an inclusive line range. Use to inspect implementation or verify retrieval evidence. Defaults to 100 lines; at most 500 lines and a bounded response. Follow next_line to continue.",
             ),
+            definition::<InspectArgs>("inspect_symbol", "Show both sides of one Rust/Python/TypeScript symbol at a single hop: its definitions, who calls it, what it calls, and its members when it is a container, with complete counts even where rows are capped. Use this first when a question is about relationships and you have a candidate symbol; it costs a few hundred bytes and removes the need to guess whether the evidence lies inbound or outbound. Expand one side afterwards with find_callers or trace_dependencies."),
+            definition::<SymbolArgs>("find_symbol", "Find exact-name definitions parsed with Tree-sitter (Rust/Python/TypeScript). Use for declarations and namesake disambiguation without matching comments or strings. For callers or dependencies, use find_callers or trace_dependencies instead. Returns source locations and snapshot coverage; unsupported files are not indexed."),
+            definition::<CallerArgs>("find_callers", "Find direct call sites, or optional identifier references, for an unqualified Rust/Python/TypeScript symbol. Use first when a question asks who directly calls or references a symbol; do not approximate that relationship with search_exact. For multi-hop callers, callees, impact, or call chains, use trace_dependencies. Results are conservative syntax/name candidates, not proven bindings or a complete call graph. Verify material evidence with read_source."),
+            definition::<TraceArgs>("trace_dependencies", "Trace bounded transitive call relationships for an unqualified Rust/Python/TypeScript function or method. Use for call chains, dependencies, impact, or multi-hop callers/callees. direction=callers finds what may reach the root; direction=callees finds what the root may reach. Depth defaults to 3 and is capped at 5. Results are conservative syntax/name candidates; verify material edges with read_source."),
+            {
+                let mut tool = definition::<ConceptArgs>(
+                    "search_concept",
+                    "Find code by behaviour or intent when the exact identifier or location is unknown. Phrase the query as the code would read: likely identifiers, API terms, constants, and implementation concepts, several spellings included, rather than the question's own words. Use first for conceptual discovery and the discovery stage of mixed questions; follow with find_symbol and find_callers or trace_dependencies when relationships matter. Rows name the enclosing definition with its caller and callee counts; ask for fields:[\"excerpt\"] only when you need source text. The ranking mechanism is an operator setting, not a choice you make.",
+                );
+                tool.annotations = Some(
+                    ToolAnnotations::new()
+                        .read_only(true)
+                        .destructive(false)
+                        .open_world(self.config.ranker.needs_backend()),
+                );
+                tool
+            },
         ];
-        if self.config.profile.structural() {
-            tools.push(definition::<InspectArgs>("inspect_symbol", "Show both sides of one Rust/Python/TypeScript symbol at a single hop: its definitions, who calls it, what it calls, and its members when it is a container, with complete counts even where rows are capped. Use this first when a question is about relationships and you have a candidate symbol; it costs a few hundred bytes and removes the need to guess whether the evidence lies inbound or outbound. Expand one side afterwards with find_callers or trace_dependencies."));
-            tools.push(definition::<SymbolArgs>("find_symbol", "Find exact-name definitions parsed with Tree-sitter (Rust/Python). Use for declarations and namesake disambiguation without matching comments or strings. For callers or dependencies, use find_callers or trace_dependencies instead. Returns source locations and snapshot coverage; unsupported files are not indexed."));
-            tools.push(definition::<CallerArgs>("find_callers", "Find direct call sites, or optional identifier references, for an unqualified Rust/Python symbol. Use first when a question asks who directly calls or references a symbol; do not approximate that relationship with search_exact. For multi-hop callers, callees, impact, or call chains, use trace_dependencies. Results are conservative syntax/name candidates, not proven bindings or a complete call graph. Verify material evidence with read_source."));
-            tools.push(definition::<TraceArgs>("trace_dependencies", "Trace bounded transitive call relationships for an unqualified Rust/Python function or method. Use for call chains, dependencies, impact, or multi-hop callers/callees. direction=callers finds what may reach the root; direction=callees finds what the root may reach. Depth defaults to 3 and is capped at 5. Results are conservative syntax/name candidates; verify material edges with read_source."));
-        }
-        if self.config.profile.semantic() {
-            let mut tool = definition::<ConceptArgs>(
-                "search_concept",
-                "Find code by behaviour or intent when the exact identifier or location is unknown. Phrase the query as the code would read: likely identifiers, API terms, constants, and implementation concepts, several spellings included, rather than the question's own words. Use first for conceptual discovery and the discovery stage of mixed questions; follow with find_symbol and find_callers or trace_dependencies when relationships matter. Rows name the enclosing definition with its caller and callee counts; ask for fields:[\"excerpt\"] only when you need source text. The ranking mechanism is an operator setting, not a choice you make.",
-            );
-            tool.annotations = Some(
-                ToolAnnotations::new()
-                    .read_only(true)
-                    .destructive(false)
-                    .open_world(self.config.ranker.needs_backend()),
-            );
-            tools.push(tool);
-        }
-        tools
+        catalogue.retain(|tool| self.config.enabled(&tool.name));
+        catalogue
     }
 
     async fn execute(&self, name: &str, args: Value) -> Result<Value> {
@@ -205,7 +211,7 @@ impl RetrievalServer {
                                           include_excerpt, "bm25/symbol-chunks",
                                           "Lexical BM25 over indexed definitions; no embedding model or service.")?
         };
-        if self.config.profile.structural() {
+        if self.config.structural() {
             let index = self.index().await?;
             for hit in &mut result.results {
                 hit.symbol = index.locate(&hit.path, hit.start_line);

@@ -1,15 +1,36 @@
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
-use std::{path::PathBuf, time::Duration};
+use std::{collections::BTreeSet, path::PathBuf, time::Duration};
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
-pub enum Profile {
-    A,
-    B,
-    C,
-    #[default]
-    D,
-}
+/// Every tool this server can expose, in the order `tools/list` reports them.
+pub const TOOLS: [&str; 7] = [
+    "search_exact",
+    "read_source",
+    "inspect_symbol",
+    "find_symbol",
+    "find_callers",
+    "trace_dependencies",
+    "search_concept",
+];
+
+/// The availability levels of the original routing study, kept so its recorded commands still
+/// run. They are presets over `--tools`, not a separate mechanism.
+pub const PROFILES: [(&str, &[&str]); 4] = [
+    ("A", &["search_exact", "read_source"]),
+    (
+        "B",
+        &[
+            "search_exact",
+            "read_source",
+            "inspect_symbol",
+            "find_symbol",
+            "find_callers",
+            "trace_dependencies",
+        ],
+    ),
+    ("C", &["search_exact", "read_source", "search_concept"]),
+    ("D", &TOOLS),
+];
 
 /// Which implementation answers `search_concept`. This is an operator choice: the model sees one
 /// conceptual-search tool and never picks a ranking mechanism.
@@ -31,19 +52,13 @@ impl Ranker {
     }
 }
 
-impl Profile {
-    pub fn structural(self) -> bool {
-        matches!(self, Self::B | Self::D)
-    }
-    pub fn semantic(self) -> bool {
-        matches!(self, Self::C | Self::D)
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct Config {
     pub root: PathBuf,
-    pub profile: Profile,
+    /// Exactly the tools this session exposes; anything else is absent and uncallable.
+    pub tools: BTreeSet<String>,
+    /// What the invocation log calls this tool set: a profile letter, or the tools themselves.
+    pub label: String,
     pub semantic_command: Option<Vec<String>>,
     pub timeout: Duration,
     pub run_id: Option<String>,
@@ -52,21 +67,36 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn enabled(&self, tool: &str) -> bool {
+        self.tools.contains(tool)
+    }
+    pub fn structural(&self) -> bool {
+        ["inspect_symbol", "find_symbol", "find_callers", "trace_dependencies"]
+            .iter()
+            .any(|tool| self.enabled(tool))
+    }
+    pub fn semantic(&self) -> bool {
+        self.enabled("search_concept")
+    }
+
     pub fn parse() -> Result<Option<Self>> {
         let mut args = std::env::args().skip(1);
         let mut config = Self {
             root: PathBuf::new(),
-            profile: Profile::D,
+            tools: TOOLS.iter().map(|tool| (*tool).to_owned()).collect(),
+            label: "D".into(),
             semantic_command: None,
             timeout: Duration::from_secs(30),
             run_id: None,
             log_file: None,
             ranker: Ranker::default(),
         };
+        // One switch decides the tool set; two would leave the log label ambiguous.
+        let mut chosen = false;
         while let Some(flag) = args.next() {
             if flag == "--help" || flag == "-h" {
                 println!(
-                    "retrieval-mcp --root PATH [--profile A|B|C|D] [--ranker lexical|semantic|hybrid]\n  [--run-id ID] [--semantic-command '[\"program\",\"arg\"]'] [--timeout-seconds 30]\n  [--log-file /absolute/path/events.jsonl]\nJSON invocation logs go to stderr and optionally append to --log-file; stdout is reserved for MCP."
+                    "retrieval-mcp --root PATH [--tools name,name,...] [--profile A|B|C|D]\n  [--ranker lexical|semantic|hybrid] [--run-id ID] [--semantic-command '[\"program\",\"arg\"]']\n  [--timeout-seconds 30] [--log-file /absolute/path/events.jsonl]\nTools: search_exact, read_source, inspect_symbol, find_symbol, find_callers,\n  trace_dependencies, search_concept. All are exposed unless restricted.\nProfiles are presets over --tools from the original availability study: A exact+read,\n  B adds structure, C adds concept search, D all seven.\nJSON invocation logs go to stderr and optionally append to --log-file; stdout is reserved for MCP."
                 );
                 return Ok(None);
             }
@@ -76,9 +106,29 @@ impl Config {
             match flag.as_str() {
                 "--root" => config.root = value.into(),
                 "--log-file" => config.log_file = Some(value.into()),
+                "--tools" => {
+                    let requested: Vec<String> =
+                        value.split(',').map(|tool| tool.trim().to_owned()).collect();
+                    ensure!(
+                        requested.iter().all(|tool| TOOLS.contains(&tool.as_str())),
+                        "--tools accepts only: {}",
+                        TOOLS.join(", ")
+                    );
+                    ensure!(!requested.is_empty(), "--tools needs at least one tool");
+                    ensure!(!chosen, "use either --tools or --profile, not both");
+                    config.label = requested.join("+");
+                    config.tools = requested.into_iter().collect();
+                    chosen = true;
+                }
                 "--profile" => {
-                    config.profile = serde_json::from_value(serde_json::Value::String(value))
-                        .context("profile must be A, B, C, or D")?
+                    let (name, preset) = PROFILES
+                        .iter()
+                        .find(|(name, _)| *name == value)
+                        .with_context(|| format!("profile must be A, B, C, or D, not {value}"))?;
+                    ensure!(!chosen, "use either --tools or --profile, not both");
+                    config.label = (*name).to_owned();
+                    config.tools = preset.iter().map(|tool| (*tool).to_owned()).collect();
+                    chosen = true;
                 }
                 "--ranker" => {
                     config.ranker = serde_json::from_value(serde_json::Value::String(value))

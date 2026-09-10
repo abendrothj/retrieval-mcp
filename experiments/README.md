@@ -17,6 +17,140 @@ The fake agent and semantic fixture in `test_experiments.py` exercise real MCP t
 
 `audit_answers.py` reads saved project answers and frozen gold, records input hashes, and writes a separate post-hoc report without overwriting existing files. It compares exactly one JSON payload even when preceded by prose; multiple objects, duplicate keys, malformed JSON, and unsupported shapes require manual review. Typed values, set uniqueness, and ordered call chains keep the original comparison rules. This is a sensitivity check, not a replacement for frozen scores or a review of contradictory prose. It excludes unfinished trials and never invokes a model. Resuming model trials remains separate work; these commands do not resume them.
 
+## Offline retrieval and navigation studies
+
+Four scripts isolate one layer each, upstream of any agent loop. All are deterministic given their
+inputs; only `study_a1.py` and `study_a2.py` call a model, and only with `--allow-model-usage`.
+
+| Script | Question | Model calls |
+|---|---|---|
+| `study_a.py` | Given one query, which ranker puts gold in the candidate set? | none |
+| `study_a1.py` | Does rewriting the question into code vocabulary change that? | one per question |
+| `study_a2.py` | Given retrieved rows, which next retrieval action does the model choose? | one per question |
+| `study_a3.py` | When a structural action fails, which part of the navigation was wrong? | none |
+
+`study_a.py` runs the same questions and chunks through `lexical`, `semantic`, and `hybrid`,
+scoring recall@1/3/5/10 and MRR against symbol-level gold. It refuses to run with a vector cache
+inside the corpus and fingerprints the corpus before and after, aborting if ranking changed it.
+`make_reformulations.py` freezes one model rewrite per question so `study_a1.py` can re-rank
+without a live model; `make_mechanical_suite.py` derives description-to-symbol questions from doc
+comments for cheap breadth across languages.
+
+`study_a3.py` classifies each structural decision rather than only scoring it: `wrong_reach` (right
+seed, wrong direction), `wrong_level` (right neighbourhood, wrong container/member), `unchosen` (a
+workable seed was visible and something else was invented), and `unavailable` (no workable seed was
+on screen). It also reports how far the chosen seed sits from gold, and replays the recorded action
+to measure what that surface actually returned in bytes.
+
+### The `inspect_symbol` A/B
+
+The primitive in the server exists because of this contrast. Identical corpus, chunks, gold, ranker,
+prompt, and seed; the only change is whether `inspect_symbol` appears in the action menu:
+
+```sh
+for surface in directed neighbourhood; do
+  python3 experiments/study_a2.py --root /path/to/corpus \
+    --questions /path/to/authored-questions.json \
+    --reformulations /path/to/reformulations.json \
+    --cache /path/to/cache-outside-the-corpus \
+    --semantic-command '["/path/to/target/release/examples/ollama_backend"]' \
+    --surface $surface --repetitions 3 --allow-model-usage \
+    --output /path/to/study-$surface.json
+  python3 experiments/study_a3.py --root /path/to/corpus \
+    --questions /path/to/authored-questions.json \
+    --decisions /path/to/study-$surface.json \
+    --reformulations /path/to/reformulations.json \
+    --output /path/to/study-$surface-nav.json
+done
+```
+
+Over 45 decisions per surface (15 questions × 3 repetitions), certified solves went 17 → 27,
+`wrong_reach` 15 → 4, and `wrong_level` 9 → 8. Six questions improved, none regressed. Median bytes
+per structural call rose 322 → 1,235, so the primitive buys direction with bytes: better per
+decision, worse per byte in isolation. Whether that trade survives a full agent loop is the
+[end-to-end study](#end-to-end-context-efficiency-three-arms-one-corpus), where it currently does
+not show.
+
+## End-to-end context efficiency: three arms, one corpus
+
+The question this study answers is not "which ranker retrieves better" but "how much model context
+does an agent consume before it reaches a correct answer". Three arms — OpenCode's own
+grep/read/glob/bash tools, zvec-grep 0.2.2, and `retrieval-mcp` profile D — run the same authored
+questions over one byte-identical corpus, each until it answers or exhausts its call budget.
+
+`comparison_systems_three.json` is that three-arm subset of `comparison_systems.json`, with the
+zvec install pinned to a local package file so preparation needs no registry. `codex_wrapper.py`
+drives Codex CLI and `opencode_wrapper.py` drives OpenCode; both translate their client's event
+stream into the harness transcript shape and keep the raw stream beside the trial for scoring.
+
+```sh
+# 1. Prepare one corpus copy per arm, with warm indexes and recorded versions. No model calls.
+python3 experiments/comparison_runner.py prepare \
+  --source-root /path/to/corpus --workspace /path/to/workspace \
+  --systems experiments/comparison_systems_three.json \
+  --semantic-command '["/path/to/target/release/examples/ollama_backend"]'
+
+# 2. Run the matrix. Requires explicit model approval; writes one directory per trial.
+python3 experiments/comparison_runner.py run \
+  --workspace /path/to/workspace --systems experiments/comparison_systems_three.json \
+  --questions /path/to/authored-questions.json \
+  --semantic-command '["/path/to/target/release/examples/ollama_backend"]' \
+  --client command --model gpt-5.6-luna --allow-model-usage \
+  --agent-command '["python3","experiments/codex_wrapper.py","gpt-5.6-luna","{mcp_config}","{prompt_file}","{run_dir}"]' \
+  --repetitions 2 --seed 11 --max-calls 25 --timeout 600 --output /path/to/run
+
+# 3. Score it offline from the raw event streams. No model calls.
+python3 experiments/end_to_end.py --run /path/to/run \
+  --questions /path/to/authored-questions.json --output /path/to/report.json
+```
+
+`end_to_end.py` recomputes every metric identically for all arms, because an MCP tool result and a
+native `read` result are both just bytes a tool put into the context window: correctness, input,
+output and reasoning tokens, retrieval bytes, calls, source reads, latency where the client reports
+it, wall time, cost, and the two that matter most — `calls_to_first_hit` and everything spent
+*after* the gold path or symbol first appeared in a tool result. A system that surfaces the answer
+in call one and then needs six more reads to commit is not a good retrieval layer. Codex reports
+usage once per turn rather than per step, so for that client the post-hit figures are calls and
+bytes rather than tokens; the report states this in its `limitations`.
+
+Two harness rules exist because their absence produced believable false results. A provider failure
+— 402, quota, auth, rate limit — is classified from the client's error payload, marks that trial
+`provider_error`, aborts the entire run, writes `status.json` with `complete:false`, and exits
+non-zero. It never counts against an arm's failure budget, because a billing outage that silently
+disables arms one at a time yields a partial matrix that still looks scoreable. Separately, the
+grader indexes definitions for Rust, Python, and TypeScript with ripgrep over the corpus, never by
+asking any system under test; a prose answer resolves only when it names exactly one indexed
+definition, so listing candidates earns nothing.
+
+### Result, `gpt-5.6-luna` via Codex CLI, 2026-09-10
+
+Fifteen authored VS Code platform questions × 2 repetitions × 3 arms = 90 trials, 64 minutes,
+all completed, no provider aborts.
+
+| | native-control | zvec-grep | retrieval-mcp |
+|---|---:|---:|---:|
+| Resolved correct / 30 | 14 | 15 | 16 |
+| Mean graded credit | 0.467 | 0.500 | 0.533 |
+| Median input tokens | 206,054 | 213,646 | 227,955 |
+| Median output / reasoning tokens | 1,040 / 411 | 1,123 / 339 | 906 / 370 |
+| Median retrieval bytes | 92,449 | 61,756 | 85,231 |
+| Median calls / source reads | 4.5 / 4.0 | 5.0 / 3.0 | 5.5 / 3.0 |
+| Median calls to first hit | 2 | 3 | 2 |
+| Median bytes after first hit | 22,330 | 14,146 | 46,020 |
+| Input tokens, resolved trials only | 177,513 | 190,156 | 162,862 |
+| Retrieval bytes, resolved trials only | 92,665 | 60,188 | 52,879 |
+
+The target was quality at least matching zvec-grep while consuming less total context. Quality is a
+tie — paired discordance is one to two question-repetitions, with no arm ever losing one it would
+otherwise win — and total input tokens are about 10% *above* the native baseline, so the target is
+not met. Conditioned on success this server is the cheapest arm on both tokens and bytes; it is the
+most wasteful on failure. Strict envelope grading scored 0/90 for every arm because this model
+answers in prose around its JSON, so all quality figures come from the graded resolver.
+
+The suite itself is now the limiting instrument: 5 of 15 questions were solved by all three arms and
+6 by none — including every transitive relationship question — so only 4 discriminated at all.
+Interpreting arm differences on this suite beyond "indistinguishable" is not supported.
+
 ## Native-system comparison
 
 `comparison_runner.py` holds OpenCode and DeepSeek V4 Flash constant across six arms: a native
