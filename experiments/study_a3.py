@@ -67,11 +67,11 @@ def run(args):
         try:
             client.request("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
                                           "clientInfo": {"name": "study-a3", "version": "1"}})
-            client.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
-            for task_id, decision in decisions.items():
-                if decision["action"] not in STRUCTURAL or decision["stage2_rank"]:
+            for cell_id, decision in decisions.items():
+                if decision["action"] not in STRUCTURAL:
                     continue
-                task = questions[task_id]
+                task = questions[decision.get("task_id", cell_id)]
+                task_id = decision.get("task_id", cell_id)
                 relevant = study_a.relevant_symbols(task)
                 seed = decision["argument"]
                 # What the model could see when it chose: the stage-1 rows, recomputed.
@@ -85,11 +85,15 @@ def run(args):
                 workable = set()
                 for path, name in relevant:
                     workable |= {pair[1] for pair in neighbourhood(client, name, 1)}
-                    workable.add(name)
                 seed_defined = bool(call(client, "find_symbol", {"name": seed, "limit": 5}))
-                depth = reaches(client, seed, relevant, MAX_DEPTH) if seed_defined else None
+                exact = {name for _, name in relevant}
+                depth = (0 if seed in exact
+                         else reaches(client, seed, relevant, MAX_DEPTH) if seed_defined
+                         else None)
                 visible_workable = sorted({name for _, name in visible if name in workable})
-                if depth is not None:
+                if decision["stage2_rank"]:
+                    verdict = "solved"
+                elif depth is not None:
                     verdict = "wrong_reach"
                 elif not seed_defined:
                     verdict = "unavailable" if not visible_workable else "unchosen"
@@ -97,7 +101,7 @@ def run(args):
                     verdict = "unchosen"
                 else:
                     verdict = "wrong_level" if visible else "unavailable"
-                findings[task_id] = {
+                findings[cell_id] = {
                     "category": task["category"],
                     "action": decision["action"],
                     "seed": seed,
@@ -106,6 +110,7 @@ def run(args):
                     "workable_seeds_visible_in_evidence": visible_workable,
                     "relevant": sorted("::".join(pair) for pair in relevant),
                     "verdict": verdict,
+                    "solved": bool(decision["stage2_rank"]),
                 }
         finally:
             client.close()
@@ -119,6 +124,18 @@ def run(args):
                      for verdict in ("unavailable", "unchosen", "wrong_level", "wrong_reach")},
         "corpus": before,
         "findings": findings,
+        "seed_distance": {
+            "at_gold": sum(1 for f in findings.values()
+                           if f["gold_reachable_from_seed_at_depth"] == 0),
+            "one_hop": sum(1 for f in findings.values()
+                           if f["gold_reachable_from_seed_at_depth"] == 1),
+            "two_to_five_hops": sum(1 for f in findings.values()
+                                    if (f["gold_reachable_from_seed_at_depth"] or 0) > 1),
+            "unreachable": sum(1 for f in findings.values()
+                               if f["gold_reachable_from_seed_at_depth"] is None),
+        },
+        "indexed_seeds": sum(1 for f in findings.values() if f["seed_is_indexed_definition"]),
+        "structural_decisions": len(findings),
         "limitations": "Reachability is judged by the same syntactic index the model queries, so a "
                        "binding it cannot resolve is invisible here too. Seeds are classified one "
                        "hop from gold; a longer legitimate route would read as unavailable.",

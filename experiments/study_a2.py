@@ -107,57 +107,64 @@ def run(args):
     if args.ranker != "lexical":
         command += ["--semantic-command", json.dumps(args.semantic_command)]
     cells, spend = {}, 0.0
+    tokens = {"input": 0, "output": 0}
     with tempfile.TemporaryFile(mode="w+") as stderr:
         client = benchmark.MCP(command, dict(os.environ, RETRIEVAL_SEMANTIC_CACHE_DIR=str(cache)),
                                args.root, stderr, args.timeout + 60)
         try:
             client.request("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
                                           "clientInfo": {"name": "study-a2", "version": "1"}})
-            client.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
-            for task in graded:
-                relevant = study_a.relevant_symbols(task)
-                rewrite = " ".join([*entries[task["id"]]["concepts"],
-                                    *entries[task["id"]]["candidate_identifiers"],
-                                    *entries[task["id"]]["terms"]])
-                stage0 = call(client, "search_concept",
-                              {"query": task["question"], "limit": args.limit})
-                stage1 = call(client, "search_concept", {"query": rewrite, "limit": args.limit})
-                prompt = (f"{DECISION}\n\nQuestion: {task['question']}\n\n"
-                          f"Search already tried: {rewrite}\n\nResults:\n"
-                          f"{evidence_digest(stage1, args.limit)}")
-                text, usage = make_reformulations.ask(args.model, args.variant, prompt,
-                                                      args.decision_timeout)
-                spend += (usage.get("cost_usd") or 0)
-                decision = make_reformulations.parse(text, ("action", "argument"))
-                action = decision["action"] if decision["action"] in ACTIONS else "search_concept"
-                argument = str(decision["argument"])
-                payload = ({"query": argument, "limit": args.limit} if action == "search_concept"
-                           else {"name": argument, "limit": args.limit})
-                stage2 = call(client, action, payload)
-                # Vocabulary the model could only have taken from what stage 1 returned.
-                seen = set()
-                for row in stage1[: args.limit]:
-                    symbol = row.get("symbol") or {}
-                    seen |= words(symbol.get("symbol") or row.get("path", ""))
-                introduced = words(argument)
-                cells[task["id"]] = {
-                    "category": task["category"],
-                    "stage0_rank": rank_of(identities("search_concept", stage0), relevant),
-                    "stage1_rank": rank_of(identities("search_concept", stage1), relevant),
-                    "stage2_rank": rank_of(identities(action, stage2), relevant),
-                    "action": action,
-                    "argument": argument,
-                    "why": str(decision.get("why", ""))[:300],
-                    "vocabulary": {
-                        "from_question": sorted(introduced & words(task["question"])),
-                        "from_rewrite": sorted(introduced & words(rewrite)
-                                               - words(task["question"])),
-                        "from_evidence": sorted(introduced & seen - words(task["question"])
-                                                - words(rewrite)),
-                        "novel": sorted(introduced - words(task["question"]) - words(rewrite)
-                                        - seen),
-                    },
-                }
+            for repetition in range(1, args.repetitions + 1):
+                for task in graded:
+                    relevant = study_a.relevant_symbols(task)
+                    rewrite = " ".join([*entries[task["id"]]["concepts"],
+                                        *entries[task["id"]]["candidate_identifiers"],
+                                        *entries[task["id"]]["terms"]])
+                    stage0 = call(client, "search_concept",
+                                  {"query": task["question"], "limit": args.limit})
+                    stage1 = call(client, "search_concept", {"query": rewrite, "limit": args.limit})
+                    prompt = (f"{DECISION}\n\nQuestion: {task['question']}\n\n"
+                              f"Search already tried: {rewrite}\n\nResults:\n"
+                              f"{evidence_digest(stage1, args.limit)}")
+                    text, usage = make_reformulations.ask(args.model, args.variant, prompt,
+                                                          args.decision_timeout)
+                    spend += (usage.get("cost_usd") or 0)
+                    tokens["input"] += usage.get("input", 0) or 0
+                    tokens["output"] += usage.get("output", 0) or 0
+                    decision = make_reformulations.parse(text, ("action", "argument"))
+                    action = (decision["action"] if decision["action"] in ACTIONS
+                              else "search_concept")
+                    argument = str(decision["argument"])
+                    payload = ({"query": argument, "limit": args.limit}
+                               if action == "search_concept"
+                               else {"name": argument, "limit": args.limit})
+                    stage2 = call(client, action, payload)
+                    # Vocabulary the model could only have taken from what stage 1 returned.
+                    seen = set()
+                    for row in stage1[: args.limit]:
+                        symbol = row.get("symbol") or {}
+                        seen |= words(symbol.get("symbol") or row.get("path", ""))
+                    introduced = words(argument)
+                    cells[f"{task['id']}#{repetition}"] = {
+                        "task_id": task["id"],
+                        "repetition": repetition,
+                        "category": task["category"],
+                        "stage0_rank": rank_of(identities("search_concept", stage0), relevant),
+                        "stage1_rank": rank_of(identities("search_concept", stage1), relevant),
+                        "stage2_rank": rank_of(identities(action, stage2), relevant),
+                        "action": action,
+                        "argument": argument,
+                        "why": str(decision.get("why", ""))[:300],
+                        "vocabulary": {
+                            "from_question": sorted(introduced & words(task["question"])),
+                            "from_rewrite": sorted(introduced & words(rewrite)
+                                                   - words(task["question"])),
+                            "from_evidence": sorted(introduced & seen - words(task["question"])
+                                                    - words(rewrite)),
+                            "novel": sorted(introduced - words(task["question"]) - words(rewrite)
+                                            - seen),
+                        },
+                    }
         finally:
             client.close()
     if comparison_runner.source_fingerprint(args.root) != before:
@@ -175,6 +182,7 @@ def run(args):
         "corpus": before,
         "decision_model": args.model,
         "decision_cost_usd": round(spend, 6),
+        "tokens": tokens,
         "solved": {"stage0": solved("stage0_rank"), "stage1": solved("stage1_rank"),
                    "stage2_alone": solved("stage2_rank"), "stage1_or_stage2": cumulative},
         "actions": {action: sum(1 for cell in cells.values() if cell["action"] == action)
@@ -207,6 +215,7 @@ def main():
     parser.add_argument("--reformulations", type=Path, required=True)
     parser.add_argument("--cache", type=Path, required=True)
     parser.add_argument("--server", type=Path, default=base.parent / "target/release/retrieval-mcp")
+    parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument("--semantic-command", type=benchmark.command_array, required=True)
     parser.add_argument("--ranker", default="lexical", choices=study_a.RANKERS)
     parser.add_argument("--model", default="deepseek/deepseek-v4-flash")
