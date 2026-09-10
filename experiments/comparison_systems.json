@@ -35,6 +35,7 @@
           "visible_tools": [
             "search_exact",
             "read_source",
+            "inspect_symbol",
             "find_symbol",
             "find_callers",
             "trace_dependencies",
@@ -43,6 +44,7 @@
           "expected_upstream_tools": [
             "search_exact",
             "read_source",
+            "inspect_symbol",
             "find_symbol",
             "find_callers",
             "trace_dependencies",

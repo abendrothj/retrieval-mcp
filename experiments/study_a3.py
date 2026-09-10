@@ -17,13 +17,14 @@ import argparse
 import json
 import os
 from pathlib import Path
+import statistics
 import tempfile
 
 import benchmark
 import comparison_runner
 import study_a
 
-STRUCTURAL = ("find_symbol", "find_callers", "trace_dependencies")
+STRUCTURAL = ("inspect_symbol", "find_symbol", "find_callers", "trace_dependencies")
 MAX_DEPTH = 5
 
 
@@ -91,6 +92,11 @@ def run(args):
                          else reaches(client, seed, relevant, MAX_DEPTH) if seed_defined
                          else None)
                 visible_workable = sorted({name for _, name in visible if name in workable})
+                # Replay the decision itself: what the surface actually returned, in bytes.
+                payload = ({"name": seed} if decision["action"] == "inspect_symbol"
+                           else {"name": seed, "limit": args.limit})
+                returned = call(client, decision["action"], payload)
+                served = len(json.dumps(returned, ensure_ascii=False).encode())
                 if decision["stage2_rank"]:
                     verdict = "solved"
                 elif depth is not None:
@@ -111,6 +117,8 @@ def run(args):
                     "relevant": sorted("::".join(pair) for pair in relevant),
                     "verdict": verdict,
                     "solved": bool(decision["stage2_rank"]),
+                    "returned_rows": len(returned),
+                    "returned_bytes": served,
                 }
         finally:
             client.close()
@@ -120,6 +128,9 @@ def run(args):
         "version": "study-a3-v1",
         "max_depth_probed": MAX_DEPTH,
         "structural_failures": len(findings),
+        "returned_bytes_median": statistics.median(
+            [f["returned_bytes"] for f in findings.values()] or [0]),
+        "returned_bytes_total": sum(f["returned_bytes"] for f in findings.values()),
         "verdicts": {verdict: sum(1 for f in findings.values() if f["verdict"] == verdict)
                      for verdict in ("unavailable", "unchosen", "wrong_level", "wrong_reach")},
         "corpus": before,

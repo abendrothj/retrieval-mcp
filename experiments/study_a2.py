@@ -29,17 +29,21 @@ import comparison_runner
 import make_reformulations
 import study_a
 
-ACTIONS = ("search_concept", "find_symbol", "find_callers", "trace_dependencies")
+DIRECTED = ("search_concept", "find_symbol", "find_callers", "trace_dependencies")
+NEIGHBOURHOOD = ("inspect_symbol", *DIRECTED)
 DECISION = (
     "You are searching an unfamiliar repository. A first search has already run and its results are "
     "below. Choose the single next retrieval action most likely to surface the answer.\n"
     "Reply with one JSON object and nothing else:\n"
-    '{"action": "search_concept|find_symbol|find_callers|trace_dependencies", "argument": "...", '
-    '"why": "..."}\n'
-    "search_concept takes a query phrased in code vocabulary. find_symbol, find_callers and "
-    "trace_dependencies each take one unqualified symbol name. Prefer a structural action when the "
-    "question asks about callers, dependencies, chains, or impact and a plausible seed symbol "
-    "appears in the results. Do not answer the question."
+    '{{"action": "{actions}", "argument": "...", "why": "..."}}\n'
+    "search_concept takes a query phrased in code vocabulary. The others each take one unqualified "
+    "symbol name.{extra} Prefer a structural action when the question asks about callers, "
+    "dependencies, chains, or impact and a plausible seed symbol appears in the results. Do not "
+    "answer the question."
+)
+NEIGHBOURHOOD_HINT = (
+    " inspect_symbol returns both sides of a symbol at one hop, so use it when you have a candidate "
+    "symbol but do not know whether the answer lies among its callers or its callees."
 )
 WORD = re.compile(r"[A-Za-z][A-Za-z0-9_]{2,}")
 
@@ -53,9 +57,13 @@ def words(text):
     return found
 
 
-def call(client, name, arguments):
+def call(client, name, arguments, errors=None):
+    """Tool errors are recorded, never silently scored as an empty result."""
     result = client.request("tools/call", {"name": name, "arguments": arguments})
     if result.get("isError"):
+        if errors is not None:
+            errors.append({"tool": name, "arguments": arguments,
+                           "error": str(result.get("structuredContent"))[:200]})
         return []
     content = result.get("structuredContent") or {}
     return content.get("results", [])
@@ -74,6 +82,8 @@ def identities(name, rows):
         elif name == "trace_dependencies":
             found.append((row.get("path"), row.get("caller")))
             found.append((row.get("path"), row.get("callee")))
+        elif name == "inspect_symbol":
+            found.append((row.get("path"), (row.get("symbol") or "::").split("::")[-1]))
     return [pair for pair in found if pair[0] and pair[1]]
 
 
@@ -99,15 +109,13 @@ def run(args):
     graded = [task for task in questions if study_a.relevant_symbols(task)]
     entries = json.loads(args.reformulations.read_text(encoding="utf-8"))["reformulations"]
     cache = args.cache.resolve()
-    if cache == args.root or cache.is_relative_to(args.root):
-        raise ValueError("the vector cache must live outside the corpus")
+    cells, spend, errors, malformed = {}, 0.0, [], []
+    tokens = {"input": 0, "output": 0}
     before = comparison_runner.source_fingerprint(args.root)
     command = [str(args.server), "--root", str(args.root), "--profile", "D",
                "--ranker", args.ranker, "--timeout-seconds", str(args.timeout)]
     if args.ranker != "lexical":
         command += ["--semantic-command", json.dumps(args.semantic_command)]
-    cells, spend = {}, 0.0
-    tokens = {"input": 0, "output": 0}
     with tempfile.TemporaryFile(mode="w+") as stderr:
         client = benchmark.MCP(command, dict(os.environ, RETRIEVAL_SEMANTIC_CACHE_DIR=str(cache)),
                                args.root, stderr, args.timeout + 60)
@@ -123,7 +131,11 @@ def run(args):
                     stage0 = call(client, "search_concept",
                                   {"query": task["question"], "limit": args.limit})
                     stage1 = call(client, "search_concept", {"query": rewrite, "limit": args.limit})
-                    prompt = (f"{DECISION}\n\nQuestion: {task['question']}\n\n"
+                    actions = NEIGHBOURHOOD if args.surface == "neighbourhood" else DIRECTED
+                    instruction = DECISION.format(
+                        actions="|".join(actions),
+                        extra=NEIGHBOURHOOD_HINT if args.surface == "neighbourhood" else "")
+                    prompt = (f"{instruction}\n\nQuestion: {task['question']}\n\n"
                               f"Search already tried: {rewrite}\n\nResults:\n"
                               f"{evidence_digest(stage1, args.limit)}")
                     text, usage = make_reformulations.ask(args.model, args.variant, prompt,
@@ -131,14 +143,21 @@ def run(args):
                     spend += (usage.get("cost_usd") or 0)
                     tokens["input"] += usage.get("input", 0) or 0
                     tokens["output"] += usage.get("output", 0) or 0
-                    decision = make_reformulations.parse(text, ("action", "argument"))
-                    action = (decision["action"] if decision["action"] in ACTIONS
+                    try:
+                        decision = make_reformulations.parse(text, ("action", "argument"))
+                    except ValueError:
+                        # One bad reply must not discard the spend on every other question.
+                        malformed.append({"task": task["id"], "repetition": repetition,
+                                          "text": text[:200]})
+                        continue
+                    action = (decision["action"] if decision["action"] in actions
                               else "search_concept")
                     argument = str(decision["argument"])
                     payload = ({"query": argument, "limit": args.limit}
-                               if action == "search_concept"
+                               if action == "search_concept" else
+                               {"name": argument} if action == "inspect_symbol"
                                else {"name": argument, "limit": args.limit})
-                    stage2 = call(client, action, payload)
+                    stage2 = call(client, action, payload, errors)
                     # Vocabulary the model could only have taken from what stage 1 returned.
                     seen = set()
                     for row in stage1[: args.limit]:
@@ -183,10 +202,12 @@ def run(args):
         "decision_model": args.model,
         "decision_cost_usd": round(spend, 6),
         "tokens": tokens,
+        "tool_errors": errors,
+        "malformed_decisions": malformed,
         "solved": {"stage0": solved("stage0_rank"), "stage1": solved("stage1_rank"),
                    "stage2_alone": solved("stage2_rank"), "stage1_or_stage2": cumulative},
         "actions": {action: sum(1 for cell in cells.values() if cell["action"] == action)
-                    for action in ACTIONS},
+                    for action in NEIGHBOURHOOD},
         "by_category": {
             category: {
                 "n": sum(1 for cell in cells.values() if cell["category"] == category),
@@ -223,16 +244,19 @@ def main():
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--decision-timeout", type=int, default=180)
+    parser.add_argument("--surface", default="directed",
+                        choices=("directed", "neighbourhood"))
     parser.add_argument("--allow-model-usage", action="store_true")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if not args.allow_model_usage:
         raise ValueError("--allow-model-usage is required; nothing was sent")
     args.root = args.root.resolve(strict=True)
+    # Refuse before the model spend, not after it.
+    if args.output and args.output.exists():
+        raise FileExistsError(args.output)
     result = run(args)
     if args.output:
-        if args.output.exists():
-            raise FileExistsError(args.output)
         benchmark.write_json(args.output, result)
     print(json.dumps({key: result[key] for key in
                       ("solved", "actions", "by_category", "vocabulary_totals",

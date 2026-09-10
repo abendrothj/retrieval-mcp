@@ -140,6 +140,41 @@ pub struct Orientation {
     pub note: Option<String>,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct InspectArgs {
+    /// Unqualified symbol name to orient around.
+    pub name: String,
+    /// Optional repository-relative file or directory to restrict the neighbourhood.
+    pub path: Option<String>,
+}
+
+/// One verified identity in a symbol's immediate neighbourhood, labelled by its relation.
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct RelationRow {
+    /// definition, inbound, outbound, or member.
+    pub relation: String,
+    pub symbol: String,
+    pub kind: String,
+    pub path: String,
+    pub line: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container: Option<String>,
+}
+
+#[derive(Serialize, JsonSchema)]
+pub struct InspectResult {
+    #[serde(flatten)]
+    pub page: Page<RelationRow>,
+    /// Full counts before the per-relation caps, so a truncated side is never read as empty.
+    pub counts: BTreeMap<String, usize>,
+    pub symbol_status: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub nearest_indexed_names: Vec<String>,
+    pub coverage: Coverage,
+    pub limitations: String,
+}
+
 /// The symbol a retrieved range falls inside, with its call-graph salience.
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct SymbolLocation {
@@ -320,6 +355,8 @@ pub struct FileRelationship {
 
 /// MCP tools depend on retrieval results, not the parser or storage representation.
 pub trait StructuralBackend: Send + Sync {
+    /// Both sides of a symbol at one hop, capped, so direction never has to be guessed.
+    fn inspect_symbol(&self, workspace: &Workspace, args: InspectArgs) -> Result<InspectResult>;
     fn find_symbol(
         &self,
         workspace: &Workspace,
@@ -594,6 +631,109 @@ fn page<T: Clone>(items: impl Iterator<Item = T>, limit: usize, offset: usize) -
 }
 
 impl StructuralBackend for StructuralIndex {
+    fn inspect_symbol(&self, workspace: &Workspace, args: InspectArgs) -> Result<InspectResult> {
+        validate_query(&args.name)?;
+        let scope = scope(workspace, args.path.as_deref())?;
+        // Hard caps by construction: orientation is worth a few hundred bytes, not a subgraph.
+        const DEFINITIONS: usize = 3;
+        const SIDE: usize = 6;
+        const MEMBERS: usize = 8;
+        let definitions: Vec<_> = self
+            .symbols
+            .get(&args.name)
+            .into_iter()
+            .flatten()
+            .filter(|symbol| in_scope(&symbol.path, &scope))
+            .collect();
+        let mut rows: Vec<RelationRow> = definitions
+            .iter()
+            .take(DEFINITIONS)
+            .map(|symbol| RelationRow {
+                relation: "definition".into(),
+                symbol: format!("{}::{}", symbol.path, symbol.name),
+                kind: symbol.kind.clone(),
+                path: symbol.path.clone(),
+                line: symbol.line,
+                container: symbol.container.clone(),
+            })
+            .collect();
+        let mut side = |relation: &str, positions: Option<&Vec<usize>>, outbound: bool| {
+            let mut seen = BTreeSet::new();
+            let mut count = 0;
+            for position in positions.into_iter().flatten() {
+                let reference = &self.references[*position];
+                if reference.kind != "call" || !in_scope(&reference.path, &scope) {
+                    continue;
+                }
+                let Some(name) = (if outbound {
+                    Some(reference.name.clone())
+                } else {
+                    reference.caller.clone()
+                }) else {
+                    continue;
+                };
+                if !seen.insert((reference.path.clone(), name.clone())) {
+                    continue;
+                }
+                count += 1;
+                if count <= SIDE {
+                    rows.push(RelationRow {
+                        relation: relation.into(),
+                        symbol: format!("{}::{}", reference.path, name),
+                        kind: if outbound { "call".into() } else { "caller".into() },
+                        path: reference.path.clone(),
+                        line: reference.line,
+                        container: reference.caller.clone(),
+                    });
+                }
+            }
+            count
+        };
+        let inbound = side("inbound", self.references_by_name.get(&args.name), false);
+        let outbound = side("outbound", self.calls_by_caller.get(&args.name), true);
+        // Hierarchy: state the level explicitly so a class is never confused with its members.
+        let members: Vec<_> = self
+            .symbols
+            .values()
+            .flatten()
+            .filter(|symbol| {
+                symbol.container.as_deref() == Some(args.name.as_str())
+                    && in_scope(&symbol.path, &scope)
+            })
+            .collect();
+        for symbol in members.iter().take(MEMBERS) {
+            rows.push(RelationRow {
+                relation: "member".into(),
+                symbol: format!("{}::{}", symbol.path, symbol.name),
+                kind: symbol.kind.clone(),
+                path: symbol.path.clone(),
+                line: symbol.line,
+                container: symbol.container.clone(),
+            });
+        }
+        let (symbol_status, nearest_indexed_names) = self.seed_status(&args.name);
+        let counts = BTreeMap::from([
+            ("definitions".to_owned(), definitions.len()),
+            ("inbound".to_owned(), inbound),
+            ("outbound".to_owned(), outbound),
+            ("members".to_owned(), members.len()),
+        ]);
+        let truncated = definitions.len() > DEFINITIONS
+            || inbound > SIDE
+            || outbound > SIDE
+            || members.len() > MEMBERS;
+        Ok(InspectResult {
+            page: Page { results: rows, has_more: truncated, next_offset: None },
+            counts,
+            symbol_status,
+            nearest_indexed_names,
+            coverage: self.coverage.clone(),
+            limitations: "One hop, capped per relation; counts are complete even when rows are \
+                          truncated. Expand a side with find_callers or trace_dependencies. \
+                          Candidates are syntax matches, not proven bindings.".into(),
+        })
+    }
+
     fn find_symbol(
         &self,
         workspace: &Workspace,
@@ -1473,6 +1613,60 @@ mod tests {
             .unwrap();
         assert_eq!(index.locate(&hits[0].path, hits[0].start_line).unwrap().name, "handler");
     }
+    #[test]
+    fn neighbourhood_shows_both_sides_and_counts_beyond_its_caps() {
+        let dir = tempfile::tempdir().unwrap();
+        // Eight callers exceeds the six-row cap; the count must still report all of them.
+        let calls: String = (1..=8)
+            .map(|n| format!("class C{n} {{ go{n}() {{ target(); }} }}\n"))
+            .collect();
+        std::fs::write(
+            dir.path().join("app.ts"),
+            format!(
+                "{calls}export function target() {{ helper(); other(); }}\n\
+                 function helper() {{}}\nfunction other() {{}}\n"
+            ),
+        )
+        .unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index =
+            StructuralIndex::from_files(&ws, vec!["app.ts".into()], Duration::from_secs(5)).unwrap();
+        let out = index
+            .inspect_symbol(&ws, InspectArgs { name: "target".into(), path: None })
+            .unwrap();
+        let relation = |kind: &str| relation_names(&out, kind);
+        assert_eq!(relation("definition"), ["target"]);
+        // Both directions arrive in one call: that is the point of the primitive.
+        assert_eq!(relation("inbound").len(), 6);
+        assert_eq!(out.counts["inbound"], 8);
+        assert!(out.page.has_more);
+        let mut outbound = relation("outbound");
+        outbound.sort();
+        assert_eq!(outbound, ["helper", "other"]);
+        assert_eq!(out.symbol_status, "indexed");
+        // Orientation is worth a few hundred bytes; a subgraph is not.
+        assert!(serde_json::to_string(&out.page).unwrap().len() < 2048);
+        // The level is explicit: a container answers with its members, not with itself.
+        let class = index
+            .inspect_symbol(&ws, InspectArgs { name: "C1".into(), path: None })
+            .unwrap();
+        assert_eq!(relation_names(&class, "member"), ["go1"]);
+        let unknown = index
+            .inspect_symbol(&ws, InspectArgs { name: "targe".into(), path: None })
+            .unwrap();
+        assert_eq!(unknown.symbol_status, "unknown_symbol");
+        assert!(unknown.nearest_indexed_names.contains(&"target".to_string()));
+    }
+
+    fn relation_names(out: &InspectResult, kind: &str) -> Vec<String> {
+        out.page
+            .results
+            .iter()
+            .filter(|row| row.relation == kind)
+            .map(|row| row.symbol.rsplit("::").next().unwrap().to_owned())
+            .collect()
+    }
+
     #[test]
     fn identifier_tokens_split_on_case_and_underscore() {
         // Non-alphanumerics split first, then camelCase, and the whole word is kept as well, so a

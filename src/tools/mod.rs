@@ -1,6 +1,7 @@
 use crate::config::Ranker;
 use crate::index::{
-    CallerArgs, RankedRegion, StructuralBackend, StructuralIndex, SymbolArgs, TraceArgs,
+    CallerArgs, InspectArgs, InspectResult, RankedRegion, StructuralBackend, StructuralIndex,
+    SymbolArgs, TraceArgs,
 };
 use crate::search::semantic::{CommandSemantic, ConceptArgs, SemanticBackend};
 use crate::{
@@ -93,6 +94,7 @@ impl RetrievalServer {
             ),
         ];
         if self.config.profile.structural() {
+            tools.push(definition::<InspectArgs>("inspect_symbol", "Show both sides of one Rust/Python/TypeScript symbol at a single hop: its definitions, who calls it, what it calls, and its members when it is a container, with complete counts even where rows are capped. Use this first when a question is about relationships and you have a candidate symbol; it costs a few hundred bytes and removes the need to guess whether the evidence lies inbound or outbound. Expand one side afterwards with find_callers or trace_dependencies."));
             tools.push(definition::<SymbolArgs>("find_symbol", "Find exact-name definitions parsed with Tree-sitter (Rust/Python). Use for declarations and namesake disambiguation without matching comments or strings. For callers or dependencies, use find_callers or trace_dependencies instead. Returns source locations and snapshot coverage; unsupported files are not indexed."));
             tools.push(definition::<CallerArgs>("find_callers", "Find direct call sites, or optional identifier references, for an unqualified Rust/Python symbol. Use first when a question asks who directly calls or references a symbol; do not approximate that relationship with search_exact. For multi-hop callers, callees, impact, or call chains, use trace_dependencies. Results are conservative syntax/name candidates, not proven bindings or a complete call graph. Verify material evidence with read_source."));
             tools.push(definition::<TraceArgs>("trace_dependencies", "Trace bounded transitive call relationships for an unqualified Rust/Python function or method. Use for call chains, dependencies, impact, or multi-hop callers/callees. direction=callers finds what may reach the root; direction=callees finds what the root may reach. Depth defaults to 3 and is capped at 5. Results are conservative syntax/name candidates; verify material edges with read_source."));
@@ -151,6 +153,12 @@ impl RetrievalServer {
                 let args = serde_json::from_value(args)?;
                 Ok(serde_json::to_value(
                     self.index().await?.trace_dependencies(&self.workspace, args)?,
+                )?)
+            }
+            "inspect_symbol" => {
+                let args = serde_json::from_value(args)?;
+                Ok(serde_json::to_value(
+                    self.index().await?.inspect_symbol(&self.workspace, args)?,
                 )?)
             }
             "search_concept" => Ok(serde_json::to_value(self.concept(args).await?)?),
@@ -275,6 +283,7 @@ fn definition<T: JsonSchema>(name: &'static str, description: &'static str) -> T
         "read_source" => schemars::schema_for!(SourceResult).to_value(),
         "find_symbol" => schemars::schema_for!(StructuralResult<Symbol>).to_value(),
         "find_callers" => schemars::schema_for!(CallersResult).to_value(),
+        "inspect_symbol" => schemars::schema_for!(InspectResult).to_value(),
         "trace_dependencies" => schemars::schema_for!(DependencyTraceResult).to_value(),
         "search_concept" => schemars::schema_for!(ConceptResult).to_value(),
         _ => json!({"type":"object"}),

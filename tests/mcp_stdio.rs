@@ -184,9 +184,9 @@ async fn profiles_and_structural_queries_over_stdio() {
     .unwrap();
     for (profile, count, structural, semantic) in [
         ("A", 2, false, false),
-        ("B", 5, true, false),
+        ("B", 6, true, false),
         ("C", 3, false, true),
-        ("D", 6, true, true),
+        ("D", 7, true, true),
     ] {
         let mut client = Client::start(root.path(), profile).await;
         let listed = client.request("tools/list", json!({})).await;

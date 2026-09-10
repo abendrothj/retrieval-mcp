@@ -15,9 +15,9 @@ import time
 
 TOOLS = {
     "A": ["search_exact", "read_source"],
-    "B": ["search_exact", "read_source", "find_symbol", "find_callers", "trace_dependencies"],
+    "B": ["search_exact", "read_source", "inspect_symbol", "find_symbol", "find_callers", "trace_dependencies"],
     "C": ["search_exact", "read_source", "search_concept"],
-    "D": ["search_exact", "read_source", "find_symbol", "find_callers", "trace_dependencies", "search_concept"],
+    "D": ["search_exact", "read_source", "inspect_symbol", "find_symbol", "find_callers", "trace_dependencies", "search_concept"],
     # Control cell: no retrieval at all, so a correct answer came from the model's priors.
     "N": [],
 }
