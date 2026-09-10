@@ -143,9 +143,15 @@ impl RetrievalServer {
             "search_semantic" => {
                 let args = serde_json::from_value(args)?;
                 let backend = self.semantic.as_ref().ok_or_else(|| anyhow::anyhow!("semantic backend is not configured; start with --semantic-command '[\"/absolute/path/to/backend\"]'"))?;
-                Ok(serde_json::to_value(
-                    backend.search(&self.workspace, args).await?,
-                )?)
+                let mut result = backend.search(&self.workspace, args).await?;
+                // The ranker returns ranges; naming them is the server's job, from its own parse.
+                if self.config.profile.structural() {
+                    let index = self.index().await?;
+                    for hit in &mut result.results {
+                        hit.symbol = index.locate(&hit.path, hit.start_line);
+                    }
+                }
+                Ok(serde_json::to_value(result)?)
             }
             _ => anyhow::bail!("unknown or disabled tool: {name}; use tools/list"),
         }

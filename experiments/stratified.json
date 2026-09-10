@@ -7,15 +7,15 @@
     "src/lib.rs": "3491d7f875642a69c473c5609a14c4671f9754ff0ef9e29b6ebacb6c2257d153",
     "src/main.rs": "0d607e676911f428308eecc9866cdd3841cf3e8101a35d4204ad9436696a1ff6",
     "src/config/mod.rs": "f4c1b671050a41f2ecc84217bf7152b99c520f044dfa373994a8f406848c8536",
-    "src/index/mod.rs": "1e59b59a36da01436fe95e86da87ec45a79bc8d82dd1e3b2fae3a7e1a2a6d0cd",
+    "src/index/mod.rs": "f2a8ade1ac2fe118632d56e29de26181ccdc8e53c72b7c0c0309525ff3b238b6",
     "src/logging/mod.rs": "45cc308d50c77ead9cebae858aba354613988dcf46fb76d8f9c0088eabf3ac8e",
     "src/search/mod.rs": "b90120e8ed00b2871344807d4f914beea1edf6e2ee1d00a400dda7aad80f2e5f",
     "src/search/lexical.rs": "c94852453bca87992b1689697a474d32388691c6ec9a1dcbe5933c6a8c9e6f89",
     "src/search/process.rs": "e374206308a7df2ba39a1227e69b1f2749cec7cee21f63a59f8c5ef39086d770",
-    "src/search/semantic.rs": "3a343f8067bf785ff23439c4007bfea854a7e0a59338e37a29c575476870d74e",
+    "src/search/semantic.rs": "5d823716df6499430224016e3752f814efc5df0867307ccd6eaf2d1ccd3741dd",
     "src/source/mod.rs": "82d1d2d625d28f352b1461311cc30620e9535b89a299343555e694f3658a9074",
-    "src/tools/mod.rs": "9bff46b105a31a246e312a2ec00b00641316c53ec35fec29d24ffaefac7359be",
-    "examples/ollama_backend.rs": "1bc495791d32c9f6f725c18dece98cf6b855e7cd66c0296f63aef6e02713cd0e",
+    "src/tools/mod.rs": "f84092044c2c27d3da92810492635de53ce8f68fff6ca6cbd5b2bf287ea9e349",
+    "examples/ollama_backend.rs": "e3a8deeebd365dad7e43f17de6ac6a64b7c2d9a2e8d282a90415ea0d5c576ed4",
     "examples/support/cache.rs": "732e62e99e04bbf7f95727d10e57b692fd0699e42352a3865a676189fd1e08d1"
   },
   "tasks": [
@@ -278,7 +278,7 @@
         {
           "path": "src/search/semantic.rs",
           "contains": [
-            "pagination(args.limit, args.offset)?"
+            "pagination(Some(args.limit.unwrap_or(10)), args.offset)?"
           ]
         }
       ],

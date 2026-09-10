@@ -121,6 +121,19 @@ pub struct StructuralResult<T> {
     pub coverage: Coverage,
 }
 
+/// The symbol a retrieved range falls inside, with its call-graph salience.
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct SymbolLocation {
+    pub symbol: String,
+    pub name: String,
+    pub kind: String,
+    pub path: String,
+    pub line: usize,
+    pub end_line: usize,
+    pub callers: usize,
+    pub callees: usize,
+}
+
 #[derive(Serialize, JsonSchema)]
 pub struct CallerHit {
     #[serde(flatten)]
@@ -185,6 +198,8 @@ pub trait StructuralBackend: Send + Sync {
         workspace: &Workspace,
         args: TraceArgs,
     ) -> Result<DependencyTraceResult>;
+    /// The innermost indexed definition containing the given line, if any.
+    fn locate(&self, path: &str, line: usize) -> Option<SymbolLocation>;
 }
 
 pub struct StructuralIndex {
@@ -329,6 +344,11 @@ impl StructuralIndex {
                 .skipped_examples
                 .push(format!("{file}: {reason}"));
         }
+    }
+
+    /// Symbol spans for one already-read file, for callers that chunk source by definition.
+    pub fn symbol_spans(path: &str, source: &str, timeout: Duration) -> Result<Vec<Symbol>> {
+        Ok(parse_file(path, source, timeout)?.symbols)
     }
 
     fn trace_edges(
@@ -572,6 +592,37 @@ impl StructuralBackend for StructuralIndex {
             roots_truncated,
             coverage: self.coverage.clone(),
             limitations: "Candidate call paths only: unqualified syntax names can merge unrelated functions or methods. Verify material edges with read_source.".into(),
+        })
+    }
+    fn locate(&self, path: &str, line: usize) -> Option<SymbolLocation> {
+        // The innermost enclosing definition: a method inside an impl inside a module wins.
+        let symbol = self
+            .symbols
+            .values()
+            .flatten()
+            .filter(|symbol| symbol.path == path && (symbol.line..=symbol.end_line).contains(&line))
+            .min_by_key(|symbol| symbol.end_line - symbol.line)?;
+        let calls_named = |index: &Vec<usize>| {
+            index
+                .iter()
+                .filter(|position| self.references[**position].kind == "call")
+                .count()
+        };
+        Some(SymbolLocation {
+            symbol: format!("{}::{}", symbol.path, symbol.name),
+            name: symbol.name.clone(),
+            kind: symbol.kind.clone(),
+            path: symbol.path.clone(),
+            line: symbol.line,
+            end_line: symbol.end_line,
+            callers: self
+                .references_by_name
+                .get(&symbol.name)
+                .map_or(0, calls_named),
+            callees: self
+                .calls_by_caller
+                .get(&symbol.name)
+                .map_or(0, calls_named),
         })
     }
 }
@@ -1050,5 +1101,32 @@ mod tests {
         assert!(broken.has_error);
         let nested = format!("{}fn deep() {{}}{}", "mod m {".repeat(130), "}".repeat(130));
         assert!(parse_file("deep.rs", &nested, Duration::from_secs(2)).is_err());
+    }
+    #[test]
+    fn ranges_resolve_to_the_innermost_definition_with_degrees() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("chain.rs"),
+            "fn leaf() {}\nstruct Thing;\nimpl Thing {\n    fn run(&self) {\n        leaf();\n        leaf();\n    }\n}\nfn top() { leaf(); }\n",
+        )
+        .unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index =
+            StructuralIndex::from_files(&ws, vec!["chain.rs".into()], Duration::from_secs(5))
+                .unwrap();
+        // Line 5 sits inside run, which sits inside the impl block: the tighter span wins.
+        let inner = index.locate("chain.rs", 5).unwrap();
+        assert_eq!(inner.symbol, "chain.rs::run");
+        assert_eq!(inner.callees, 2);
+        assert_eq!(inner.callers, 0);
+        let leaf = index.locate("chain.rs", 1).unwrap();
+        assert_eq!(leaf.name, "leaf");
+        assert_eq!(leaf.callers, 3);
+        assert!(index.locate("missing.rs", 1).is_none());
+        let spans =
+            StructuralIndex::symbol_spans("chain.rs", "fn only() {}\n", Duration::from_secs(2))
+                .unwrap();
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].name, "only");
     }
 }

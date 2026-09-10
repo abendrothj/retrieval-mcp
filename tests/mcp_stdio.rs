@@ -264,15 +264,27 @@ async fn semantic_subprocess_contract_over_stdio() {
         format!("read -r request || true; printf '%s' '{payload}'")
     ]);
     let mut client = Client::with_backend(root.path(), "D", Some(command)).await;
-    let result = client
+    let lean = client
         .tool(
             "search_semantic",
             json!({"query":"describe behavior","limit":1}),
         )
         .await;
-    assert_ne!(result["isError"], true, "{result}");
+    assert_ne!(lean["isError"], true, "{lean}");
+    let row = &lean["structuredContent"]["results"][0];
+    // A row names the enclosing definition and carries its degrees; source stays out by default.
+    assert_eq!(row["symbol"]["symbol"], "sample.rs::meaning", "{lean}");
+    assert_eq!(row["symbol"]["kind"], "function_item");
+    assert_eq!(row["symbol"]["callers"], 0);
+    assert!(row["excerpt"].is_null(), "{lean}");
+    let full = client
+        .tool(
+            "search_semantic",
+            json!({"query":"describe behavior","limit":1,"fields":["excerpt"]}),
+        )
+        .await;
     assert_eq!(
-        result["structuredContent"]["results"][0]["excerpt"],
+        full["structuredContent"]["results"][0]["excerpt"],
         "fn meaning() {}"
     );
     let logs = client.stop().await;

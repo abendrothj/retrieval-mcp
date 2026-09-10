@@ -2,6 +2,7 @@
 //! No embedding or persistence dependency is imposed on the MCP server.
 use anyhow::{Context, Result, ensure};
 use retrieval_mcp::{
+    index::StructuralIndex,
     search::{
         lexical::{pagination, validate_query},
         process,
@@ -34,6 +35,59 @@ struct Chunk {
     text: String,
 }
 
+/// Definition spans give a hit a name and a complete body; line windows cut functions in half and
+/// merge unrelated neighbours. Tree-sitter covers Rust and Python, so other languages keep windows.
+fn symbol_chunks(path: &str, text: &str, lines: &[&str]) -> Option<Vec<Chunk>> {
+    if !matches!(
+        Path::new(path).extension().and_then(|s| s.to_str()),
+        Some("rs" | "py")
+    ) {
+        return None;
+    }
+    let symbols = StructuralIndex::symbol_spans(path, text, Duration::from_secs(5)).ok()?;
+    let mut chunks = Vec::new();
+    for symbol in symbols {
+        // A container's own chunk would re-embed every method it holds; keep the leaf definitions.
+        if matches!(symbol.kind.as_str(), "mod_item" | "impl_item") {
+            continue;
+        }
+        let end = symbol.end_line.min(lines.len());
+        if symbol.line > end {
+            continue;
+        }
+        // Doc comments above the definition carry the intent the query is usually phrased in.
+        let mut start = symbol.line;
+        while start > 1 {
+            let previous = lines[start - 2].trim_start();
+            if previous.starts_with("///") || previous.starts_with("#[") || previous.starts_with('#')
+            {
+                start -= 1;
+            } else {
+                break;
+            }
+        }
+        let header = match &symbol.container {
+            Some(owner) => format!("{path} :: {owner} :: {}\n", symbol.name),
+            None => format!("{path} :: {}\n", symbol.name),
+        };
+        let mut body = lines[start - 1..end].join("\n");
+        while header.len() + body.len() > MAX_CHUNK_BYTES && body.contains('\n') {
+            body.truncate(body.rfind('\n').unwrap_or(0));
+        }
+        let text = format!("{header}{body}");
+        if text.trim().is_empty() || text.len() > MAX_CHUNK_BYTES {
+            continue;
+        }
+        chunks.push(Chunk {
+            path: path.to_owned(),
+            start: symbol.line,
+            end,
+            text,
+        });
+    }
+    (!chunks.is_empty()).then_some(chunks)
+}
+
 fn chunks(workspace: &Workspace, files: Vec<String>) -> Result<(Vec<Chunk>, usize)> {
     let mut chunks = Vec::new();
     let mut skipped = 0;
@@ -53,6 +107,14 @@ fn chunks(workspace: &Workspace, files: Vec<String>) -> Result<(Vec<Chunk>, usiz
             }
         };
         let lines: Vec<_> = text.lines().collect();
+        if let Some(symbols) = symbol_chunks(&path, &text, &lines) {
+            chunks.extend(symbols);
+            ensure!(
+                chunks.len() <= MAX_CHUNKS,
+                "semantic backend supports at most 20000 chunks; configure a larger vector store for this repository"
+            );
+            continue;
+        }
         for start in (0..lines.len()).step_by(24) {
             let mut end = (start + 32).min(lines.len());
             let mut text = lines[start..end].join("\n");
@@ -186,7 +248,7 @@ async fn main() -> Result<()> {
     let digest = model_digest(&model, &host).await?;
     // Enumeration and reads happen under the cache lock.
     let (chunks, skipped) = chunks(&workspace, files)?;
-    let identity = json!({"version":1,"root":workspace.root(),"model":model,"digest":digest,"endpoint":endpoint,"chunker":"lines-32-stride-24-max2000b-v2"});
+    let identity = json!({"version":1,"root":workspace.root(),"model":model,"digest":digest,"endpoint":endpoint,"chunker":"symbols-rs-py-else-lines-32-stride-24-max2000b-v3"});
     let previous = cache::Snapshot::load(&cache_path)?;
     let mut vectors = cache::reuse(previous.as_ref(), &identity, &chunks);
     let missing: Vec<_> = vectors
@@ -309,10 +371,29 @@ mod tests {
         assert!(cosine(&[0.0], &[0.0]).is_err());
         assert!(cosine(&[1.0], &[1.0, 2.0]).is_err());
         let root = tempfile::tempdir().unwrap();
-        std::fs::write(root.path().join("a.rs"), "fn x() {}\n".repeat(40)).unwrap();
-        let (chunks, _) =
-            chunks(&Workspace::new(root.path()).unwrap(), vec!["a.rs".into()]).unwrap();
-        assert_eq!((chunks[0].start, chunks[0].end), (1, 32));
-        assert_eq!((chunks[1].start, chunks[1].end), (25, 40));
+        let workspace = Workspace::new(root.path()).unwrap();
+        std::fs::write(
+            root.path().join("a.rs"),
+            "/// Wrap lines to a width.\nfn wrap(width: usize) {}\nstruct Held;\nimpl Held {\n    fn run(&self) {}\n}\n",
+        )
+        .unwrap();
+        let (symbols, _) = chunks(&workspace, vec!["a.rs".into()]).unwrap();
+        // One chunk per definition, spanning the whole definition, named and carrying its doc.
+        assert_eq!(
+            symbols
+                .iter()
+                .map(|c| (c.start, c.end))
+                .collect::<Vec<_>>(),
+            vec![(2, 2), (3, 3), (5, 5)]
+        );
+        let wrap = &symbols[0];
+        assert!(wrap.text.starts_with("a.rs :: wrap\n"));
+        assert!(wrap.text.contains("/// Wrap lines to a width."));
+        assert!(symbols[2].text.starts_with("a.rs :: Held :: run\n"));
+        // A language the parser does not cover keeps the line-window chunker.
+        std::fs::write(root.path().join("b.go"), "func x() {}\n".repeat(40)).unwrap();
+        let (windows, _) = chunks(&workspace, vec!["b.go".into()]).unwrap();
+        assert_eq!((windows[0].start, windows[0].end), (1, 32));
+        assert_eq!((windows[1].start, windows[1].end), (25, 40));
     }
 }

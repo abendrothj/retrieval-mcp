@@ -1,4 +1,5 @@
 use super::lexical::{BackendFuture, pagination, validate_query};
+use crate::index::SymbolLocation;
 use crate::source::{Workspace, excerpt};
 use anyhow::{Context, Result, ensure};
 use schemars::JsonSchema;
@@ -11,10 +12,12 @@ use tokio::process::Command;
 pub struct SemanticArgs {
     /// Natural-language description of the behavior or concept to locate.
     pub query: String,
-    /// Maximum results, 1..100; default 20.
+    /// Maximum results, 1..100; default 10.
     pub limit: Option<usize>,
     /// Result offset, 0..10000; default 0. Backend ranking must be stable to paginate.
     pub offset: Option<usize>,
+    /// Optional extras per hit. Only "excerpt" is supported; omit it for identity-sized rows.
+    pub fields: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -52,7 +55,13 @@ pub struct SemanticHit {
     pub start_line: usize,
     pub end_line: usize,
     pub score: f64,
-    pub excerpt: String,
+    /// The enclosing indexed definition and its call-graph degrees, when the index covers the file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<SymbolLocation>,
+    /// Present only when the caller asked for the "excerpt" field.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excerpt: Option<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub excerpt_truncated: bool,
 }
 
@@ -86,7 +95,11 @@ impl SemanticBackend for CommandSemantic {
     ) -> BackendFuture<'a, SemanticResult> {
         Box::pin(async move {
             validate_query(&args.query)?;
-            let (limit, offset) = pagination(args.limit, args.offset)?;
+            let (limit, offset) = pagination(Some(args.limit.unwrap_or(10)), args.offset)?;
+            let include_excerpt = args
+                .fields
+                .as_deref()
+                .is_some_and(|fields| fields.iter().any(|field| field == "excerpt"));
             let program = self
                 .command
                 .first()
@@ -121,7 +134,7 @@ impl SemanticBackend for CommandSemantic {
                 .context("semantic backend must return the documented version-1 JSON response")?;
             let workspace = workspace.clone();
             tokio::task::spawn_blocking(move || {
-                validate_response(&workspace, response, limit, offset)
+                validate_response(&workspace, response, limit, offset, include_excerpt)
             })
             .await?
         })
@@ -133,6 +146,7 @@ fn validate_response(
     response: SemanticResponse,
     limit: usize,
     offset: usize,
+    include_excerpt: bool,
 ) -> Result<SemanticResult> {
     ensure!(
         response.protocol_version == 1,
@@ -180,20 +194,21 @@ fn validate_response(
             .take(hit.end_line - hit.start_line + 1)
             .collect::<Vec<_>>()
             .join("\n");
-        let excerpt = excerpt(&text, 500);
-        let excerpt_truncated = excerpt.len() < text.len();
+        let shortened = excerpt(&text, 500);
+        let excerpt_truncated = include_excerpt && shortened.len() < text.len();
         results.push(SemanticHit {
             path,
             start_line: hit.start_line,
             end_line: hit.end_line,
             score: hit.score,
-            excerpt,
+            symbol: None,
+            excerpt: include_excerpt.then_some(shortened),
             excerpt_truncated,
         });
     }
     let next_offset = response.has_more.then_some(offset + results.len());
     Ok(SemanticResult { results, has_more: response.has_more, next_offset, backend: response.backend, index_note: response.index_note,
-        source_verification: "Excerpts re-read from current workspace. Backend ranking/index freshness is not verified; scores are backend-specific, not confidence probabilities.".into() })
+        source_verification: "Rows name the enclosing indexed definition and are re-verified against current source; excerpts are returned only when requested. Backend ranking/index freshness is not verified; scores are backend-specific, not confidence probabilities.".into() })
 }
 
 #[cfg(test)]
@@ -216,10 +231,14 @@ mod tests {
                 score: 0.8,
             }],
         };
-        assert!(validate_response(&ws, response("../outside", 1), 20, 0).is_err());
-        assert!(validate_response(&ws, response("safe.rs", 2), 20, 0).is_err());
-        assert!(validate_response(&ws, response("safe.rs", 1), 0, 0).is_err());
-        let result = validate_response(&ws, response("safe.rs", 1), 20, 0).unwrap();
-        assert_eq!(result.results[0].excerpt, "fn safe() {}");
+        assert!(validate_response(&ws, response("../outside", 1), 20, 0, false).is_err());
+        assert!(validate_response(&ws, response("safe.rs", 2), 20, 0, false).is_err());
+        assert!(validate_response(&ws, response("safe.rs", 1), 0, 0, false).is_err());
+        // Identity-sized rows by default: no source text until the caller asks for it.
+        let lean = validate_response(&ws, response("safe.rs", 1), 20, 0, false).unwrap();
+        assert_eq!(lean.results[0].excerpt, None);
+        assert!(!lean.results[0].excerpt_truncated);
+        let full = validate_response(&ws, response("safe.rs", 1), 20, 0, true).unwrap();
+        assert_eq!(full.results[0].excerpt.as_deref(), Some("fn safe() {}"));
     }
 }
