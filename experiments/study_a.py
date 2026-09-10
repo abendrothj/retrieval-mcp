@@ -23,14 +23,14 @@ import comparison_runner
 
 RANKERS = ("lexical", "semantic", "hybrid")
 CUTOFFS = (1, 3, 5, 10)
-
+SOURCE_SUFFIXES = (".rs", ".py", ".ts", ".tsx")
 
 def gold_symbols(task):
     """Every acceptable (path, name) pair mentioned by a typed gold answer."""
     found = set()
     def walk(value):
         if isinstance(value, str):
-            if "::" in value and any(value.split("::")[0].endswith(ext) for ext in (".rs", ".py")):
+            if "::" in value and value.split("::")[0].endswith(SOURCE_SUFFIXES):
                 parts = value.split("::")
                 found.add((parts[0], parts[-1]))
         elif isinstance(value, list):
