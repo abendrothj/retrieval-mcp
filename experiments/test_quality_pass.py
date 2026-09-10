@@ -1,6 +1,10 @@
+import shutil
+import tempfile
 import unittest
+from pathlib import Path
 
-from quality_pass import DECLINE, answer_json, credit, parse_symbol, resolve
+from quality_pass import (DECLINE, answer_json, credit, definitions, mentions, parse_symbol,
+                          resolve)
 
 INDEX = {"break_lines": {"src/uu/fmt/src/linebreak.rs"},
          "render": {"src/uu/dd/src/diagnostics.rs", "src/uu/ls/src/render.rs"},
@@ -59,6 +63,53 @@ class ProseSpellingTests(unittest.TestCase):
         self.assertEqual(
             credit("isSuccess, defined in src/vs/platform/request/common/request.ts near the "
                    "statusCode check", gold, TS_INDEX), 1.0)
+
+
+class SetAnswerTests(unittest.TestCase):
+    """A set-valued answer written as a sentence is still an answer."""
+
+    GOLD = ["src/vs/platform/shell/node/shellEnv.ts::getResolvedShellEnv",
+            "src/vs/platform/request/common/request.ts::hasNoContent"]
+
+    def test_prose_naming_every_identity_scores_one(self):
+        self.assertEqual(credit("getResolvedShellEnv and hasNoContent", self.GOLD, TS_INDEX), 1.0)
+
+    def test_prose_naming_half_scores_half(self):
+        self.assertEqual(credit("only getResolvedShellEnv", self.GOLD, TS_INDEX), 0.5)
+
+    def test_an_object_gold_accepts_prose_naming_both_parts(self):
+        gold = {"implementation": "src/vs/platform/request/common/request.ts::hasNoContent",
+                "consumer": "src/vs/platform/shell/node/shellEnv.ts::getResolvedShellEnv"}
+        self.assertEqual(credit("hasNoContent, consumed by getResolvedShellEnv", gold, TS_INDEX), 1.0)
+        self.assertEqual(credit("hasNoContent alone", gold, TS_INDEX), 0.5)
+
+    def test_a_namesake_in_prose_needs_its_file(self):
+        gold = ["src/vs/platform/request/common/request.ts::isSuccess"]
+        self.assertEqual(credit("isSuccess", gold, TS_INDEX), 0.0)
+        self.assertEqual(
+            credit("isSuccess in src/vs/platform/request/common/request.ts", gold, TS_INDEX), 1.0)
+        self.assertFalse(mentions("isSuccess", gold[0], TS_INDEX))
+
+
+class TypeScriptIndexTests(unittest.TestCase):
+    def test_methods_with_several_modifiers_are_indexed(self):
+        """`private async request(` was read as no definition at all, losing every such method."""
+        if not shutil.which("rg"):
+            self.skipTest("ripgrep is required to build the definition index")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "service.ts").write_text(
+                "export class Store {\n"
+                "  private async request(url: string) { return url; }\n"
+                "  protected static override handle() {}\n"
+                "  async *stream() {}\n"
+                "}\n"
+                "export function plain() {}\n", encoding="utf-8")
+            index = definitions(root)
+        for name in ("Store", "request", "handle", "stream", "plain"):
+            self.assertIn(name, index, name)
+        for keyword in ("async", "private", "static", "override", "protected"):
+            self.assertNotIn(keyword, index, keyword)
 
 
 class CreditTests(unittest.TestCase):

@@ -185,14 +185,58 @@ without it the audit would read a gold list's first entry as the target, and a c
 So **none of the seven is a tool-surface gap, and at most one is a retrieval failure.** Five are
 defects in the benchmark: two wrong golds, three answer-shape or ambiguity artifacts.
 
-Repairing the two wrong golds and accepting prose that names every gold symbol — a sensitivity
-analysis, not a change to the frozen score — gives 25/30 for `retrieval-mcp`, 22/30 for
-`native-control`, and 22/30 for `zvec-grep`, with paired discordance of 4 to 1 in this server's
-favour against each competitor. That is a larger separation than the frozen numbers show, and it is
-still too small to claim on 15 questions. The correction also destroys two more questions by
-saturation: under corrected gold, 8 of 15 are solved by everyone and 2 by nobody, leaving 5
-discriminating. The suite must be rebuilt before any competitive claim, and the rebuild needs a
-development set for tuning difficulty and a held-out set frozen before the final comparison.
+Repairing the two wrong golds and rescoring with the repaired grader — a sensitivity analysis, not
+a change to the frozen score — gives 19/30 for `retrieval-mcp`, 18/30 for `zvec-grep`, and 17/30
+for `native-control` (mean graded credit 0.747, 0.670, 0.681), with paired discordance of 3:1 and
+2:1 in this server's favour. An earlier hand-written rule that credited any answer naming the gold
+leaf reported 25/22/22; that rule accepted bare ambiguous names such as `RequestService`, which no
+resolver may accept, and it overstated the gap. The grader-derived numbers above supersede it.
+
+The correction does not rescue the instrument. Under corrected gold, 6 of 15 questions are solved
+by every arm and 5 by none, leaving 4 that discriminate. The suite must be rebuilt before any
+competitive claim, with a development set for tuning difficulty and a held-out set frozen before
+the final comparison.
+
+### Compiling a suite before it is used
+
+A suite is not usable until it proves its own gold and its grader, with no model and no network.
+`validate_suite.py` is that build step, and it exits nonzero when anything fails:
+
+```sh
+python3 experiments/validate_suite.py --questions /path/to/questions.json --corpus /path/to/corpus
+```
+
+It checks three things, tagged by severity in the output.
+
+**Gold truth.** Every gold identity must be a real definition at the path it claims. Where a
+question names the helper it is about, in a `helper` field, every claimed caller must really call
+it by an independent ripgrep enumeration, and a gold marked `"exhaustive": true` must contain every
+caller found that way. Run against the frozen v2 suite with the two caller questions given their
+helpers, this reports exactly the defects the audit found by hand: one claimed caller of
+`asTextOrError` that calls nothing plus 9 real callers unclaimed, and one claimed caller of
+`isSuccess` that calls nothing plus 2 unclaimed. The check that would have blocked the suite is
+four lines of set arithmetic against the corpus.
+
+**Answerability.** A gold whose leaf name has namesakes cannot be credited from a bare name, so
+the question must ask for a qualified symbol or list the other identities in `acceptable_symbols`.
+On the v2 suite this flags 9 questions — including `vsc-generic-service-shell-consumer`, where all
+six trials answered `RequestService`, a name the corpus defines twice, against a question that
+never asked for a path. A caller question without a `helper` field is flagged too, because its
+gold cannot be verified.
+
+**Grader behaviour**, against synthetic answers only, per question: the canonical gold scores 1,
+prose naming every identity scores 1, naming one of *n* scores 1/*n*, a wrong symbol scores 0, a
+bare ambiguous name scores 0, and anything listed in `rejected_alternates` scores 0.
+
+Two grader repairs came out of writing this. Prose against a set-valued gold now scores by recall
+over the asserted identities instead of returning zero on a type check — that alone was worth 13 of
+42 audited trials. And the TypeScript definition index silently dropped every method with more than
+one modifier, so `private async request(` was no definition at all; 359 definitions in the VS Code
+corpus were missing, including golds that named them. Both are pinned by tests.
+
+New question fields the validator understands: `helper` (the symbol a caller question is about),
+`exhaustive` (the caller set must be complete), `acceptable_symbols` (other identities that answer
+the question), and `rejected_alternates` (plausible answers that must score zero).
 
 ## Native-system comparison
 

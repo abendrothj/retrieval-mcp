@@ -22,7 +22,9 @@ TS_DEFINITION = re.compile(
     r"(?:class|interface|enum|type)\s+([A-Za-z_$][\w$]*)"
     r"|^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)"
     r"|^\s*(?:export\s+)?(?:declare\s+)?const\s+([A-Za-z_$][\w$]*)\s*[:=]"
-    r"|^\s*(?:public|private|protected|static|readonly|abstract|override|async|\*)[\s*]+"
+    # A method may carry several modifiers: `private async request(`. Requiring exactly one
+    # dropped every such method from the index, and with it the golds that named them.
+    r"|^\s*(?:(?:public|private|protected|static|readonly|abstract|override|async)\s+)+\*?\s*"
     r"([A-Za-z_$][\w$]*)\s*[(<]")
 SOURCE_SUFFIXES = (".rs", ".py", ".ts", ".tsx")
 PATH_TOKEN = re.compile(r"[\w./$-]+\.(?:rs|py|ts|tsx)\b")
@@ -42,7 +44,7 @@ def definitions(corpus):
         ([r"^\s*(export\s+)?(default\s+)?(declare\s+)?(abstract\s+)?(class|interface|enum|type)\s+[A-Za-z_$]",
           r"^\s*(export\s+)?(default\s+)?(declare\s+)?(async\s+)?function\s*\*?\s*[A-Za-z_$]",
           r"^\s*(export\s+)?(declare\s+)?const\s+[A-Za-z_$][\w$]*\s*[:=]",
-          r"^\s*(public|private|protected|static|readonly|abstract|override|async|\*)[\s*]+[A-Za-z_$][\w$]*\s*[(<]"],
+          r"^\s*((public|private|protected|static|readonly|abstract|override|async)\s+)+\*?\s*[A-Za-z_$][\w$]*\s*[(<]"],
          ["-g", "*.ts", "-g", "*.tsx"], TS_DEFINITION),
     )
     for patterns, globs, expression in passes:
@@ -125,8 +127,44 @@ def same(written, gold, index):
     return str(written).strip() == gold
 
 
+def mentions(written, gold, index):
+    """Whether a prose answer names this one gold identity unambiguously.
+
+    A set-valued answer written as a sentence is still an answer. It counts an identity only when
+    the name it uses resolves to the gold's definition: a name defined once resolves on its own, a
+    name with namesakes needs the answer to supply its file. Prose therefore cannot prove
+    exhaustiveness - ask for a JSON list when the question demands every caller.
+    """
+    if not isinstance(gold, str) or "::" not in gold:
+        return False
+    path, leaf = gold.split("::", 1)
+    leaf = leaf.split("::")[-1]
+    text = str(written)
+    if leaf not in IDENTIFIER.findall(PATH_TOKEN.sub(" ", text)):
+        return False
+    defined = index.get(leaf, set())
+    if len(defined) > 1:
+        return path in {match.group(0).lstrip("./") for match in PATH_TOKEN.finditer(text)}
+    return not defined or path in defined
+
+
+def flatten(gold):
+    """Every identity a set- or object-valued gold asserts, in declaration order."""
+    if isinstance(gold, str):
+        return [gold]
+    if isinstance(gold, list):
+        return [item for value in gold for item in flatten(value)]
+    if isinstance(gold, dict):
+        return [item for value in gold.values() for item in flatten(value)]
+    return []
+
 def credit(got, gold, index):
     """Graded closeness in [0, 1]; sets by overlap, chains by correct prefix, scalars exact."""
+    if isinstance(gold, (list, dict)) and isinstance(got, str):
+        # Prose against a set: recall over the asserted identities. Extras are not penalised
+        # because a sentence cannot be read as a closed set; require a JSON list to test that.
+        expected = flatten(gold)
+        return sum(mentions(got, item, index) for item in expected) / len(expected) if expected else 0.0
     if isinstance(gold, list):
         if not isinstance(got, list):
             return 0.0
@@ -136,7 +174,7 @@ def credit(got, gold, index):
     if isinstance(gold, dict):
         if not isinstance(got, dict) or set(got) != set(gold):
             return 0.0
-        return sum(same(got[k], gold[k], index) for k in gold) / len(gold)
+        return sum(credit(got[k], gold[k], index) for k in gold) / len(gold)
     return float(same(got, gold, index)) if gold is not None else float(got is None)
 
 
