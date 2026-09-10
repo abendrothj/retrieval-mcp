@@ -11,8 +11,22 @@ import statistics
 import benchmark
 import quality_pass
 
+USAGE_FIELDS = ("input_tokens", "output_tokens", "reasoning_tokens",
+                "cache_read_input_tokens", "cache_creation_input_tokens", "cost_usd")
 METRICS = ("attempted_calls", "forwarded_calls", "retrieval_bytes", "delivered_bytes",
-           "tool_latency_ms", "wall_time_ms")
+           "tool_latency_ms", "wall_time_ms", *USAGE_FIELDS)
+
+
+def flatten_usage(run):
+    """Client-reported tokens and cost become first-class per-trial metrics.
+
+    Retrieval that is cheaper in bytes is not automatically cheaper to the caller: a smaller tool
+    payload can be spent again on extra turns. Only the paired token and cost columns show that.
+    """
+    usage = run.get("usage") or {}
+    for field in USAGE_FIELDS:
+        value = usage.get(field)
+        run.setdefault(field, value if isinstance(value, (int, float)) else None)
 
 
 def distribution(values):
@@ -63,6 +77,9 @@ def analyze(directory, questions_path=None, corpus=None):
         by_key[(trial["task_id"], trial["repetition"], trial["system"])] = run
     if questions_path and corpus:
         recompute_credit(runs, questions_path, corpus)
+    for record in runs:
+        if record["run"]:
+            flatten_usage(record["run"])
     systems = []
     for system_id in plan["systems"]:
         selected = [record["run"] for record in runs if record["system"] == system_id]
@@ -85,6 +102,11 @@ def analyze(directory, questions_path=None, corpus=None):
                                         if run.get("tool_sequence") else None for run in accepted)),
             "tool_counts": dict(tools),
             "metrics": {metric: distribution([run.get(metric) for run in accepted]) for metric in METRICS},
+            "cost_usd_total": round(sum(run.get("cost_usd") or 0 for run in accepted), 6),
+            "cost_usd_per_resolved": (
+                round(sum(run.get("cost_usd") or 0 for run in accepted)
+                      / sum(bool(run.get("resolved_correct")) for run in accepted), 6)
+                if any(run.get("resolved_correct") for run in accepted) else None),
         })
     pairs = []
     task_repetitions = sorted({(trial["task_id"], trial["repetition"]) for trial in plan["trials"]})

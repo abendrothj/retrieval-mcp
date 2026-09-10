@@ -211,6 +211,12 @@ class ComparisonTests(unittest.TestCase):
             self.assertEqual([system["resolved_correct"] for system in report["systems"]], [1, 1, 1, 1])
             self.assertEqual(len(report["pairs"]), 6)
             self.assertTrue(all(pair["eligible"] for pair in report["pairs"]))
+            costed = next(s for s in report["systems"] if s["system"] == "bundle")
+            # Tokens and cost are paired factors, not just wall-clock and bytes.
+            self.assertEqual(costed["metrics"]["output_tokens"]["mean"], 1)
+            self.assertIsNotNone(costed["metrics"]["input_tokens"]["mean"])
+            self.assertEqual(costed["cost_usd_total"], 0)
+            self.assertEqual(costed["cost_usd_per_resolved"], 0)
 
     def test_model_use_requires_both_explicit_gates(self):
         with self.assertRaisesRegex(ValueError, "allow-model-usage"):
