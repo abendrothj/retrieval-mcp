@@ -1,6 +1,8 @@
 # retrieval-mcp
 
-A small Rust MCP server for testing whether a coding model can choose its own retrieval mechanism, and what that choice costs in context. It exposes seven separate tools over stdio. There is no LLM router, combined search tool, or automatic fallback between methods. Server instructions and tool descriptions state which tool suits which question shape, but the model performs all routing.
+A small Rust MCP server for testing whether a coding model can choose its own retrieval mechanism, and what that choice costs in context. It exposes seven tools over stdio. There is no LLM router, no combined search tool, and no automatic fallback between methods: server instructions and tool descriptions say which tool suits which question shape, and the model does all the routing.
+
+This is a research instrument that happens to be a usable MCP server, not a product. It runs offline by default and needs no index files, database, daemon, or model. Its honest current standing against alternatives is in [What the experiments found](#what-the-experiments-found): on the one head-to-head so far it ties on answer quality and spends slightly *more* total context than plain grep-and-read.
 
 ```text
 Claude Code / Codex / OpenCode
@@ -17,7 +19,7 @@ Rust retrieval server ── invocation events → JSONL
                                    └── optional: local Ollama embeddings
 ```
 
-The measurements that shaped this design are in [experiments/README.md](experiments/README.md); the short version is [What the experiments found](#what-the-experiments-found).
+Design decisions here are downstream of measurements; the protocol, artifacts, and caveats behind every claim are in [experiments/README.md](experiments/README.md).
 
 ## Quickstart
 
@@ -28,10 +30,34 @@ cargo build --locked --release --bin retrieval-mcp
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"inspect_symbol","arguments":{"name":"build"}}}' \
-  | ./target/release/retrieval-mcp --root "$PWD" --profile B 2>/dev/null | tail -1
+  | ./target/release/retrieval-mcp --root "$PWD" 2>/dev/null | tail -1
 ```
 
-That prints the definitions of `build`, who calls it, what it calls, and complete counts for each side. No index files are written, no network access occurs, and no model is involved. To wire it into an agent, see [Connect Claude Code](#connect-claude-code) or [Connect Codex](#connect-codex).
+That prints where `build` is defined, who calls it, what it calls, and complete counts for each side. No index files are written, no network is touched, and no model is involved. To wire it into an agent, see [Connect Claude Code](#connect-claude-code) or [Connect Codex](#connect-codex).
+
+## What the experiments found
+
+Each finding names the model it came from, because none of them transferred cleanly between models. Protocol, artifacts, and caveats: [experiments/README.md](experiments/README.md).
+
+**Description questions are a vocabulary problem, not an embedding problem.** A model-free ranker bake-off on 18 gradable coreutils questions put dense retrieval well ahead of BM25: recall@5 of 12/18 semantic and 13/18 hybrid against 6/18 lexical. On a separate authored VS Code suite the same three rankers ran twice — once on the raw question, once on a frozen one-shot rewrite of it into code vocabulary. Rewriting moved BM25 from 3/15 to 9/15 at recall@5 (MRR 0.167 → 0.484) while dense moved 2/15 to 4/15 (0.144 → 0.273), so reformulated BM25 beat dense on every metric, reformulated or not. The expensive semantic work pays off in *query formation*, not in document ranking, which is why `lexical` is the default ranker and embeddings are an optional backend.
+
+**Grep-first habits are model-specific.** Running the same coreutils suite inside a real agent loop, DeepSeek V4 Flash scored 20/22 while rarely calling the semantic tool at all. Retrieval-engine differences were marginal in a tool-rich agent; corpus naming conventions dominated. Conclusions from an offline ranker bake-off do not survive contact with a different model's habits.
+
+**Guessing traversal direction was the largest remaining failure.** A 90-decision A/B of the tool surface found the model already anchored on the correct symbol in 26 of 40 structural decisions and still failed, because it asked for callers when the answer lay among callees. Offering `inspect_symbol` instead — 45 decisions per surface, three repetitions, nothing else changed — cut `wrong_reach` from 15 to 4 of 44 decisions and raised certified solves from 17 to 27 of 45, with six questions improving and none regressing. Container-versus-member confusion (`wrong_level`, 9 → 8) did **not** improve: naming the level is not the same as choosing it.
+
+**End-to-end against real competitors, the advantage does not yet appear.** Fifteen authored VS Code questions × two repetitions × three arms — OpenCode's native grep/read, [zvec-grep](https://github.com/zvec-ai/zvec-grep) 0.2.2, and this server — on one identical 444-file TypeScript corpus, driven by Codex CLI with `gpt-5.6-luna`:
+
+| | native | zvec-grep | retrieval-mcp |
+|---|---:|---:|---:|
+| Resolved correct / 30 | 14 | 15 | 16 |
+| Median input tokens | 206,054 | 213,646 | 227,955 |
+| Median retrieval bytes | 92,449 | 61,756 | 85,231 |
+| Input tokens, resolved trials only | 177,513 | 190,156 | 162,862 |
+| Retrieval bytes, resolved trials only | 92,665 | 60,188 | 52,879 |
+
+Quality is a tie: the paired discordance is one to two question-repetitions. Total context is *worse* here, about 10% above the native baseline. Conditioned on succeeding, this server is the cheapest arm on both tokens and bytes; it is the most expensive when it fails, spending 46 KB after the gold evidence was already on screen against 14 KB for zvec. That is a stopping-criterion problem, not a retrieval-quality one. The suite also saturated — 5 of 15 questions were solved by every arm and 6 by none — so it cannot currently separate the arms further.
+
+**The harness is the second experimental subject.** Five defects in it produced or nearly produced believable false findings: a grader that scored notation instead of retrieval, a vector cache written inside the corpus under test, swallowed MCP tool errors that scored 36 calls as failures, an output-file check that ran after the model spend rather than before, and a gold resolver that indexed only Rust and Python so every TypeScript answer failed on spelling. Error accounting, corpus fingerprinting before and after each condition, and loud aborts on provider failures are permanent parts of the harness for that reason.
 
 ## Build and run
 
@@ -43,24 +69,22 @@ cargo build --locked --release --bin retrieval-mcp --example ollama_backend
 cargo test --locked --all-targets
 cargo clippy --locked --all-targets -- -D warnings
 
-# Baseline: exactly two tools, no structural indexing or concept search.
-./target/release/retrieval-mcp --root /absolute/path/to/repo --profile A
+# All seven tools, in-process BM25 behind search_concept: no model, no service, no network.
+./target/release/retrieval-mcp --root /absolute/path/to/repo \
+  --run-id task-001 --log-file /absolute/path/to/task-001.jsonl
 
-# All seven tools with the default in-process BM25 ranker: no model, no service, no network.
-./target/release/retrieval-mcp --root /absolute/path/to/repo --profile D \
-  --run-id task-001-D --log-file /absolute/path/to/task-001-D.jsonl
+# Grep-and-read baseline: two tools, no structural index and no concept search.
+./target/release/retrieval-mcp --root /absolute/path/to/repo --tools search_exact,read_source
 
-# All seven tools with embeddings behind search_concept instead.
-./target/release/retrieval-mcp \
-  --root /absolute/path/to/repo --profile D --ranker semantic \
+# Embeddings behind search_concept instead of BM25.
+./target/release/retrieval-mcp --root /absolute/path/to/repo --ranker semantic \
   --semantic-command '["/absolute/path/to/retrieval-mcp/target/release/examples/ollama_backend"]' \
-  --timeout-seconds 120 \
-  --run-id task-001-D --log-file /absolute/path/to/task-001-D.jsonl
+  --timeout-seconds 120
 ```
 
 The server waits for an MCP client on stdin; it is not an interactive terminal application. Stdout carries MCP messages only. Logs go to stderr; `--log-file` additionally appends invocation events to a file whose parent directory must already exist. The file is never truncated. New log files use mode 0600 on Unix.
 
-Default profile is **D** and the default ranker is **lexical**, so a plain `--root` invocation is fully offline. `--ranker semantic` or `--ranker hybrid` requires `--semantic-command`; without it, `search_concept` returns an explicit configuration error rather than silently degrading to a different ranking. `--root` is mandatory and fixed for the session; clients cannot change it through a tool argument.
+All seven tools are exposed by default and the default ranker is **lexical**, so a plain `--root` invocation is fully offline. `--ranker semantic` or `--ranker hybrid` requires `--semantic-command`; without it, `search_concept` returns an explicit configuration error rather than silently degrading to a different ranking. `--root` is mandatory and fixed for the session; clients cannot change it through a tool argument. See [Restricting the tool set](#restricting-the-tool-set) for `--tools` and the profile presets.
 
 The SDK is [`rmcp` 3.2.0](https://github.com/modelcontextprotocol/rust-sdk), the official Tokio-based Rust SDK, selected after checking the published crates.io release and upstream documentation. The SDK handles protocol negotiation and stdio; `Cargo.lock` pins the working dependency set. The integration test negotiates MCP `2025-11-25` and exercises real JSON-RPC subprocess calls.
 
@@ -71,18 +95,18 @@ Build first, then run this command in the repository you want to query. Replace 
 ```sh
 claude mcp add --transport stdio --scope local retrieval -- \
   /absolute/path/to/retrieval-mcp/target/release/retrieval-mcp \
-  --root /absolute/path/to/repo --profile D \
+  --root /absolute/path/to/repo \
   --timeout-seconds 120 --log-file /absolute/path/to/retrieval-events.jsonl
 ```
 
-Use `/mcp` in Claude Code to check the connection. Add `--ranker semantic --semantic-command '["…/examples/ollama_backend"]'` to put embeddings behind `search_concept`; use `--profile A` for the grep/read baseline. Claude options belong before the server name; server arguments follow `--`. See [Claude Code's MCP documentation](https://code.claude.com/docs/en/mcp).
+Use `/mcp` in Claude Code to check the connection. Add `--ranker semantic --semantic-command '["…/examples/ollama_backend"]'` to put embeddings behind `search_concept`, or `--tools search_exact,read_source` for the grep-and-read baseline. Claude options belong before the server name; server arguments follow `--`. See [Claude Code's MCP documentation](https://code.claude.com/docs/en/mcp).
 
 ## Connect Codex
 
 ```sh
 codex mcp add retrieval -- \
   /absolute/path/to/retrieval-mcp/target/release/retrieval-mcp \
-  --root /absolute/path/to/repo --profile D \
+  --root /absolute/path/to/repo \
   --timeout-seconds 120 --log-file /absolute/path/to/retrieval-events.jsonl
 ```
 
@@ -91,7 +115,7 @@ Alternatively, add this to your Codex configuration, replacing the paths:
 ```toml
 [mcp_servers.retrieval]
 command = "/absolute/path/to/retrieval-mcp/target/release/retrieval-mcp"
-args = ["--root", "/absolute/path/to/repo", "--profile", "D", "--timeout-seconds", "120", "--log-file", "/absolute/path/to/retrieval-events.jsonl"]
+args = ["--root", "/absolute/path/to/repo", "--timeout-seconds", "120", "--log-file", "/absolute/path/to/retrieval-events.jsonl"]
 tool_timeout_sec = 150
 ```
 
@@ -115,11 +139,11 @@ All tool inputs reject unknown fields. Results include both MCP `structuredConte
 
 `read_source` defaults to 100 lines, allows at most 500 per request, and returns `next_line` when more source remains. The response has a byte budget as well as a line budget. Long individual lines produce an actionable error; use exact search for an excerpt. Reads can explicitly access ignored or hidden regular files within the root.
 
+`inspect_symbol` answers the orientation question the directed tools make the model guess. One call returns the symbol's definitions, its callers, its callees, and its members when it is a container, each row labelled with its `relation`, plus `counts` that stay complete when rows are capped. Caps are structural: 3 definitions, 6 per direction, 8 members, so a response is a few hundred bytes rather than a subgraph. `has_more` is set whenever any count exceeds its cap, and an unindexed name returns `symbol_status:"unknown_symbol"` with `nearest_indexed_names` instead of a silent empty page. Use it first for relationship questions, then expand one side with `find_callers` or `trace_dependencies`. In the decision study it cut wrong-direction traversals from 15 to 4 of 44; see [experiments/README.md](experiments/README.md).
+
 `find_symbol.path` restricts definitions. `find_callers.path` restricts **call sites**, not target definitions. Caller records include the enclosing symbol, expression, candidate definitions, candidate count, resolution label, confidence explanation, and snippet. At most five candidate definitions accompany each reference; the full count and truncation flag preserve ambiguity. Imports and possible file relationships are bounded context for the returned call-site files.
 
 `trace_dependencies` answers the transitive questions `find_callers` cannot: call chains, dependencies, and impact sets. `direction:"callers"` walks inbound call syntax toward the root; `direction:"callees"` walks outbound from it. Depth defaults to 3 hops and is capped at 5. Each edge names the enclosing caller, the callee name, the call site, the hop distance, and the same low-confidence explanation used elsewhere. Traversal expands each symbol name once, so recursive and mutually recursive code terminates instead of looping. Root definitions accompany the edges, capped at five with a truncation flag. Because names are unqualified, distinct namesakes merge into one traversal node; verify material edges with `read_source`.
-
-`inspect_symbol` answers the orientation question the directed tools make the model guess. One call returns the symbol's definitions, its callers, its callees, and its members when it is a container, each row labelled with its `relation`, plus `counts` that stay complete when rows are capped. Caps are structural: 3 definitions, 6 per direction, 8 members, so a response is a few hundred bytes rather than a subgraph. `has_more` is set whenever any count exceeds its cap, and an unindexed name returns `symbol_status:"unknown_symbol"` with `nearest_indexed_names` instead of a silent empty page. Use it first for relationship questions, then expand one side with `find_callers` or `trace_dependencies`. In the decision study it cut wrong-direction traversals from 15 to 4 of 44; see [experiments/README.md](experiments/README.md).
 
 ## Structural indexing and its limits
 
@@ -143,7 +167,7 @@ Budget checks stop adding files after 5,000 indexed files, about 32 MiB of sourc
 | `semantic` | The configured subprocess backend | an adapter, e.g. Ollama | no |
 | `hybrid` | Reciprocal rank fusion (k=60) of both | an adapter | no |
 
-The lexical ranker builds documents from a symbol's path, container, name, split identifier, and body, with standard BM25 (k1 1.2, b 0.75) and scope filtering. It needs no model, service, weights, or fetch script, which is why profiles C and D work offline. Rows name the enclosing definition with caller and callee counts; ask for `fields:["excerpt"]` only when source text is actually needed.
+The lexical ranker builds documents from a symbol's path, container, name, split identifier, and body, with standard BM25 (k1 1.2, b 0.75) and scope filtering. It needs no model, service, weights, or fetch script, which is why the default configuration is fully offline. Rows name the enclosing definition with caller and callee counts; ask for `fields:["excerpt"]` only when source text is actually needed.
 
 Choosing `semantic` or `hybrid` without `--semantic-command` is a configuration error rather than a silent downgrade. Which ranker to prefer is an empirical question this repository measures rather than assumes; see [What the experiments found](#what-the-experiments-found).
 
@@ -239,39 +263,9 @@ Invocation JSONL has `schema_version:1`, an event (`tool_start` / `tool_end`), e
 
 Logs deliberately omit response code bodies, but arguments can still contain sensitive search strings or paths. Keep experiment logs private. They are append-only and flushed through ordinary file writes, without rotation or crash-durable `fsync`. File-write failures are reported on stderr while retrieval continues. Use a separate file per run/process when collecting experiments.
 
-The [benchmark harness and routing analyzer](experiments/README.md) run matched questions under A/B/C/D, retain model transcripts beside server JSONL, and report sequences, fallback/redundancy proxies, source verification, and matched changes in grep/read calls. The harness supports Claude Code and a custom command adapter. It captures client-reported token usage and can exact-match expected answers; routing quality and causal claims still require interpreting the transcript.
+The [study harness](experiments/README.md) drives real agent clients — Claude Code, Codex CLI, or OpenCode — over matched questions and a byte-identical corpus copy per arm, keeping model transcripts beside the server's own JSONL. `end_to_end.py` then scores context consumption offline and identically for every arm, including arms that use no MCP server at all. Answers are graded twice: a strict envelope check, and a resolver that accepts any spelling naming exactly one indexed definition. Routing quality and causal claims still require reading the transcripts.
 
-## What the experiments found
-
-Every number below comes from a run recorded under `experiments/`; full protocol, caveats, and artifacts are in [experiments/README.md](experiments/README.md). Results are reported per model, because none of them transferred cleanly between models.
-
-**Description questions are a vocabulary problem, not an embedding problem.** Given a natural-language description, an offline ranker bake-off on 18 gradable coreutils questions put dense retrieval ahead of BM25 (recall@5 12/18 vs 10/18). Once a model first rewrote the question into code vocabulary, BM25 jumped to 9/15 at recall@5 while dense moved to 4/15. The expensive semantic work pays off in *query formation*, not in document ranking, so `lexical` is the default ranker and embeddings are an optional backend.
-
-**Grep-first habits are model-specific.** In agent runs the same suite scored 20/22 with a lexical-first model that rarely called the semantic tool at all. Retrieval-engine differences were marginal inside a tool-rich agent; corpus naming conventions dominated.
-
-**Guessing traversal direction was the largest remaining failure.** A 90-decision A/B found the model already anchored on the correct symbol in 26 of 40 structural decisions, yet still failed: it asked for callers when the answer was among callees. Adding `inspect_symbol` cut `wrong_reach` from 15 to 4 of 44 decisions and raised certified solves from 17 to 27 of 45, with six questions improving and none regressing across three repetitions. Container-versus-member confusion (`wrong_level`, 9 → 8) did **not** improve; naming the level is not the same as choosing it.
-
-**End-to-end against real competitors, the advantage does not yet appear.** Fifteen authored VS Code questions × two repetitions × three arms — OpenCode's native grep/read, [zvec-grep](https://github.com/zvec-ai/zvec-grep) 0.2.2, and this server — on one identical 444-file TypeScript corpus, driven by Codex CLI with `gpt-5.6-luna`:
-
-| | native | zvec-grep | retrieval-mcp |
-|---|---:|---:|---:|
-| Resolved correct / 30 | 14 | 15 | 16 |
-| Median input tokens | 206,054 | 213,646 | 227,955 |
-| Median retrieval bytes | 92,449 | 61,756 | 85,231 |
-| Input tokens, resolved trials only | 177,513 | 190,156 | 162,862 |
-| Retrieval bytes, resolved trials only | 92,665 | 60,188 | 52,879 |
-
-Quality is a tie: the paired discordance is one to two question-repetitions. Total context is *worse* here, about 10% above the native baseline. Conditioned on succeeding, this server is the cheapest arm on both tokens and bytes; it is the most expensive when it fails, spending 46 KB after the gold evidence was already on screen against 14 KB for zvec. That is a stopping-criterion problem, not a retrieval-quality one. The suite also saturated — 5 of 15 questions were solved by every arm and 6 by none — so it cannot currently separate the arms further.
-
-**The harness is the second experimental subject.** Five defects in it produced or nearly produced believable false findings: a grader that scored notation instead of retrieval, a vector cache written inside the corpus under test, swallowed MCP tool errors that scored 36 calls as failures, an output-file check that ran after the model spend rather than before, and a gold resolver that indexed only Rust and Python so every TypeScript answer failed on spelling. Error accounting, corpus fingerprinting before and after each condition, and loud aborts on provider failures are permanent parts of the harness for that reason.
-
-## Code layout and replacement points
-
-`src/main.rs` owns startup and stdio. `src/tools` owns MCP schemas and dispatch. `src/search` contains the lexical and semantic interfaces/adapters and bounded subprocess execution. `src/index` owns typed structural results and the Tree-sitter snapshot. `src/source` centralizes paths and bounded reads. `src/logging` owns the versioned event format and append sink. `src/config` owns operator settings.
-
-`LexicalBackend`, `SemanticBackend`, and `StructuralBackend` are the replacement boundaries. Their result types, rather than ripgrep JSON, parser nodes, or embedding vectors, reach MCP. The structural implementation currently owns in-memory storage; a persistent implementation can replace it behind the same interface. The invocation log sink can be changed within `src/logging` without changing tools. There is no speculative storage framework or database migration layer.
-
-## Repository map
+## Code layout
 
 ```text
 src/            the server: config, tools, search (lexical/BM25/semantic), index, source, logging
@@ -280,19 +274,13 @@ tests/          mcp_stdio.rs, real JSON-RPC subprocess tests over the wire proto
 experiments/    the study harness: runners, graders, analyzers, question sets, and their tests
 ```
 
-Everything under `experiments/` is Python 3.11+ standard library only. The pieces worth knowing:
-`comparison_runner.py` prepares and runs multi-arm agent comparisons, `comparison_gate.py` meters
-one shared call and byte budget across a trial's MCP upstreams, `codex_wrapper.py` and
-`opencode_wrapper.py` drive the two supported agent clients, `quality_pass.py` resolves an answer's
-spelling against definitions found by ripgrep, `end_to_end.py` scores context consumption, and
-`study_a*.py` run the offline retrieval and navigation studies. Every runner that can spend money
-requires `--allow-model-usage` and refuses to overwrite an existing output.
+`src/main.rs` owns startup and stdio. `src/tools` owns MCP schemas and dispatch. `src/search` contains the lexical and semantic interfaces/adapters and bounded subprocess execution. `src/index` owns typed structural results and the Tree-sitter snapshot. `src/source` centralizes paths and bounded reads. `src/logging` owns the versioned event format and append sink. `src/config` owns operator settings.
 
-What is deliberately **not** in this repository: corpora, run artifacts, transcripts, and model
-answers. Trial directories hold full prompts, model reasoning, and verbatim source excerpts from
-whatever corpus was under test, so they stay local. A published result should ship the pinned
-question sets, gold answers, and analysis JSON, and a script that clones the pinned upstream
-revision — not the corpus copy.
+`LexicalBackend`, `SemanticBackend`, and `StructuralBackend` are the replacement boundaries. Their result types, rather than ripgrep JSON, parser nodes, or embedding vectors, reach MCP. The structural implementation currently owns in-memory storage; a persistent implementation can replace it behind the same interface. The invocation log sink can be changed within `src/logging` without changing tools. There is no speculative storage framework or database migration layer.
+
+Everything under `experiments/` is Python 3.11+ standard library only. `comparison_runner.py` prepares and runs multi-arm agent comparisons; `comparison_gate.py` meters one shared call and byte budget across a trial's MCP upstreams; `codex_wrapper.py` and `opencode_wrapper.py` drive the two supported agent clients; `quality_pass.py` resolves an answer's spelling against definitions found by ripgrep; `end_to_end.py` scores context consumption; and `study_a*.py` run the offline retrieval and navigation studies. Every runner that can spend money requires `--allow-model-usage` and refuses to overwrite an existing output.
+
+Corpora, run artifacts, transcripts, and model answers are deliberately absent. Trial directories hold full prompts, model reasoning, and verbatim source excerpts from whatever corpus was under test, so they stay local. A published result should ship the pinned question sets, gold answers, and analysis JSON, plus a script that clones the pinned upstream revision — not the corpus copy.
 
 ## Testing
 
