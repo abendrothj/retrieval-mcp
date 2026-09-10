@@ -147,9 +147,52 @@ not met. Conditioned on success this server is the cheapest arm on both tokens a
 most wasteful on failure. Strict envelope grading scored 0/90 for every arm because this model
 answers in prose around its JSON, so all quality figures come from the graded resolver.
 
-The suite itself is now the limiting instrument: 5 of 15 questions were solved by all three arms and
-6 by none — including every transitive relationship question — so only 4 discriminated at all.
-Interpreting arm differences on this suite beyond "indistinguishable" is not supported.
+The suite itself is the limiting instrument: 6 of 15 questions were solved by every arm in both
+repetitions and 7 by none, leaving 2 that discriminated at all. Interpreting arm differences on
+this suite beyond "indistinguishable" is not supported.
+
+### Audit of the never-solved questions
+
+A question every system fails is either hard or broken, and a score table cannot tell those apart.
+`audit_failures.py` separates them mechanically over the 42 trials of the 7 never-solved questions:
+it checks whether the answer names every gold symbol, whether the gold's shape (list or object)
+matches what the model returned, whether a named symbol has namesakes that leave it unqualified,
+and — where the question names a helper — whether the gold's claimed callers agree with an
+independent ripgrep enumeration of the corpus.
+
+```sh
+python3 experiments/audit_failures.py --run /path/to/run \
+  --questions /path/to/authored-questions.json --corpus /path/to/corpus \
+  --helper 'vsc-callers-as-text-or-error=src/vs/platform/request/common/request.ts::asTextOrError' \
+  --output /path/to/audit.json
+```
+
+`--helper` is required for a caller question whose gold does not name the helper it is about;
+without it the audit would read a gold list's first entry as the target, and a common name such as
+`initialize` produces nonsense. Verdicts over the 42 trials: 21 `unqualified`, 17 `wrong`,
+4 `shape`. Reading each question against the corpus gives:
+
+| Question | Diagnosis | Evidence |
+|---|---|---|
+| `vsc-trace-shell-env-consumers` | Evaluator. All 6 answers name both gold classes; the gold is a list and the answers are prose, which scores 0 by shape | 6/6 name all gold symbols |
+| `vsc-mixed-1223-owner` | **Gold is wrong.** It claims one caller, `UserDataSyncStoreClient::request`, which does not call `isSuccess`; the two real external callers are `queryRawGalleryExtensions` and `getActivityData`, which is what the models answered | 1 claimed caller absent, 2 real callers unclaimed |
+| `vsc-callers-as-text-or-error` | **Gold is wrong.** It names 3 callers of `asTextOrError`, one of which (`getAllCollections`) does not call it; the corpus has 11 | 1 claimed caller absent, 9 real callers unclaimed. One trial listed exactly all 11 and scored 0 |
+| `vsc-mixed-empty-window-guard` | Evaluator plus granularity. 4 of 6 name both gold parts in prose against an object gold; the gold consumer is a class while the call sits in its method `hasBackups` | 4 `shape`, 2 genuinely wrong |
+| `vsc-trace-backup-restore-chain` | Half evaluator. 3 of 6 name all three gold symbols in prose; the other 3 answer from an unrelated subsystem | 3 `unqualified`, 3 `wrong` |
+| `vsc-generic-service-shell-consumer` | Unanswerable as scored. Every arm answered `RequestService`, which is defined twice in the corpus, and no resolver may accept an ambiguous name | 6/6 name the gold, none qualify it |
+| `vsc-backup-uri-parse-tolerance` | Question is ambiguous. All six answered `restoreRecentlyOpened`, which also rebuilds sessions from disk and continues past unparseable entries; only "silently" and "multi-root" favour the gold, and the gold appeared in just 2 of 6 trials | 0/6 name the gold |
+
+So **none of the seven is a tool-surface gap, and at most one is a retrieval failure.** Five are
+defects in the benchmark: two wrong golds, three answer-shape or ambiguity artifacts.
+
+Repairing the two wrong golds and accepting prose that names every gold symbol — a sensitivity
+analysis, not a change to the frozen score — gives 25/30 for `retrieval-mcp`, 22/30 for
+`native-control`, and 22/30 for `zvec-grep`, with paired discordance of 4 to 1 in this server's
+favour against each competitor. That is a larger separation than the frozen numbers show, and it is
+still too small to claim on 15 questions. The correction also destroys two more questions by
+saturation: under corrected gold, 8 of 15 are solved by everyone and 2 by nobody, leaving 5
+discriminating. The suite must be rebuilt before any competitive claim, and the rebuild needs a
+development set for tuning difficulty and a held-out set frozen before the final comparison.
 
 ## Native-system comparison
 
