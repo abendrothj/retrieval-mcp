@@ -25,22 +25,33 @@ RANKERS = ("lexical", "semantic", "hybrid")
 CUTOFFS = (1, 3, 5, 10)
 SOURCE_SUFFIXES = (".rs", ".py", ".ts", ".tsx")
 
-def gold_symbols(task):
-    """Every acceptable (path, name) pair mentioned by a typed gold answer."""
-    found = set()
-    def walk(value):
-        if isinstance(value, str):
-            if "::" in value and value.split("::")[0].endswith(SOURCE_SUFFIXES):
-                parts = value.split("::")
-                found.add((parts[0], parts[-1]))
-        elif isinstance(value, list):
-            for item in value:
-                walk(item)
-        elif isinstance(value, dict):
-            for item in value.values():
-                walk(item)
-    walk(task["expected_json"]["answer"])
+def symbol_pairs(value, found):
+    if isinstance(value, str):
+        if "::" in value and value.split("::")[0].endswith(SOURCE_SUFFIXES):
+            parts = value.split("::")
+            found.add((parts[0], parts[-1]))
+    elif isinstance(value, list):
+        for item in value:
+            symbol_pairs(item, found)
+    elif isinstance(value, dict):
+        for item in value.values():
+            symbol_pairs(item, found)
     return found
+
+
+def relevant_symbols(task):
+    """relevant(q) = gold_symbols union acceptable_symbols.
+
+    Frozen with the question set. `exclusions` are audit material only: a plausible-but-insufficient
+    symbol outranking the gold costs nothing beyond the gold's own later rank, because a penalty
+    would be a second, unvalidated judgement about how wrong a near miss is.
+    """
+    found = symbol_pairs(task["expected_json"]["answer"], set())
+    return symbol_pairs(task.get("acceptable_symbols", []), found)
+
+
+def excluded_symbols(task):
+    return symbol_pairs([entry.get("symbol") for entry in task.get("exclusions", [])], set())
 
 
 def row_identity(row):
@@ -50,10 +61,10 @@ def row_identity(row):
     return (row.get("path"), None)
 
 
-def scored(ranked, gold):
-    """Rank of the first gold symbol, 1-based, or None."""
+def scored(ranked, relevant):
+    """Rank of the first relevant symbol, 1-based, or None."""
     for position, row in enumerate(ranked, 1):
-        if row_identity(row) in gold:
+        if row_identity(row) in relevant:
             return position
     return None
 
@@ -92,7 +103,7 @@ def query_all(server, root, ranker, semantic_command, questions, limit, timeout,
 
 def report(args):
     questions = json.loads(args.questions.read_text(encoding="utf-8"))
-    graded = [task for task in questions if gold_symbols(task)]
+    graded = [task for task in questions if relevant_symbols(task)]
     cache = args.cache.resolve()
     # A retrieval system must never be able to alter the corpus it is judged against: the first
     # run of this study wrote 93 MB of vectors into the corpus before this check existed.
@@ -106,17 +117,21 @@ def report(args):
                                           graded, args.limit, args.timeout, args.cache)
         cells = {}
         for task in graded:
-            gold = gold_symbols(task)
+            relevant = relevant_symbols(task)
+            excluded = excluded_symbols(task)
             ranked = rows[task["id"]]
-            rank = scored(ranked, gold)
+            rank = scored(ranked, relevant)
+            identities = [row_identity(row) for row in ranked]
             cells[task["id"]] = {
                 "category": task["category"],
-                "gold": sorted("::".join(pair) for pair in gold),
+                "relevant": sorted("::".join(pair) for pair in relevant),
                 "rank": rank,
                 "returned": len(ranked),
                 "bytes": len(json.dumps(ranked, ensure_ascii=False).encode()),
-                "ranked": ["::".join(part for part in row_identity(row) if part)
-                           for row in ranked],
+                # Audit only: an excluded symbol outranking the gold never changes the score.
+                "excluded_ranks": [position for position, identity in enumerate(identities, 1)
+                                   if identity in excluded],
+                "ranked": ["::".join(part for part in identity if part) for identity in identities],
             }
         conditions[ranker] = {
             "effectiveness": summarize(cells),
@@ -135,7 +150,7 @@ def report(args):
     return {
         "version": "study-a-v1",
         "questions_graded": len(graded),
-        "questions_skipped": [task["id"] for task in questions if not gold_symbols(task)],
+        "questions_skipped": [task["id"] for task in questions if not relevant_symbols(task)],
         "limit": args.limit,
         "conditions": conditions,
         "corpus": before,
