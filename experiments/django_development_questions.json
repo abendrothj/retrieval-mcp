@@ -1,0 +1,1036 @@
+[
+  {
+    "id": "dj-fields-relative-destination-check",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "The model field that keeps its data in a storage backend runs several system checks over its own configuration. One of them refuses a destination argument that was given as a plain string beginning with a path separator, because that value has to be interpreted relative to the storage root rather than as a filesystem-absolute location. Which check method is that? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/models/fields/files.py::_check_upload_to"
+    },
+    "rejected_alternates": [
+      "django/db/models/fields/files.py::_check_primary_key",
+      "django/db/models/fields/files.py::generate_filename",
+      "django/db/models/fields/__init__.py::_check_field_name"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/fields/files.py",
+        "contains": "if isinstance(self.upload_to, str) and self.upload_to.startswith(\"/\"):"
+      },
+      {
+        "path": "django/db/models/fields/files.py",
+        "contains": "hint=\"Remove the leading slash.\","
+      }
+    ],
+    "author_notes": "FileField._check_upload_to is the only check in the corpus that tests a leading '/' on the destination argument and emits fields.E202. _check_primary_key is FileField's other check but concerns primary_key=True; generate_filename builds the stored name at save time and does not report configuration errors; Field._check_field_name validates the attribute name, not the destination."
+  },
+  {
+    "id": "dj-fields-ipv6-normalizer-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "django/utils/ipv6.py exposes a routine that validates an IPv6 literal, collapses its longest run of zero hextets and lower-cases the result, optionally unwrapping an IPv4-mapped address. Enumerate every function in the corpus that calls it. Return each as path::name.",
+    "expected_json": {
+      "answer": [
+        "django/db/models/fields/__init__.py::to_python",
+        "django/db/models/fields/__init__.py::get_prep_value"
+      ]
+    },
+    "helper": "django/utils/ipv6.py::clean_ipv6_address",
+    "exhaustive": true,
+    "rejected_alternates": [
+      "django/db/models/fields/__init__.py::get_db_prep_value",
+      "django/db/models/fields/__init__.py::formfield",
+      "django/db/models/fields/__init__.py::_check_blank_and_null_values"
+    ],
+    "evidence": [
+      {
+        "path": "django/utils/ipv6.py",
+        "contains": "def clean_ipv6_address("
+      },
+      {
+        "path": "django/db/models/fields/__init__.py",
+        "contains": "return clean_ipv6_address(value, self.unpack_ipv4)"
+      },
+      {
+        "path": "django/db/models/fields/__init__.py",
+        "contains": "value, self.unpack_ipv4, self.error_messages[\"invalid\"]"
+      }
+    ],
+    "author_notes": "Both call sites are on GenericIPAddressField: to_python normalises user input when the value contains a colon, and get_prep_value normalises again on the way to the database, swallowing ValidationError. GenericIPAddressField.get_db_prep_value only routes through get_prep_value and then the backend adapter, so it is not a caller; formfield and _check_blank_and_null_values never touch the routine. An independent ripgrep over the corpus shows exactly these two call sites, so the set is exhaustive."
+  },
+  {
+    "id": "dj-fields-forward-relation-value",
+    "category": "symbol_resolution",
+    "set": "dev",
+    "question": "A single-column relation field does no value normalisation of its own. For the backend-independent step, the one whose only argument is the value being converted for use in a query, it forwards straight to the field on the referenced model that the relation points at. Which method is that? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/models/fields/related.py::get_prep_value"
+    },
+    "rejected_alternates": [
+      "django/db/models/fields/related.py::get_db_prep_value",
+      "django/db/models/fields/related.py::get_db_prep_save",
+      "django/db/models/fields/__init__.py::get_prep_value",
+      "django/db/models/fields/files.py::get_prep_value"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/fields/related.py",
+        "contains": "return self.target_field.get_prep_value(value)"
+      },
+      {
+        "path": "django/db/models/fields/related.py",
+        "contains": "def target_field(self):"
+      }
+    ],
+    "author_notes": "ForeignKey.get_prep_value in related.py is a one-line delegation to self.target_field.get_prep_value. The connection-taking neighbours get_db_prep_value and get_db_prep_save also delegate but are the backend-dependent steps, which the question excludes by naming the single-argument form. Field.get_prep_value (base) and FileField.get_prep_value are the other two definitions of the leaf name and do not delegate to a remote field, so a bare unqualified answer cannot be credited and the question asks for path::name."
+  },
+  {
+    "id": "dj-fields-unattached-rebuild",
+    "category": "generic_name",
+    "set": "dev",
+    "question": "The base field class can produce a brand-new instance of its own class by taking the arguments it reports for migration serialisation and passing them straight back to its constructor; the result deliberately keeps no attachment to a model or attribute name. Which method does this? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/models/fields/__init__.py::clone"
+    },
+    "rejected_alternates": [
+      "django/db/models/fields/__init__.py::__copy__",
+      "django/db/models/fields/__init__.py::__deepcopy__",
+      "django/db/models/fields/__init__.py::deconstruct",
+      "django/db/migrations/state.py::clone"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/fields/__init__.py",
+        "contains": "name, path, args, kwargs = self.deconstruct()"
+      },
+      {
+        "path": "django/db/models/fields/__init__.py",
+        "contains": "return self.__class__(*args, **kwargs)"
+      }
+    ],
+    "author_notes": "Field.clone calls its own deconstruct() and re-instantiates the class from args/kwargs, dropping name/attname; its docstring says it 'Will not preserve any class attachments/attribute names'. __copy__ and __deepcopy__ copy the instance dict instead of re-running the constructor, and deconstruct only produces the serialised form. The leaf name is defined in eight files in the corpus, so the question demands a path-qualified answer."
+  },
+  {
+    "id": "dj-fields-instance-store-key-overrides",
+    "category": "transitive_blast_radius",
+    "set": "dev",
+    "question": "The mixin that lets a relation stash an already-loaded related object on a model instance looks that object up in a per-instance dictionary under a key supplied by a lazily evaluated property the mixin declares. Two classes in the fields package override that property with their own key: one on the forward relation field, one on the object that models the reverse side of a relation. If the mixin's property changed shape, these two are what would have to follow. Name both, each as path::name.",
+    "expected_json": {
+      "answer": [
+        "django/db/models/fields/related.py::cache_name",
+        "django/db/models/fields/reverse_related.py::cache_name"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/models/fields/mixins.py::cache_name",
+      "django/db/models/fields/mixins.py::get_cache_name",
+      "django/db/models/fields/reverse_related.py::accessor_name"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/fields/mixins.py",
+        "contains": "return instance._state.fields_cache[self.cache_name]"
+      },
+      {
+        "path": "django/db/models/fields/related.py",
+        "contains": "    @cached_property\n    def cache_name(self):\n        return self.name"
+      },
+      {
+        "path": "django/db/models/fields/reverse_related.py",
+        "contains": "        return self.accessor_name"
+      }
+    ],
+    "author_notes": "FieldCacheMixin declares cache_name as a cached_property and every get/set/delete of the fields_cache entry keys off it. RelatedField overrides it with self.name; ForeignObjectRel overrides it with self.accessor_name. The mixin's own declaration is the thing being overridden, not an override, and get_cache_name is the deprecated hook the mixin's default consults; accessor_name is the value the reverse override returns, not the property itself. The leaf name has three definitions, so the question asks for path::name."
+  },
+  {
+    "id": "dj-utils-deferred-wrapper-accessor-factory",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "In the lazy-evaluation utilities, a wrapper that defers instantiation forwards nearly every dunder to the object it holds. One module-level factory builds those forwarding callables: each one notices that the placeholder sentinel is still in place, triggers the wrapper's initialization hook, then applies the supplied operator to the resolved object. The factory also tags the callable it returns with a false flag attribute, which the wrapper's attribute-access override consults so that the callable is never handed back directly. Which function is that factory? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/utils/functional.py::new_method_proxy"
+    },
+    "rejected_alternates": [
+      "django/utils/functional.py::lazy",
+      "django/utils/functional.py::keep_lazy",
+      "django/utils/functional.py::unpickle_lazyobject",
+      "django/core/files/storage/__init__.py::_setup"
+    ],
+    "evidence": [
+      {
+        "path": "django/utils/functional.py",
+        "contains": "if (_wrapped := self._wrapped) is empty:"
+      },
+      {
+        "path": "django/utils/functional.py",
+        "contains": "inner._mask_wrapped = False"
+      },
+      {
+        "path": "django/utils/functional.py",
+        "contains": "if not getattr(value, \"_mask_wrapped\", True):"
+      }
+    ],
+    "author_notes": "The factory is new_method_proxy: its inner closure checks the `empty` sentinel, calls self._setup(), and applies `func` to the resolved object; it sets inner._mask_wrapped = False, which LazyObject.__getattribute__ reads to raise AttributeError and fall through to __getattr__. lazy() builds a whole __proxy__ class around a callable rather than a single accessor, keep_lazy is an argument-sniffing decorator, and unpickle_lazyobject only returns its argument, so none of them is the accessor factory. _setup is the hook the accessor calls, not the factory (and the namesake in core/files/storage is a storage initializer)."
+  },
+  {
+    "id": "dj-utils-shared-handler-teardown-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "Two connection registries \u2014 the database one and the cache one \u2014 inherit from a single base class in the utils layer. That base defines a method which walks only the aliases that have actually been instantiated for this thread and tears each of them down. List every function in the corpus, outside the module that defines that base class, which invokes it. Return each as path::name.",
+    "helper": "django/utils/connection.py::close_all",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/core/cache/__init__.py::close_caches",
+        "django/core/management/base.py::run_from_argv",
+        "django/core/servers/basehttp.py::_close_connections"
+      ]
+    },
+    "rejected_alternates": [
+      "django/utils/connection.py::all",
+      "django/db/backends/base/base.py::close"
+    ],
+    "evidence": [
+      {
+        "path": "django/utils/connection.py",
+        "contains": "    def close_all(self):"
+      },
+      {
+        "path": "django/utils/connection.py",
+        "contains": "for conn in self.all(initialized_only=True):"
+      },
+      {
+        "path": "django/core/cache/__init__.py",
+        "contains": "    caches.close_all()"
+      },
+      {
+        "path": "django/core/management/base.py",
+        "contains": "                connections.close_all()"
+      },
+      {
+        "path": "django/core/servers/basehttp.py",
+        "contains": "    def _close_connections(self):"
+      }
+    ],
+    "author_notes": "BaseConnectionHandler.close_all() iterates self.all(initialized_only=True) and closes each connection. Ripgrep over the corpus for `close_all(` finds exactly three call sites outside django/utils/connection.py: the request-finished receiver close_caches in django/core/cache/__init__.py, the finally-clause in BaseCommand.run_from_argv, and WSGIRequestHandler._close_connections in the dev server. Neither django/db/utils.py nor django/core/cache/__init__.py overrides close_all, so all three really reach this definition. `all` is the method it delegates to, not a caller; BaseDatabaseWrapper.close is the per-connection teardown one level down. run_from_argv is defined twice in the corpus, so the answer is required as path::name."
+  },
+  {
+    "id": "dj-utils-substituted-model-setting-fanout",
+    "category": "mixed_discovery_structure",
+    "set": "dev",
+    "question": "The application registry memoizes a lookup that takes a model reference in \"app_label.ModelName\" form and reports the name of the settings entry through which another model may be substituted for it, returning None when the reference is not substitutable; the registry's cache-clearing routine invalidates it explicitly. Identify that registry method and every function outside django/apps that calls it. Answer as a JSON object with keys \"implementation\" and \"callers\", where the implementation is one path::name and callers is a list of path::name.",
+    "helper": "django/apps/registry.py::get_swappable_settings_name",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": {
+        "implementation": "django/apps/registry.py::get_swappable_settings_name",
+        "callers": [
+          "django/db/models/fields/related.py::swappable_setting"
+        ]
+      }
+    },
+    "rejected_alternates": [
+      "django/apps/registry.py::get_registered_model",
+      "django/apps/registry.py::clear_cache"
+    ],
+    "evidence": [
+      {
+        "path": "django/apps/registry.py",
+        "contains": "    def get_swappable_settings_name(self, to_string):"
+      },
+      {
+        "path": "django/apps/registry.py",
+        "contains": "        self.get_swappable_settings_name.cache_clear()"
+      },
+      {
+        "path": "django/db/models/fields/related.py",
+        "contains": "            return apps.get_swappable_settings_name(to_string)"
+      }
+    ],
+    "author_notes": "Apps.get_swappable_settings_name is decorated with @functools.cache and cleared in Apps.clear_cache(). Ripgrep for `get_swappable_settings_name(` finds one call outside its defining module: ForeignKey/related-field property swappable_setting in django/db/models/fields/related.py (the second occurrence in registry.py is the cache_clear call inside the defining module, which is excluded). clear_cache invalidates the cache but does not answer the lookup; get_registered_model is the unrelated all_models lookup."
+  },
+  {
+    "id": "dj-utils-installed-entry-to-config-factory",
+    "category": "symbol_resolution",
+    "set": "dev",
+    "question": "One classmethod in the app layer turns a single INSTALLED_APPS entry into a configuration object. It first tries to treat the entry as a package; if that package ships a sibling module named \"apps\" it inspects that module for candidate subclasses, excluding those that set the class attribute default to False, and if several remain it keeps only those that set it to True, raising RuntimeError when that is still ambiguous. Failing all of that it treats the entry as a dotted path to the class itself. Which method is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/apps/config.py::create"
+    },
+    "rejected_alternates": [
+      "django/db/models/query.py::create",
+      "django/utils/tree.py::create",
+      "django/db/models/fields/related_descriptors.py::create",
+      "django/apps/registry.py::populate"
+    ],
+    "evidence": [
+      {
+        "path": "django/apps/config.py",
+        "contains": "        Factory that creates an app config from an entry in INSTALLED_APPS."
+      },
+      {
+        "path": "django/apps/config.py",
+        "contains": "                        and getattr(candidate, \"default\", True)"
+      },
+      {
+        "path": "django/apps/config.py",
+        "contains": "                            \"%r declares more than one default AppConfig: \""
+      },
+      {
+        "path": "django/apps/registry.py",
+        "contains": "                    app_config = AppConfig.create(entry)"
+      }
+    ],
+    "author_notes": "AppConfig.create is the factory; the described default=False/default=True filtering and the 'declares more than one default AppConfig' RuntimeError are unique to it. The leaf name is defined in four files in the corpus (apps/config.py, db/models/query.py, db/models/fields/related_descriptors.py, utils/tree.py), so the question demands a path-qualified answer and each namesake is rejected. Apps.populate is the caller that drives it, not the factory."
+  },
+  {
+    "id": "dj-utils-no-bulk-listener-reset",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "Consider the signal dispatcher's bookkeeping of connected listeners. Is there a function or method in the corpus that detaches every listener currently attached to a signal in one call \u2014 a wholesale reset of that signal's bookkeeping, as opposed to detaching one identified listener or pruning entries whose referents have already been collected? If such a function exists, return the qualified symbol as path::name; if the corpus defines none, answer null.",
+    "expected_json": {
+      "answer": null
+    },
+    "rejected_alternates": [
+      "django/dispatch/dispatcher.py::disconnect",
+      "django/dispatch/dispatcher.py::_clear_dead_receivers",
+      "django/db/models/signals.py::disconnect",
+      "django/apps/registry.py::clear_cache"
+    ],
+    "evidence": [
+      {
+        "path": "django/dispatch/dispatcher.py",
+        "contains": "    def disconnect(self, receiver=None, sender=None, dispatch_uid=None):"
+      },
+      {
+        "path": "django/dispatch/dispatcher.py",
+        "contains": "    def _clear_dead_receivers(self):"
+      },
+      {
+        "path": "django/dispatch/dispatcher.py",
+        "contains": "            if r_key == lookup_key:"
+      }
+    ],
+    "author_notes": "Signal offers connect, disconnect (single lookup_key, breaking out of the loop after one deletion), has_listeners, _clear_dead_receivers (drops only weakrefs whose referent is gone) and _live_receivers. ModelSignal in django/db/models/signals.py only adds lazy resolution of a string sender to connect/disconnect. Nothing in the corpus assigns an empty list to self.receivers outside Signal.__init__, and no bulk-detach API exists, so the honest answer is absence. The rejected alternates are the near misses: single-target disconnect and dead-weakref pruning."
+  },
+  {
+    "id": "dj-backends-timezone-offset-splitter-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "A shared database-backend utility parses a time-zone spelling by splitting a valid trailing numeric offset from its zone name, normalizing an hour-only offset to include minutes, and returning the original spelling with two null components when no valid suffix is found. Enumerate every function in the corpus that calls this utility. Return each as path::name.",
+    "expected_json": {
+      "answer": [
+        "django/db/backends/mysql/operations.py::_prepare_tzname_delta",
+        "django/db/backends/oracle/operations.py::_prepare_tzname_delta",
+        "django/db/backends/postgresql/operations.py::_prepare_tzname_delta",
+        "django/db/backends/sqlite3/_functions.py::_sqlite_datetime_parse"
+      ]
+    },
+    "helper": "django/db/backends/utils.py::split_tzname_delta",
+    "exhaustive": true,
+    "rejected_alternates": [
+      "django/db/backends/mysql/operations.py::_convert_sql_to_tz",
+      "django/db/backends/oracle/operations.py::_convert_sql_to_tz",
+      "django/db/backends/postgresql/operations.py::_convert_sql_to_tz",
+      "django/db/backends/sqlite3/_functions.py::_sqlite_datetime_trunc"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/utils.py",
+        "contains": "def split_tzname_delta(tzname):"
+      },
+      {
+        "path": "django/db/backends/mysql/operations.py",
+        "contains": "tzname, sign, offset = split_tzname_delta(tzname)"
+      },
+      {
+        "path": "django/db/backends/oracle/operations.py",
+        "contains": "tzname, sign, offset = split_tzname_delta(tzname)"
+      },
+      {
+        "path": "django/db/backends/postgresql/operations.py",
+        "contains": "tzname, sign, offset = split_tzname_delta(tzname)"
+      },
+      {
+        "path": "django/db/backends/sqlite3/_functions.py",
+        "contains": "tzname, sign, offset = split_tzname_delta(tzname)"
+      }
+    ],
+    "author_notes": "The utility definition loops over '+' and '-', validates the suffix with parse_time(), and expands an offset lacking ':' with ':00'. A corpus-wide occurrence search finds four invocations outside that definition. Three are the same-named preparation method on the MySQL, Oracle, and PostgreSQL operations classes; the fourth is SQLite's datetime parser. The three _convert_sql_to_tz methods call their backend preparation method rather than the shared utility directly, while SQLite's truncation function calls _sqlite_datetime_parse, so the rejected symbols are one level removed and are not direct callers."
+  },
+  {
+    "id": "dj-backends-base-connection-establishment-lifecycle",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "In the backend-independent connection wrapper, one lifecycle method resets stale transaction and health-check state, asks the concrete backend first for connection parameters and then for a new DB-API connection, applies the configured autocommit mode, initializes backend state, emits the connection-created signal, and finally clears pending commit hooks. Which method owns that complete sequence? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/backends/base/base.py::connect"
+    },
+    "rejected_alternates": [
+      "django/db/backends/base/base.py::ensure_connection",
+      "django/db/backends/base/base.py::get_new_connection",
+      "django/db/backends/base/base.py::init_connection_state",
+      "django/db/backends/base/base.py::_cursor"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/base/base.py",
+        "contains": "self.connection = self.get_new_connection(conn_params)"
+      },
+      {
+        "path": "django/db/backends/base/base.py",
+        "contains": "self.set_autocommit(self.settings_dict[\"AUTOCOMMIT\"])"
+      },
+      {
+        "path": "django/db/backends/base/base.py",
+        "contains": "connection_created.send(sender=self.__class__, connection=self)"
+      },
+      {
+        "path": "django/db/backends/base/base.py",
+        "contains": "self.run_on_commit = []"
+      }
+    ],
+    "author_notes": "BaseDatabaseWrapper.connect contains the whole ordered establishment lifecycle described in the prompt, including resetting in_atomic_block, savepoint_ids, health flags, and close_at before opening the driver connection. ensure_connection is only the guarded entry point that invokes connect when self.connection is None; get_new_connection is a backend hook responsible only for opening the driver connection; init_connection_state performs version/backend initialization after opening; and _cursor merely ensures a connection and creates a wrapped cursor."
+  },
+  {
+    "id": "dj-backends-sqlite-memory-teardown-guard",
+    "category": "symbol_resolution",
+    "set": "dev",
+    "question": "A concrete connection wrapper overrides the ordinary teardown path because destroying an in-memory database would lose all of its data. The override still enforces thread-sharing rules, but delegates to the base wrapper only when the configured database is not in memory. Which method implements that safeguard? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/backends/sqlite3/base.py::close"
+    },
+    "rejected_alternates": [
+      "django/db/backends/base/base.py::close",
+      "django/db/backends/base/base.py::_close",
+      "django/db/backends/sqlite3/base.py::is_in_memory_db",
+      "django/db/backends/sqlite3/base.py::_set_autocommit"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/sqlite3/base.py",
+        "contains": "# an in-memory db."
+      },
+      {
+        "path": "django/db/backends/sqlite3/base.py",
+        "contains": "if not self.is_in_memory_db():"
+      },
+      {
+        "path": "django/db/backends/sqlite3/base.py",
+        "contains": "BaseDatabaseWrapper.close(self)"
+      },
+      {
+        "path": "django/db/backends/sqlite3/base.py",
+        "contains": "self.validate_thread_sharing()"
+      }
+    ],
+    "author_notes": "SQLite's DatabaseWrapper.close is the concrete override: it validates thread ownership and intentionally does nothing for an in-memory database, otherwise calling BaseDatabaseWrapper.close. The base close method has no SQLite-specific data-loss guard, and _close is the lower-level driver call reached by it. is_in_memory_db supplies the predicate but does not control teardown itself; _set_autocommit manages sqlite3 isolation_level and is unrelated. The path qualification distinguishes the override from the base method with the same leaf name."
+  },
+  {
+    "id": "dj-backends-postgresql-driver-kwargs-builder",
+    "category": "generic_name",
+    "set": "dev",
+    "question": "One concrete backend wrapper turns its DATABASES entry into driver keyword arguments while enforcing that either a database name or a service option exists, rejecting overlong database names, stripping Django-only role and isolation options, and refusing pooling unless the newer driver generation is installed. It also selects a server-binding cursor factory when requested and adds an adapter context for that newer driver. Which method performs this translation? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/backends/postgresql/base.py::get_connection_params"
+    },
+    "rejected_alternates": [
+      "django/db/backends/postgresql/base.py::get_new_connection",
+      "django/db/backends/mysql/base.py::get_connection_params",
+      "django/db/backends/sqlite3/base.py::get_connection_params",
+      "django/db/backends/base/base.py::get_connection_params"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/postgresql/base.py",
+        "contains": "Please supply the NAME or OPTIONS['service'] value."
+      },
+      {
+        "path": "django/db/backends/postgresql/base.py",
+        "contains": "conn_params.pop(\"assume_role\", None)"
+      },
+      {
+        "path": "django/db/backends/postgresql/base.py",
+        "contains": "raise ImproperlyConfigured(\"Database pooling requires psycopg >= 3\")"
+      },
+      {
+        "path": "django/db/backends/postgresql/base.py",
+        "contains": "ServerBindingCursor"
+      },
+      {
+        "path": "django/db/backends/postgresql/base.py",
+        "contains": "conn_params[\"context\"] = get_adapters_template("
+      }
+    ],
+    "author_notes": "PostgreSQL DatabaseWrapper.get_connection_params uniquely combines the NAME-or-service check, PostgreSQL's name-length limit, removal of assume_role/isolation_level/pool/server_side_binding from the driver mapping, psycopg-version gating, cursor-factory choice, and psycopg 3 adapter context. Its get_new_connection consumes the already-built mapping and configures isolation and pooling afterward. MySQL and SQLite define namesake parameter builders with different driver contracts, while the base definition is an abstract hook, making an unqualified leaf name ambiguous."
+  },
+  {
+    "id": "dj-backends-schema-index-policy-overrides",
+    "category": "transitive_blast_radius",
+    "set": "dev",
+    "question": "The base schema editor decides that a field needs a separately created index exactly when it requests one and is not unique. Identify every concrete backend override of that decision in the corpus: one suppresses redundant foreign-key indexes for a particular storage engine and also excludes limited data types, while the other excludes its backend's limited data types. Return each override as path::name.",
+    "expected_json": {
+      "answer": [
+        "django/db/backends/mysql/schema.py::_field_should_be_indexed",
+        "django/db/backends/oracle/schema.py::_field_should_be_indexed"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/backends/base/schema.py::_field_should_be_indexed",
+      "django/db/backends/postgresql/schema.py::_field_should_be_indexed",
+      "django/db/backends/sqlite3/schema.py::_field_should_be_indexed",
+      "django/db/backends/mysql/schema.py::_is_limited_data_type"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/base/schema.py",
+        "contains": "return field.db_index and not field.unique"
+      },
+      {
+        "path": "django/db/backends/mysql/schema.py",
+        "contains": "storage == \"InnoDB\""
+      },
+      {
+        "path": "django/db/backends/mysql/schema.py",
+        "contains": "return not self._is_limited_data_type(field)"
+      },
+      {
+        "path": "django/db/backends/oracle/schema.py",
+        "contains": "create_index = super()._field_should_be_indexed(model, field)"
+      },
+      {
+        "path": "django/db/backends/oracle/schema.py",
+        "contains": "db_type.lower() in self.connection._limited_data_types"
+      }
+    ],
+    "author_notes": "A definition search under django/db/backends finds the base implementation and exactly two concrete overrides. MySQL first honors the base result, then suppresses an InnoDB ForeignKey index when the database constraint already supplies it, and finally rejects limited types. Oracle likewise preserves the base decision but forces false for its limited data types. PostgreSQL and SQLite schema editors inherit the base policy and define no namesake method. MySQL's _is_limited_data_type is only a predicate used by its override, not an override of the shared decision point."
+  },
+  {
+    "id": "dj-sql-dev-q-child-walker-external-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "The SQL query module defines a recursive generator that walks Q-tree children, yielding lookup strings and field-reference paths found inside expression-valued right-hand sides. Enumerate every function or method outside that helper's defining module that directly invokes it. Return each caller as path::name.",
+    "expected_json": {
+      "answer": [
+        "django/db/models/query_utils.py::referenced_base_fields"
+      ]
+    },
+    "helper": "django/db/models/sql/query.py::get_children_from_q",
+    "exhaustive": true,
+    "rejected_alternates": [
+      "django/db/models/sql/query.py::get_paths_from_expression",
+      "django/db/models/sql/query.py::add_filtered_relation",
+      "django/db/models/query_utils.py::identity"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/sql/query.py",
+        "contains": "def get_children_from_q(q):"
+      },
+      {
+        "path": "django/db/models/query_utils.py",
+        "contains": "child.split(LOOKUP_SEP, 1)[0] for child in query.get_children_from_q(self)"
+      }
+    ],
+    "author_notes": "The generator recursively descends nested Nodes, yields each tuple's left-hand lookup, and follows resolvable expressions on either side through get_paths_from_expression. An independent exact-name search over the corpus finds one invocation outside django/db/models/sql/query.py: Q.referenced_base_fields in query_utils.py, which strips every yielded path to its base component. get_paths_from_expression and Query.add_filtered_relation are genuine same-module callers deliberately excluded by the question; Q.identity builds a hashable representation and never invokes the generator."
+  },
+  {
+    "id": "dj-sql-dev-qualify-wrapper-compiler",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "The base SQL compiler emulates filtering on window expressions by cloning the query into an inner subquery, moving ordinary and aggregate predicates into that clone, temporarily selecting any masked expressions needed by the window predicate, and applying row limits only outside. When those temporary selections would otherwise leak, it adds a second masking projection, and it repeats ordering on the outermost query. Which compiler method performs this transformation? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/models/sql/compiler.py::get_qualify_sql"
+    },
+    "rejected_alternates": [
+      "django/db/models/sql/compiler.py::as_sql",
+      "django/db/models/sql/compiler.py::get_combinator_sql",
+      "django/db/models/sql/compiler.py::get_select",
+      "django/db/models/sql/where.py::split_having_qualify"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/sql/compiler.py",
+        "contains": "inner_query.where = inner_query.where.__class__(where_parts)"
+      },
+      {
+        "path": "django/db/models/sql/compiler.py",
+        "contains": "inner_query.add_annotation(expr, select_alias)"
+      },
+      {
+        "path": "django/db/models/sql/compiler.py",
+        "contains": "with_limits=False,"
+      },
+      {
+        "path": "django/db/models/sql/compiler.py",
+        "contains": "self.connection.ops.quote_name(\"qualify_mask\"),"
+      }
+    ],
+    "author_notes": "SQLCompiler.get_qualify_sql is the complete window-filter wrapper: it clones the query, compiles the clone without limits, rewrites qualify leaves to selected aliases, optionally nests the result under qualify_mask to hide synthetic qualN columns, and reconstructs outer ordering. SQLCompiler.as_sql only dispatches to this branch when self.qualify is present; get_combinator_sql handles UNION/INTERSECT/DIFFERENCE; get_select prepares selected columns but does not build the wrapper. WhereNode.split_having_qualify produces the predicate partitions consumed earlier, not their derived-table SQL."
+  },
+  {
+    "id": "dj-sql-dev-predicate-clause-partitioner",
+    "category": "symbol_resolution",
+    "set": "dev",
+    "question": "A method on the SQL predicate tree returns three nodes in WHERE, HAVING, and window-filter order. It keeps logically connected predicates together: XOR is always treated as connected; an aggregate-only connected tree can be moved wholesale to the middle clause; and a connected tree involving window predicates can be moved wholesale to the final clause unless conditional aggregation makes heterogeneous disjunction unsupported. Which method is this? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/models/sql/where.py::split_having_qualify"
+    },
+    "rejected_alternates": [
+      "django/db/models/sql/where.py::as_sql",
+      "django/db/models/sql/query.py::split_exclude",
+      "django/db/models/sql/compiler.py::pre_sql_setup",
+      "django/db/models/sql/query.py::build_filter"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/sql/where.py",
+        "contains": "or self.connector == XOR"
+      },
+      {
+        "path": "django/db/models/sql/where.py",
+        "contains": "return None, self, None"
+      },
+      {
+        "path": "django/db/models/sql/where.py",
+        "contains": "return None, None, self"
+      },
+      {
+        "path": "django/db/models/sql/where.py",
+        "contains": "return where_node, having_node, qualify_node"
+      }
+    ],
+    "author_notes": "WhereNode.split_having_qualify is the only routine that recursively partitions a predicate tree into all three SQL filtering phases. Its must_remain_connected condition explicitly includes XOR, and its two short-circuits return the original node in HAVING or QUALIFY position. WhereNode.as_sql renders one already-decided node; Query.split_exclude constructs an anti-subquery for multi-valued relations; SQLCompiler.pre_sql_setup consumes the returned triple; and Query.build_filter converts a single filter expression into a clause rather than partitioning clauses."
+  },
+  {
+    "id": "dj-sql-dev-update-expression-staging",
+    "category": "generic_name",
+    "set": "dev",
+    "question": "On the update-specific query subclass, one lower-level staging method accepts already-resolved (field, model, value) triples. It silently omits generated fields, resolves expression values against the update query with joins forbidden and save semantics enabled, then appends the resulting triple to the list consumed by the UPDATE compiler. Which method is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/models/sql/subqueries.py::add_update_fields"
+    },
+    "rejected_alternates": [
+      "django/db/models/sql/subqueries.py::add_update_values",
+      "django/db/models/sql/subqueries.py::add_related_update",
+      "django/db/models/sql/subqueries.py::insert_values",
+      "django/db/models/sql/compiler.py::as_sql"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/sql/subqueries.py",
+        "contains": "if field.generated:"
+      },
+      {
+        "path": "django/db/models/sql/subqueries.py",
+        "contains": "val = val.resolve_expression(self, allow_joins=False, for_save=True)"
+      },
+      {
+        "path": "django/db/models/sql/subqueries.py",
+        "contains": "self.values.append((field, model, val))"
+      }
+    ],
+    "author_notes": "UpdateQuery.add_update_fields owns exactly the described staging loop. add_update_values is the public dictionary-oriented entry point: it resolves field names, rejects non-direct and many-to-many targets, diverts ancestor-table updates, then delegates the remaining triples to this method. add_related_update only accumulates ancestor updates without resolving expressions, while InsertQuery.insert_values stores insert state. The compiler's as_sql later consumes self.query.values, so it is downstream rather than the staging method."
+  },
+  {
+    "id": "dj-sql-dev-combined-output-type-resolver",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "A cached module-level expression helper infers the output field class for a binary operation. It selects the registry bucket for the connector, scans registered left-field, right-field, and result-field triples in order, accepts subclass matches on both operand types, and returns the first matching result class; its caller raises FieldError when no class is found. Which helper performs this inference? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/models/expressions.py::_resolve_combined_type"
+    },
+    "rejected_alternates": [
+      "django/db/models/expressions.py::register_combinable_fields",
+      "django/db/models/expressions.py::_resolve_output_field",
+      "django/db/models/expressions.py::resolve_expression",
+      "django/db/models/expressions.py::_resolve_output_field_or_none"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/expressions.py",
+        "contains": "@functools.lru_cache(maxsize=128)"
+      },
+      {
+        "path": "django/db/models/expressions.py",
+        "contains": "combinators = _connector_combinators.get(connector, ())"
+      },
+      {
+        "path": "django/db/models/expressions.py",
+        "contains": "if issubclass(lhs_type, combinator_lhs_type) and issubclass("
+      },
+      {
+        "path": "django/db/models/expressions.py",
+        "contains": "combined_type = _resolve_combined_type("
+      }
+    ],
+    "author_notes": "_resolve_combined_type is the cached registry lookup used by CombinedExpression._resolve_output_field. It preserves registration order and returns the first compatible result class, while the method that calls it instantiates that class or raises the explicit cannot-infer FieldError. register_combinable_fields populates the connector registry rather than reading it; the two output-field properties use broader expression inference, and resolve_expression resolves expression trees rather than choosing the result type of a connector."
+  },
+  {
+    "id": "dj-orm-result-cache-populator",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "Synchronous length, truth testing, ordinary iteration, and pickling a QuerySet all converge on one private method. That method materializes the configured iterable class only when the result cache is absent, and then performs pending related-object prefetches even when the primary result cache was already populated. Which method is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/models/query.py::_fetch_all"
+    },
+    "rejected_alternates": [
+      "django/db/models/query.py::__iter__",
+      "django/db/models/query.py::iterator",
+      "django/db/models/query.py::_iterator",
+      "django/db/models/query.py::_prefetch_related_objects"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/query.py",
+        "contains": "        self._fetch_all()"
+      },
+      {
+        "path": "django/db/models/query.py",
+        "contains": "            self._result_cache = list(self._iterable_class(self))"
+      },
+      {
+        "path": "django/db/models/query.py",
+        "contains": "        if self._prefetch_related_lookups and not self._prefetch_done:"
+      }
+    ],
+    "author_notes": "QuerySet.__len__, __iter__, __bool__, and __getstate__ each call the same private cache-populating method. Its two independent conditionals are important: iterable materialization is guarded by `_result_cache is None`, while prefetching is guarded by pending lookups and `_prefetch_done`, so prefetch can still happen against an existing cache. `__iter__` is only one caller; `iterator` and `_iterator` stream results rather than filling `_result_cache`; `_prefetch_related_objects` performs only the second half and assumes the primary cache exists."
+  },
+  {
+    "id": "dj-orm-wide-update-ordering-rewrite",
+    "category": "behavioral_reasoning",
+    "set": "dev",
+    "question": "One QuerySet mutation method marks its query as a write, changes the query to the ORM's write-query class, rewrites ordering aliases that refer to non-aggregate annotations while preserving descending direction, rejects aggregate annotations in ordering, and clears annotations before SQL execution. Which method is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/models/query.py::update"
+    },
+    "rejected_alternates": [
+      "django/db/models/query.py::bulk_update",
+      "django/db/models/query.py::_update",
+      "django/db/models/query.py::_insert",
+      "django/db/models/query.py::delete"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/query.py",
+        "contains": "            if annotation := query.annotations.get(alias):"
+      },
+      {
+        "path": "django/db/models/query.py",
+        "contains": "                    annotation = annotation.desc()"
+      },
+      {
+        "path": "django/db/models/query.py",
+        "contains": "                        f\"Cannot update when ordering by an aggregate: {annotation}\""
+      },
+      {
+        "path": "django/db/models/query.py",
+        "contains": "        query.annotations = {}"
+      }
+    ],
+    "author_notes": "QuerySet.update is the method that sets `_for_write`, chains the current query to sql.UpdateQuery, rewrites ordering aliases, rejects expressions marked `contains_aggregate`, clears the annotation mapping, and executes the compiler. `bulk_update` constructs CASE expressions and repeatedly delegates to this method; `_update` accepts field objects for model saving but lacks the annotation-ordering rewrite; `_insert` switches to an insert query; `delete` uses Collector rather than UpdateQuery. The combination of ordering rewrite and annotation clearing uniquely identifies the gold symbol."
+  },
+  {
+    "id": "dj-orm-manager-queryset-proxy-selector",
+    "category": "symbol_resolution",
+    "set": "dev",
+    "question": "A classmethod on the manager base inspects a QuerySet class and builds the namespace of forwarding methods used by dynamically generated manager subclasses. It refuses to overwrite methods already present on the manager, excludes explicitly QuerySet-only methods, excludes private methods unless they explicitly opt in, and wraps each accepted function so it runs on a fresh QuerySet. Which classmethod is this? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/models/manager.py::_get_queryset_methods"
+    },
+    "rejected_alternates": [
+      "django/db/models/manager.py::from_queryset",
+      "django/db/models/manager.py::get_queryset",
+      "django/db/models/manager.py::all",
+      "django/db/models/manager.py::create_method"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/manager.py",
+        "contains": "    def _get_queryset_methods(cls, queryset_class):"
+      },
+      {
+        "path": "django/db/models/manager.py",
+        "contains": "            if hasattr(cls, name):"
+      },
+      {
+        "path": "django/db/models/manager.py",
+        "contains": "            if queryset_only or (queryset_only is None and name.startswith(\"_\")):"
+      },
+      {
+        "path": "django/db/models/manager.py",
+        "contains": "                return getattr(self.get_queryset(), name)(*args, **kwargs)"
+      }
+    ],
+    "author_notes": "BaseManager._get_queryset_methods is the introspection-and-filtering classmethod. It uses inspect.getmembers(..., predicate=inspect.isfunction), checks existing manager attributes, applies the queryset_only/private-name policy, and returns wrappers that dispatch through self.get_queryset(). `from_queryset` consumes the resulting dictionary to construct a type but does not itself enumerate or filter methods; `get_queryset` constructs the fresh QuerySet; `all` is a deliberately hand-written proxy; `create_method` is only the nested wrapper factory and is not the classmethod being asked for."
+  },
+  {
+    "id": "dj-orm-database-row-instance-state",
+    "category": "generic_name",
+    "set": "dev",
+    "question": "Model materialization delegates each result row to a model class hook. When only some concrete fields were selected, this hook expands the values into concrete-field order and inserts the deferred sentinel for omitted attributes; it then constructs the instance and records both that the object is no longer being added and which database supplied it. Which hook is this? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/db/models/base.py::from_db"
+    },
+    "rejected_alternates": [
+      "django/db/models/base.py::__init__",
+      "django/db/models/base.py::refresh_from_db",
+      "django/db/models/query.py::__iter__",
+      "django/db/models/base.py::save_base"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/query.py",
+        "contains": "            obj = model_cls.from_db("
+      },
+      {
+        "path": "django/db/models/base.py",
+        "contains": "                next(values_iter) if f.attname in field_names else DEFERRED"
+      },
+      {
+        "path": "django/db/models/base.py",
+        "contains": "        new._state.adding = False"
+      },
+      {
+        "path": "django/db/models/base.py",
+        "contains": "        new._state.db = db"
+      }
+    ],
+    "author_notes": "ModelIterable invokes `model_cls.from_db(db, init_list, row_slice)` for each row. Model.from_db aligns partial values to `_meta.concrete_fields`, fills omitted positions with DEFERRED, calls the model constructor, and changes the new object's state from the normal unsaved defaults to `adding=False` and the source alias. `__init__` receives the already aligned sequence but does not know the database alias; `refresh_from_db` mutates an existing instance; ModelIterable.__iter__ is the caller rather than the hook; `save_base` transitions state after a write rather than after row materialization."
+  },
+  {
+    "id": "dj-orm-deletion-collector-entry-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "The referential-removal collector has a recursive method that accepts a homogeneous iterable, discovers parent and related objects, invokes each relation's configured policy, and defers restricted-object failure until the top-level traversal. Excluding calls made within its own defining module, enumerate every function in the corpus that directly invokes this method. Return each as path::name.",
+    "helper": "django/db/models/deletion.py::collect",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/db/models/base.py::delete",
+        "django/db/models/query.py::delete"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/models/deletion.py::CASCADE",
+      "django/db/models/deletion.py::delete",
+      "django/db/models/query.py::_raw_delete",
+      "django/db/models/base.py::save_base"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/deletion.py",
+        "contains": "    def collect("
+      },
+      {
+        "path": "django/db/models/base.py",
+        "contains": "        collector.collect([self], keep_parents=keep_parents)"
+      },
+      {
+        "path": "django/db/models/query.py",
+        "contains": "        collector.collect(del_query)"
+      },
+      {
+        "path": "django/db/models/deletion.py",
+        "contains": "        fail_on_restricted=False,"
+      }
+    ],
+    "author_notes": "A corpus-wide search for `collector.collect(` yields three syntactic call sites: Model.delete, QuerySet.delete, and CASCADE. The question explicitly excludes the helper's own module, leaving exactly the two public ORM entry points in base.py and query.py. CASCADE is a real recursive caller but is excluded by location; Collector.delete executes the already collected plan rather than invoking the traversal; QuerySet._raw_delete intentionally bypasses collection, signals, and cascade protection; save_base handles writes. The helper is distinctive enough that the caller set is independently enumerable, and `exhaustive` is therefore justified."
+  },
+  {
+    "id": "dj-core-checks-database-cache-routing",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "Within the system-check layer, identify two registered functions with sharply different database-adjacent policies. The first is tagged for databases, deliberately reports nothing unless the runner supplied an explicit collection of connection aliases, and then delegates each alias to that backend's validation object. The second is tagged for caches and warns when a file-backed cache is configured with a relative LOCATION. Return a JSON object with keys \"backend_validation\" and \"relative_file_cache\", each containing a qualified symbol as path::name.",
+    "expected_json": {
+      "answer": {
+        "backend_validation": "django/core/checks/database.py::check_database_backends",
+        "relative_file_cache": "django/core/checks/caches.py::check_file_based_cache_is_absolute"
+      }
+    },
+    "rejected_alternates": [
+      "django/core/checks/caches.py::check_default_cache_is_configured",
+      "django/core/checks/caches.py::check_cache_location_not_exposed",
+      "django/core/checks/registry.py::run_checks",
+      "django/db/backends/base/validation.py::check"
+    ],
+    "evidence": [
+      {
+        "path": "django/core/checks/database.py",
+        "contains": "@register(Tags.database)"
+      },
+      {
+        "path": "django/core/checks/database.py",
+        "contains": "    if databases is None:"
+      },
+      {
+        "path": "django/core/checks/database.py",
+        "contains": "        issues.extend(conn.validation.check(**kwargs))"
+      },
+      {
+        "path": "django/core/checks/caches.py",
+        "contains": "def check_file_based_cache_is_absolute(app_configs, **kwargs):"
+      },
+      {
+        "path": "django/core/checks/caches.py",
+        "contains": "        if not pathlib.Path(config[\"LOCATION\"]).is_absolute():"
+      }
+    ],
+    "author_notes": "The database-tagged function has the distinctive explicit-alias gate and extends its result with each connection validation object's check output. The cache function iterates configured aliases, ignores non-FileBasedCache instances, and emits caches.W003 only for a non-absolute configured LOCATION. check_default_cache_is_configured tests alias presence, while check_cache_location_not_exposed is a deploy check comparing resolved cache paths with media/static roots. Registry.run_checks supplies the databases argument but does not implement either policy, and the backend validation method is the delegated implementation rather than the registered core check."
+  },
+  {
+    "id": "dj-core-serializer-natural-key-topology",
+    "category": "symbol_resolution",
+    "set": "dev",
+    "question": "A serializer-layer routine builds a dependency graph for a collection of application/model pairs before objects are read from the database. It combines dependencies declared on natural-key methods with relations to models having natural keys, counts a many-to-many relation only when its through model was auto-created, repeatedly promotes models whose in-scope dependencies are already emitted, and can break a cycle on a best-effort basis when asked. Which function implements that ordering? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/core/serializers/__init__.py::sort_dependencies"
+    },
+    "rejected_alternates": [
+      "django/core/management/commands/dumpdata.py::get_objects",
+      "django/core/serializers/__init__.py::serialize",
+      "django/core/serializers/python.py::Serializer",
+      "django/db/migrations/loader.py::build_graph"
+    ],
+    "evidence": [
+      {
+        "path": "django/core/serializers/__init__.py",
+        "contains": "                deps = [apps.get_model(dep) for dep in deps]"
+      },
+      {
+        "path": "django/core/serializers/__init__.py",
+        "contains": "                if field.remote_field.through._meta.auto_created:"
+      },
+      {
+        "path": "django/core/serializers/__init__.py",
+        "contains": "            if all(d not in models or d in model_list for d in deps):"
+      },
+      {
+        "path": "django/core/serializers/__init__.py",
+        "contains": "            if allow_cycles:"
+      },
+      {
+        "path": "django/core/management/commands/dumpdata.py",
+        "contains": "                models = serializers.sort_dependencies("
+      }
+    ],
+    "author_notes": "The implementation explicitly converts declared dependency labels through apps.get_model(), adds qualifying FK and auto-created-through M2M targets, then performs repeated dependency-satisfaction passes. Its allow_cycles branch promotes one skipped model to make progress. dumpdata's nested get_objects is the concrete consumer when natural foreign keys are requested, but it delegates the topology work. serialize drives a serializer instance, the Python serializer emits field values, and the migrations loader builds a different graph of migration nodes rather than model natural-key dependencies."
+  },
+  {
+    "id": "dj-core-command-output-transaction-dispatch",
+    "category": "generic_name",
+    "set": "dev",
+    "question": "The base management-command class has one generically named method that orchestrates the post-parsing execution phase: it applies stream and color options, runs configured system and migration checks, invokes the command-specific handler, and, only when nonempty output is returned and a class flag is enabled, obtains the selected database connection and surrounds that text with backend-provided transaction-start and transaction-end SQL before writing it. Which method is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/core/management/base.py::execute"
+    },
+    "rejected_alternates": [
+      "django/core/management/base.py::run_from_argv",
+      "django/core/management/base.py::check",
+      "django/core/management/base.py::handle",
+      "django/core/management/commands/sqlmigrate.py::handle"
+    ],
+    "evidence": [
+      {
+        "path": "django/core/management/base.py",
+        "contains": "        if self.requires_system_checks and not options[\"skip_checks\"]:"
+      },
+      {
+        "path": "django/core/management/base.py",
+        "contains": "        output = self.handle(*args, **options)"
+      },
+      {
+        "path": "django/core/management/base.py",
+        "contains": "                connection = connections[options.get(\"database\", DEFAULT_DB_ALIAS)]"
+      },
+      {
+        "path": "django/core/management/base.py",
+        "contains": "                    self.style.SQL_KEYWORD(connection.ops.start_transaction_sql()),"
+      },
+      {
+        "path": "django/core/management/base.py",
+        "contains": "                    self.style.SQL_KEYWORD(connection.ops.end_transaction_sql()),"
+      }
+    ],
+    "author_notes": "BaseCommand.execute is the single phase that performs the checks, calls handle(), conditionally selects the requested/default connection, asks its operations object for transaction delimiters, styles those delimiters, and writes the resulting output. run_from_argv owns argument parsing, CommandError presentation, and final connection closing but merely calls execute. check invokes the system-check registry, while handle is the subclass hook. sqlmigrate.handle can produce SQL and sets output_transaction, but the wrapping policy itself remains in the base method."
+  },
+  {
+    "id": "dj-core-validation-error-model-accumulator",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "A method on Django's global validation exception lets model validation stages share one mutable error accumulator. If the exception carries a field-to-errors mapping, it extends the matching lists under each field; otherwise it files the exception's list under the non-field sentinel. It returns that same accumulator, and the model layer uses it after field cleaning, model cleaning, uniqueness checks, constraint checks, and for non-single-field constraint failures. Which exception method provides this normalization bridge? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "django/core/exceptions.py::update_error_dict"
+    },
+    "rejected_alternates": [
+      "django/core/exceptions.py::messages",
+      "django/core/exceptions.py::message_dict",
+      "django/db/models/base.py::full_clean",
+      "django/db/models/base.py::validate_constraints"
+    ],
+    "evidence": [
+      {
+        "path": "django/core/exceptions.py",
+        "contains": "                error_dict.setdefault(field, []).extend(error_list)"
+      },
+      {
+        "path": "django/core/exceptions.py",
+        "contains": "            error_dict.setdefault(NON_FIELD_ERRORS, []).extend(self.error_list)"
+      },
+      {
+        "path": "django/core/exceptions.py",
+        "contains": "        return error_dict"
+      },
+      {
+        "path": "django/db/models/base.py",
+        "contains": "                        errors = e.update_error_dict(errors)"
+      },
+      {
+        "path": "django/db/models/base.py",
+        "contains": "            errors = e.update_error_dict(errors)"
+      }
+    ],
+    "author_notes": "The exception method branches on error_dict, extends the caller's lists rather than replacing them, uses NON_FIELD_ERRORS for list-form exceptions, and returns the accumulator. Model.validate_constraints uses it for constraint errors outside the special one-field unique case, and Model.full_clean repeats it across its validation stages. messages and message_dict expose normalized output but accept no accumulator. full_clean and validate_constraints are consumers/orchestrators, not the exception-owned normalization bridge."
+  },
+  {
+    "id": "dj-core-file-name-safety-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "The core files utility that rejects empty/dot basenames, absolute paths, and parent traversal is reused at every boundary where an uploaded or model-associated name can enter or emerge from storage. Enumerate every function or method in the corpus outside that utility's own module that invokes it directly, counting a function once even if it invokes the helper several times. Return each caller as path::name.",
+    "helper": "django/core/files/utils.py::validate_file_name",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/core/files/uploadedfile.py::_set_name",
+        "django/core/files/storage/base.py::save",
+        "django/core/files/storage/base.py::get_available_name",
+        "django/db/models/fields/files.py::generate_filename"
+      ]
+    },
+    "rejected_alternates": [
+      "django/core/files/utils.py::validate_file_name",
+      "django/core/files/storage/base.py::_save",
+      "django/core/files/storage/base.py::generate_filename",
+      "django/db/models/fields/files.py::save_form_data"
+    ],
+    "evidence": [
+      {
+        "path": "django/core/files/uploadedfile.py",
+        "contains": "            name = validate_file_name(name)"
+      },
+      {
+        "path": "django/core/files/storage/base.py",
+        "contains": "        validate_file_name(name, allow_relative_path=True)"
+      },
+      {
+        "path": "django/core/files/storage/base.py",
+        "contains": "        validate_file_name(file_name)"
+      },
+      {
+        "path": "django/db/models/fields/files.py",
+        "contains": "        filename = validate_file_name(filename, allow_relative_path=True)"
+      }
+    ],
+    "author_notes": "A corpus-wide direct-call search yields four enclosing callers outside django/core/files/utils.py. UploadedFile._set_name validates the basename after stripping directories; Storage.save calls the helper three times around availability selection and backend _save; Storage.get_available_name validates its separated basename; and FileField.generate_filename validates the upload_to-derived relative path before delegating to storage. The defining function is excluded by the question. Storage._save is called between validations but does not call the helper, Storage.generate_filename performs other path handling without this direct call, and FileField.save_form_data only assigns cleaned form data."
+  }
+]

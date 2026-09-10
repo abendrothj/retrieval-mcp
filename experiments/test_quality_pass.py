@@ -91,6 +91,25 @@ class SetAnswerTests(unittest.TestCase):
         self.assertFalse(mentions("isSuccess", gold[0], TS_INDEX))
 
 
+class PythonIndexTests(unittest.TestCase):
+    def test_classes_functions_and_async_functions_are_indexed(self):
+        if not shutil.which("rg"):
+            self.skipTest("ripgrep is required to build the definition index")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "service.py").write_text(
+                "class Service:\n"
+                "    async def fetch(self):\n"
+                "        pass\n\n"
+                "def build():\n"
+                "    pass\n",
+                encoding="utf-8",
+            )
+            index = definitions(root)
+        for name in ("Service", "fetch", "build"):
+            self.assertEqual(index[name], {"service.py"})
+
+
 class TypeScriptIndexTests(unittest.TestCase):
     def test_methods_with_several_modifiers_are_indexed(self):
         """`private async request(` was read as no definition at all, losing every such method."""

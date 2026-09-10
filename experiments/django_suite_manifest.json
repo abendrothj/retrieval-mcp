@@ -1,0 +1,51 @@
+{
+  "version": "django-suite-v1",
+  "upstream": {
+    "repository": "https://github.com/django/django.git",
+    "release": "5.1.4",
+    "commit": "2d4add11fd57b05f7ea48e8b3e89e743c9871aa3"
+  },
+  "scope": [
+    "django/db",
+    "django/core",
+    "django/utils",
+    "django/dispatch",
+    "django/apps"
+  ],
+  "corpus": {
+    "sha256": "038e9fdd2532f612c3dd462dd98decfab3c31219a8512cb0ad4300a3bf0624c4",
+    "files": 276,
+    "python_files": 275
+  },
+  "architecture_commit": "2956a8e",
+  "server_binary_sha256": "64ec98bc16f0de708caba9cd639d2416eb173c544bfce83e5b5357dc64fb2dd3",
+  "systems_sha256": "896d770324d9e414db2f92b041ba1fb3a3e404ec05f3d01df172745c17946fb5",
+  "development": {
+    "questions": 30,
+    "sha256": "b21098d56be7f54fa2157ce0ddbdff093d706aeb99949e0d3e4183115b50f635",
+    "null_answers": 1,
+    "categories": {
+      "behavioral_reasoning": 1,
+      "conceptual_lookup": 9,
+      "direct_caller_lookup": 6,
+      "generic_name": 5,
+      "mixed_discovery_structure": 1,
+      "symbol_resolution": 6,
+      "transitive_blast_radius": 2
+    }
+  },
+  "heldout": {
+    "questions": 30,
+    "sha256": "dbbe89159523b1be64737688c6b791034c2922a43ab34984b274825456dc695b",
+    "null_answers": 1,
+    "categories": {
+      "conceptual_lookup": 8,
+      "direct_caller_lookup": 6,
+      "generic_name": 4,
+      "mixed_discovery_structure": 1,
+      "symbol_resolution": 6,
+      "transitive_blast_radius": 5
+    }
+  },
+  "heldout_model_runs_at_freeze": 0
+}

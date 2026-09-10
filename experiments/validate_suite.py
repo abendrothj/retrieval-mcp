@@ -5,13 +5,14 @@ Five graders in this project have produced or nearly produced false findings, an
 frozen suite found two golds that were simply wrong about the corpus. A suite is therefore not
 usable until it passes these checks, which need no model and no network:
 
-  Gold truth      - every gold identity is a real definition at the path it claims; every claimed
-                    caller really calls the helper, by an independent ripgrep enumeration; a set
-                    declared exhaustive contains every caller found that way.
-  Answerability   - a gold whose name has namesakes is path-qualified, or the question lists the
-                    other identities as acceptable; a plausible alternate answer is either accepted
-                    or recorded as explicitly rejected.
-  Grader behaviour- synthetic answers score what they must: the canonical gold scores 1, prose
+  Schema and anchors- required fields have the right shape; question IDs are unique; each exact
+                    evidence snippet exists at its corpus-relative source path.
+  Gold truth       - every gold identity and helper is a real definition at the path it claims;
+                    every claimed caller really calls the helper, by an independent ripgrep
+                    enumeration; a set declared exhaustive contains every caller found that way.
+  Answerability    - questions do not leak target identifiers; namesake answers explicitly request
+                    a qualified symbol; plausible wrong answers are explicitly rejected.
+  Grader behaviour - synthetic answers score what they must: the canonical gold scores 1, prose
                     naming every identity scores 1, a partial answer scores its share, a known
                     wrong answer scores 0, and a bare ambiguous namesake scores 0.
 
@@ -27,6 +28,60 @@ import audit_failures
 import quality_pass
 
 WRONG = "src/definitely/not/a/real/path.ts::definitelyNotARealSymbol"
+REQUIRED_FIELDS = {
+    "id", "category", "set", "question", "expected_json",
+    "rejected_alternates", "evidence", "author_notes",
+}
+
+
+def check_structure(task, corpus):
+    """Schema and source-anchor failures that must be fixed before semantic checks."""
+    problems = []
+    report = lambda detail: problems.append({"severity": "schema", "detail": detail})
+    missing = sorted(REQUIRED_FIELDS - task.keys())
+    if missing:
+        report(f"missing required fields: {missing}")
+    if not isinstance(task.get("id"), str) or not task.get("id"):
+        report("id must be a non-empty string")
+    if task.get("set") not in ("dev", "holdout"):
+        report("set must be `dev` or `holdout`")
+    if not isinstance(task.get("category"), str) or not task.get("category"):
+        report("category must be a non-empty string")
+    if not isinstance(task.get("question"), str) or not task.get("question"):
+        report("question must be a non-empty string")
+    expected = task.get("expected_json")
+    if not isinstance(expected, dict) or "answer" not in expected:
+        report("expected_json must be an object containing `answer`")
+    alternates = task.get("rejected_alternates")
+    if not isinstance(alternates, list) or not alternates or not all(
+            isinstance(value, str) and value for value in alternates):
+        report("rejected_alternates must be a non-empty list of strings")
+    evidence = task.get("evidence")
+    if not isinstance(evidence, list) or not evidence:
+        report("evidence must be a non-empty list of source anchors")
+    else:
+        for position, anchor in enumerate(evidence):
+            if not isinstance(anchor, dict):
+                report(f"evidence[{position}] must be an object")
+                continue
+            relative, snippet = anchor.get("path"), anchor.get("contains")
+            if not isinstance(relative, str) or not relative or Path(relative).is_absolute() or \
+                    ".." in Path(relative).parts:
+                report(f"evidence[{position}].path must be a corpus-relative path")
+                continue
+            source = corpus / relative
+            if not source.is_file():
+                report(f"evidence[{position}] names a missing file: {relative}")
+                continue
+            if not isinstance(snippet, str) or not snippet:
+                report(f"evidence[{position}].contains must be a non-empty string")
+            elif snippet not in source.read_text(encoding="utf-8", errors="ignore"):
+                report(f"evidence[{position}] snippet is absent from {relative}")
+    if not isinstance(task.get("author_notes"), str) or not task.get("author_notes"):
+        report("author_notes must be a non-empty string")
+    if task.get("acceptable_symbols"):
+        report("acceptable_symbols is unsupported: the frozen grader cannot score any-of answers")
+    return problems
 
 
 def qualified(identity):
@@ -46,6 +101,12 @@ def check_question(task, index, corpus):
     problems = []
     report = lambda severity, detail: problems.append({"severity": severity, "detail": detail})
     identities = quality_pass.flatten(gold)
+    question = task["question"]
+    for identity in identities:
+        if qualified(identity):
+            leaf = identity.split("::")[-1]
+            if re.search(rf"(?<!\w){re.escape(leaf)}(?!\w)", question):
+                report("answerability", f"question leaks target identifier {leaf!r}")
     if gold is None:
         # A null-answer question asserts absence; it needs no identities but must still grade.
         if quality_pass.credit(None, None, index) != 1.0:
@@ -66,14 +127,12 @@ def check_question(task, index, corpus):
         elif path not in defined:
             report("gold", f"gold places {leaf} in {path}; the corpus defines it in "
                            f"{sorted(defined)}")
-        # Answerability: with namesakes present, only a path-qualified answer can be credited, so
-        # the question must ask for one or accept the other identities.
-        if len(defined) > 1 and not any(
-                other.split("::")[-1] == leaf for other in (task.get("acceptable_symbols") or [])):
-            if "::" not in task["question"] and "qualified" not in task["question"]:
-                report("answerability",
-                       f"{leaf} is defined {len(defined)} times and the question does not ask for "
-                       f"a qualified symbol, so a correct bare answer cannot score")
+        # With namesakes present, the frozen grader can credit only a path-qualified answer.
+        if len(defined) > 1 and "::" not in task["question"] and \
+                "qualified" not in task["question"]:
+            report("answerability",
+                   f"{leaf} is defined {len(defined)} times and the question does not ask for "
+                   f"a qualified symbol, so a correct bare answer cannot score")
 
     def leafwise(identity):
         """path::Class::method and path::method name the same definition to a syntactic index."""
@@ -83,8 +142,11 @@ def check_question(task, index, corpus):
     helper = task.get("helper")
     if helper and qualified(helper):
         path, name = helper.split("::", 1)
+        helper_leaf = name.split("::")[-1]
+        if path not in index.get(helper_leaf, set()):
+            report("gold", f"helper places {helper_leaf} in {path}, but the corpus does not")
         verified = {leafwise(entry)
-                    for entry in audit_failures.true_callers(corpus, name.split("::")[-1], path)}
+                    for entry in audit_failures.true_callers(corpus, helper_leaf, path)}
         claimed = {leafwise(identity) for identity in identities if identity != helper}
         missing = claimed - verified
         if missing:
@@ -122,24 +184,56 @@ def check_question(task, index, corpus):
 
 def validate(questions_path, corpus):
     tasks = json.loads(questions_path.read_text(encoding="utf-8"))
+    if not isinstance(tasks, list) or not tasks:
+        problem = {"severity": "schema", "detail": "suite must be a non-empty JSON array"}
+        return {
+            "version": "validate-suite-v2",
+            "questions": 0,
+            "questions_with_problems": 1,
+            "problems": 1,
+            "by_severity": {"schema": 1},
+            "by_category": {},
+            "findings": {"<suite>": [problem]},
+            "limitations": "No semantic checks ran because the suite shape is invalid.",
+        }
     index = quality_pass.definitions(corpus)
-    report, failed = {}, 0
-    for task in tasks:
-        problems = check_question(task, index, corpus)
-        report[task["id"]] = problems
+    report, failed, seen = {}, 0, set()
+    for position, task in enumerate(tasks):
+        if not isinstance(task, dict):
+            key = f"<question-{position + 1}>"
+            problems = [{"severity": "schema", "detail": "question must be an object"}]
+        else:
+            key = task.get("id") if isinstance(task.get("id"), str) else \
+                f"<question-{position + 1}>"
+            problems = check_structure(task, corpus)
+            duplicate = key in seen
+            if duplicate:
+                problems.append({"severity": "schema", "detail": f"duplicate id: {key}"})
+            seen.add(key)
+            if duplicate:
+                key = f"{key}#duplicate-{position + 1}"
+            expected = task.get("expected_json")
+            if isinstance(expected, dict) and "answer" in expected and \
+                    isinstance(task.get("question"), str) and \
+                    isinstance(task.get("category"), str):
+                problems.extend(check_question(task, index, corpus))
+        report[key] = problems
         failed += bool(problems)
     return {
-        "version": "validate-suite-v1",
+        "version": "validate-suite-v2",
         "questions": len(tasks),
         "questions_with_problems": failed,
         "problems": sum(len(value) for value in report.values()),
         "by_severity": dict(Counter(problem["severity"]
                                     for value in report.values() for problem in value)),
-        "by_category": dict(Counter(task["category"] for task in tasks)),
+        "by_category": dict(Counter(task.get("category", "<invalid>")
+                                    if isinstance(task, dict) else "<invalid>"
+                                    for task in tasks)),
         "findings": {key: value for key, value in report.items() if value},
-        "limitations": "Checks the gold against the corpus and the grader against synthetic "
-                       "answers. It cannot tell whether a question is interesting, and it reads "
-                       "callers syntactically, exactly as the systems under test do.",
+        "limitations": "Checks schema, source anchors, gold against the corpus, and the grader "
+                       "against synthetic answers. It cannot tell whether a question is "
+                       "interesting, and it reads callers syntactically, exactly as the systems "
+                       "under test do.",
     }
 
 

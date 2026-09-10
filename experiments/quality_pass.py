@@ -14,7 +14,7 @@ import re
 import subprocess
 
 DEFINITION = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:default\s+|const\s+|async\s+|unsafe\s+|extern\s+\"[^\"]*\"\s+)*"
-                        r"fn\s+([A-Za-z0-9_]+)|^\s*def\s+([A-Za-z0-9_]+)")
+                        r"fn\s+([A-Za-z0-9_]+)|^\s*(?:async\s+)?(?:def|class)\s+([A-Za-z0-9_]+)")
 # TypeScript declares the same things in more ways than Rust or Python do; each alternative
 # names exactly one definition, and methods are matched only where a body follows.
 TS_DEFINITION = re.compile(
@@ -39,7 +39,8 @@ def definitions(corpus):
     """
     index = {}
     passes = (
-        ([r"^\s*(pub\s+)?(async\s+)?fn\s+[A-Za-z0-9_]+", r"^\s*def\s+[A-Za-z0-9_]+"],
+        ([r"^\s*(pub\s+)?(async\s+)?fn\s+[A-Za-z0-9_]+",
+          r"^\s*(async\s+)?(def|class)\s+[A-Za-z0-9_]+"],
          ["-g", "*.rs", "-g", "*.py"], DEFINITION),
         ([r"^\s*(export\s+)?(default\s+)?(declare\s+)?(abstract\s+)?(class|interface|enum|type)\s+[A-Za-z_$]",
           r"^\s*(export\s+)?(default\s+)?(declare\s+)?(async\s+)?function\s*\*?\s*[A-Za-z_$]",

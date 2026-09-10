@@ -65,8 +65,21 @@ def call_sites(corpus, name):
 
 
 def enclosing(path, line):
-    """The definition a line sits inside, by reading backwards. Independent of every index."""
+    """The definition a line sits inside, by reading backwards. Independent of every index.
+
+    Python is indentation-scoped, so the enclosing definition is the nearest `def` or `class`
+    indented less than the call site; brace languages are matched on their declaration syntax.
+    """
     source = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    if path.suffix == ".py":
+        call = source[line - 1] if line <= len(source) else ""
+        depth = len(call) - len(call.lstrip())
+        for position in range(min(line, len(source)) - 1, -1, -1):
+            text = source[position]
+            declaration = re.match(r"(\s*)(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)", text)
+            if declaration and len(declaration.group(1)) < depth:
+                return declaration.group(2)
+        return None
     for position in range(min(line, len(source)) - 1, -1, -1):
         text = source[position]
         method = re.match(
@@ -84,7 +97,7 @@ def true_callers(corpus, name, defining_path):
     """Every enclosing definition that calls `name` outside its own module, from source alone."""
     found = subprocess.run(
         ["rg", "--no-config", "-n", "--no-heading", rf"\b{re.escape(name)}\s*\(",
-         "-g", "*.ts", "-g", "*.tsx", "."],
+         "-g", "*.ts", "-g", "*.tsx", "-g", "*.py", "-g", "*.rs", "."],
         cwd=corpus, capture_output=True, text=True, timeout=120)
     callers = set()
     for line in found.stdout.splitlines():
@@ -93,7 +106,8 @@ def true_callers(corpus, name, defining_path):
         path = path.lstrip("./")
         if path == defining_path or not number.isdigit():
             continue
-        if re.search(rf"(function|const|let|class)\s+{re.escape(name)}\b", body):
+        # A declaration is not a call site, in any of the three languages.
+        if re.search(rf"(function|const|let|class|def|fn)\s+{re.escape(name)}\b", body):
             continue
         owner = enclosing(Path(corpus) / path, int(number))
         if owner:
