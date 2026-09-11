@@ -65,17 +65,34 @@ def definitions(corpus):
     return index
 
 
+def context_segments(written):
+    """The identifier-like pieces of a written symbol: `::`, `/` and `.` all separate them.
+
+    A source-file chunk is location, not a name, so `base.py` contributes nothing; a dotted owner
+    such as `Model.from_db` or a dotted module such as `django.apps.config` contributes each piece.
+    """
+    segments = []
+    for chunk in re.split(r"::|/", written.strip()):
+        if not chunk or chunk.endswith(SOURCE_SUFFIXES):
+            continue
+        segments.extend(piece for piece in chunk.split(".") if piece)
+    return segments
+
+
 def parse_symbol(written, index=None):
     """(type, name) from any spelling: a path, a module path, a bare name, or one prose clause.
 
     With an index, an answer that reads `getResolvedShellEnv in src/.../shellEnv.ts` is parsed by
     keeping the identifiers that are actually defined somewhere in the corpus. A clause naming two
     unrelated definitions stays ambiguous and is not parsed, so prose cannot win by listing names.
+
+    A dot separates an owner from its member exactly as `::` does: `base.py::Model.from_db` and
+    `django.apps.config::AppConfig.create` are the spellings a Python reader writes, and scoring
+    them zero measures notation rather than retrieval.
     """
     if not isinstance(written, str):
         return None
-    parts = [p for p in re.split(r"::|/", written.strip())
-             if p and not p.endswith(SOURCE_SUFFIXES)]
+    parts = context_segments(written)
     if parts and all(IDENTIFIER.fullmatch(part) for part in parts):
         name = parts[-1]
         owner = parts[-2] if len(parts) > 1 and parts[-2][:1].isupper() else None
@@ -109,9 +126,8 @@ def resolve(written, index):
         mentioned = {match.group(0).lstrip("./") for match in PATH_TOKEN.finditer(written)}
         narrowed = {path for path in paths if path in mentioned} if mentioned else set()
         if len(narrowed) != 1:
-            segments = [s.lower().removeprefix("uu_") for s in re.split(r"::|/", written)
-                        if s and s not in (parsed[1], parsed[0])
-                        and not s.endswith(SOURCE_SUFFIXES) and IDENTIFIER.fullmatch(s)]
+            segments = [s.lower().removeprefix("uu_") for s in context_segments(written)
+                        if s not in (parsed[1], parsed[0])]
             narrowed = {p for p in paths
                         if all(s in p.lower() for s in segments)} if segments else paths
         paths = narrowed if len(narrowed) == 1 else paths

@@ -27,6 +27,18 @@ class ResolverTests(unittest.TestCase):
     def test_unknown_names_do_not_resolve(self):
         self.assertIsNone(resolve("nonexistent_symbol", INDEX))
 
+    def test_a_dotted_owner_is_the_same_symbol_as_a_bare_leaf(self):
+        """`base.py::Model.from_db` is how a Python reader writes it; it is not a wrong answer."""
+        index = {"from_db": {"django/db/models/base.py"},
+                 "create": {"django/apps/config.py", "django/db/models/query.py"}}
+        self.assertEqual(parse_symbol("django/db/models/base.py::Model.from_db"),
+                         ("Model", "from_db"))
+        gold = "django/db/models/base.py::from_db"
+        self.assertEqual(credit("django/db/models/base.py::Model.from_db", gold, index), 1.0)
+        self.assertEqual(credit("django.apps.config::AppConfig.create",
+                                "django/apps/config.py::create", index), 1.0)
+        self.assertEqual(credit("django/db/models/query.py::QuerySet.create", gold, index), 0.0)
+
 
 TS_INDEX = {"getResolvedShellEnv": {"src/vs/platform/shell/node/shellEnv.ts"},
             "isSuccess": {"src/vs/platform/request/common/request.ts",

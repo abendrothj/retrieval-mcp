@@ -206,7 +206,12 @@ A suite is not usable until it proves its own gold and its grader, with no model
 python3 experiments/validate_suite.py --questions /path/to/questions.json --corpus /path/to/corpus
 ```
 
-It checks three things, tagged by severity in the output.
+It checks four things, tagged by severity in the output.
+
+**Schema and anchors.** Every question carries `id`, `category`, `set`, `question`,
+`expected_json`, a nonempty `rejected_alternates`, nonempty `evidence`, and `author_notes`; ids are
+unique; and each evidence anchor is an exact substring of the corpus-relative file it names. An
+author who paraphrases a snippet or renames a file fails the build rather than the run.
 
 **Gold truth.** Every gold identity must be a real definition at the path it claims. Where a
 question names the helper it is about, in a `helper` field, every claimed caller must really call
@@ -218,25 +223,88 @@ helpers, this reports exactly the defects the audit found by hand: one claimed c
 four lines of set arithmetic against the corpus.
 
 **Answerability.** A gold whose leaf name has namesakes cannot be credited from a bare name, so
-the question must ask for a qualified symbol or list the other identities in `acceptable_symbols`.
-On the v2 suite this flags 9 questions — including `vsc-generic-service-shell-consumer`, where all
-six trials answered `RequestService`, a name the corpus defines twice, against a question that
-never asked for a path. A caller question without a `helper` field is flagged too, because its
-gold cannot be verified.
+the question must ask for a qualified symbol. On the v2 suite this flags 9 questions — including
+`vsc-generic-service-shell-consumer`, where all six trials answered `RequestService`, a name the
+corpus defines twice, against a question that never asked for a path. A question that spells its
+own answer's leaf name is flagged too, and so is a caller question without a `helper` field,
+because its gold cannot be verified.
 
 **Grader behaviour**, against synthetic answers only, per question: the canonical gold scores 1,
 prose naming every identity scores 1, naming one of *n* scores 1/*n*, a wrong symbol scores 0, a
 bare ambiguous name scores 0, and anything listed in `rejected_alternates` scores 0.
 
-Two grader repairs came out of writing this. Prose against a set-valued gold now scores by recall
-over the asserted identities instead of returning zero on a type check — that alone was worth 13 of
-42 audited trials. And the TypeScript definition index silently dropped every method with more than
-one modifier, so `private async request(` was no definition at all; 359 definitions in the VS Code
-corpus were missing, including golds that named them. Both are pinned by tests.
+Three grader repairs came out of writing this. Prose against a set-valued gold now scores by
+recall over the asserted identities instead of returning zero on a type check — that alone was
+worth 13 of 42 audited trials. The TypeScript definition index silently dropped every method with
+more than one modifier, so `private async request(` was no definition at all; 359 definitions in
+the VS Code corpus were missing, including golds that named them. And the Python pass indexed
+`def` but not `class`, so a gold naming a class was rejected as undefined. All three are pinned by
+tests.
 
 New question fields the validator understands: `helper` (the symbol a caller question is about),
-`exhaustive` (the caller set must be complete), `acceptable_symbols` (other identities that answer
-the question), and `rejected_alternates` (plausible answers that must score zero).
+`exhaustive` (the caller set must be complete), and `rejected_alternates` (plausible answers that
+must score zero). `acceptable_symbols` is rejected: the frozen grader cannot score an any-of
+answer, so a question that would need it is mis-specified.
+
+Two limits of the caller check are worth stating, because they shape how questions must be
+written. It enumerates call sites syntactically by name, exactly as the systems under test do, so
+a same-named method on another class counts; and it excludes the helper's own defining module, so
+a helper whose only callers are its file neighbours cannot be verified and must not be asked as a
+caller question.
+
+### The Django suite
+
+`django_development_questions.json` and `django_heldout_questions.json` are the rebuilt instrument
+the VS Code audit demanded: 30 development and 30 held-out questions over a 276-file, five-package
+subset of Django 5.1.4 (`django/db`, `django/core`, `django/utils`, `django/dispatch`,
+`django/apps`), pinned with corpus and suite hashes in `django_suite_manifest.json`. Both sets
+compile clean. Each question was authored from source by a separate agent per package, with
+evidence anchors and author notes recording why each distractor is wrong; the two sets are
+disjoint and balanced across the same seven categories, one null-answer question each.
+
+### Django development pilot: the notation bug that nearly shipped as a win
+
+The development set exists to tune difficulty before the held-out set is spent. Its pilot —
+30 questions × 3 arms × 1 repetition, Codex CLI with `gpt-5.6-luna` — aborted at trial 67 of 90 on
+a provider usage limit, so the arms are comparable only on the 14 questions where all three
+completed. On that subset the frozen score read:
+
+| | native-control | zvec-grep | retrieval-mcp |
+|---|---:|---:|---:|
+| Frozen resolved correct / 14 | 3 | 2 | **12** |
+| Regraded resolved correct / 14 | 14 | 14 | 14 |
+
+A four-fold win for this server, and it was entirely notation. On 11 of the 14 questions every arm
+named the same symbol; the arms differed only in how they spelled it. This server's tools print
+bare leaf names, so it answered `django/db/models/base.py::from_db`, while grep-and-read arms
+answered `django/db/models/base.py::Model.from_db` — the spelling a Python reader writes. The
+resolver split written symbols on `::` and `/` but not `.`, so `Model.from_db` failed the
+identifier check, parsed as no symbol at all, and scored 0. The grader was measuring which tool
+surface the answer came from. `quality_pass.context_segments` now splits on all three separators
+and a test pins it.
+
+Under the repaired grader all 67 completed trials of all three arms are correct. The development
+suite does not discriminate for this model, so it is not yet a usable instrument, and the held-out
+set stays unrun at zero model runs. With quality saturated, the cost columns are correctness-
+controlled by construction:
+
+| | native-control | zvec-grep | retrieval-mcp |
+|---|---:|---:|---:|
+| Input tokens, 14 questions | 2.10 M | 2.14 M | 2.94 M |
+| Retrieval bytes | 418 KB | 715 KB | 595 KB |
+| Bytes after first hit | 100 KB | 111 KB | 275 KB |
+| Tool calls | 45 | 55 | 67 |
+| Median calls to first hit | 2 | 2 | 2 |
+
+Every arm reaches the evidence in the same two calls; this server then spends 40% more input
+tokens and 2.75× the bytes after first hit to commit to the answer all three already had. That is
+the same stopping-criterion problem the VS Code run showed, now visible without a quality
+difference to argue about. `runs/.../decision.json` records the run, the defect, and the decision.
+
+Two process notes. The eighth harness defect in this list was found by disbelieving a result in
+this project's own favour, which is the only reason it was found before the held-out set was
+spent. And zvec-grep never called its semantic search tool once in 21 trials — the model reached
+for the managed `rg` every time, as DeepSeek did on the coreutils suite.
 
 ## Native-system comparison
 
