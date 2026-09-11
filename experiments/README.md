@@ -386,10 +386,52 @@ token overhead against plain grep-and-read falls from +40% to +8%. Re-running th
 reproduced the pilot within 5% (2.80 M vs 2.94 M tokens, 64 vs 67 calls), so the effect is several
 times the run-to-run noise.
 
-Two cautions. The rule was measured on a suite where no arm fails, which is exactly where a
-stopping rule cannot cost an answer; on a discriminating suite it may. And the remaining 8% is
-payload, not turns — `search_concept` returns 14–33 KB per call, which is the next thing to look
-at, not the ranker behind it.
+One caution stands: the rule was measured on a suite where no arm fails, which is exactly where a
+stopping rule cannot cost an answer. On a discriminating suite it may, and that is the test the
+architecture still has to pass.
+
+### What the residual 8% is, and what it is not
+
+The obvious next move was to shrink `search_concept`, which returns 14–33 KB per call. Measurement
+says that would optimise the one term where this server is already ahead.
+
+`end_to_end.py` now reports `context_token_turns`: a payload's tokens multiplied by the number of
+model turns that must carry it, computed identically for MCP and native arms. A transcript agent
+re-sends every earlier result with every later turn, so a 20 KB result followed by four turns is
+not a 20 KB result. On the 14-question frontier:
+
+| | native | zvec | ours, baseline | ours, + rule |
+|---|---:|---:|---:|---:|
+| Persistent payload load (tok·turns) | 226 k | 390 k | 481 k | **140 k** |
+
+The closure arm carries 38% *less* persistent payload than the native control while still spending
+168 k more input tokens. The gap is therefore not the payload; it is the tool surface. Seven tool
+schemas are 23,144 B ≈ 5,786 tokens, re-sent on each of the arm's 47 turns ≈ 272 k tokens, against
+roughly nothing for a control with no MCP server. That single term over-explains the measured gap:
+
+```text
+  tool schemas carried every turn   +271,942
+  persistent payload advantage       -85,671
+  predicted net                     +186,271
+  measured                          +168,098
+```
+
+The progressive-disclosure idea was costed before it was built, from the 51 archived
+`search_concept` responses. Excerpts are 49% of payload bytes, symbol blocks 27%, and 76% of row
+bytes sit in rows 4 and beyond — so withholding them looks attractive until the turn economics are
+applied. Withholding rows 4+ saves 1.72% of input tokens; the first gold-path row ranked below 3
+in 10 of those 51 responses, so roughly one call in five would need an expansion turn, at 1.98%.
+Predicted net: slightly worse, and an order of magnitude inside the ~5% run-to-run floor. No A/B
+can resolve that, so none was run and the response shape was left alone. Deduplicating the
+identity fields that appear in both the row and its `symbol` block — 9.4% of row bytes — is
+likewise real and worth 0.43% of input tokens, which does not justify changing a response
+contract.
+
+What does have headroom is the surface itself. `trace_dependencies` was called zero times in 60
+trials and costs 1,157 tokens on every turn; only 14% of the schema bytes are prose, the rest is
+JSON Schema structure. Removing a tool is not a cleanup, though — it changes a declared treatment
+that the navigation study showed mattered for transitive questions — so it is the next
+*experiment*, not the next commit. `runs/.../payload-analysis.json` holds the full accounting.
 
 ## Native-system comparison
 

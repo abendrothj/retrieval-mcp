@@ -139,6 +139,19 @@ def steps_from(stream, client):
     return steps
 
 
+def context_token_turns(records):
+    """Tokens a tool payload occupies, multiplied by the model turns that must carry it.
+
+    A transcript agent re-sends every earlier result with every later turn, so a result is not
+    paid for once. A payload returned early and followed by four turns costs roughly five times
+    what the same payload costs when the model answers immediately. Bytes are converted at four
+    per token, which is approximate: this ranks payloads against each other, it is not billing.
+    """
+    total = len(records)
+    return sum(len(record["body"].encode()) / 4 * (total - position)
+               for position, record in enumerate(records))
+
+
 def trial_metrics(trial, task):
     """Replay one trial's event stream into a context-consumption profile."""
     paths, symbols = gold_markers(task)
@@ -168,6 +181,7 @@ def trial_metrics(trial, task):
         "reads": sum(1 for record in records if record["read"]),
         "tools": dict(Counter(record["name"] for record in records)),
         "retrieval_bytes": sum(len(record["body"].encode()) for record in records),
+        "context_token_turns": round(context_token_turns(records)),
         "retrieval_latency_ms": sum(latencies) if latencies else None,
         "tokens": total,
         "first_hit_call": hit,
@@ -200,6 +214,7 @@ def summarize(rows):
         "output_tokens": stat("output", lambda r: r["tokens"]["output"]),
         "reasoning_tokens": stat("reasoning", lambda r: r["tokens"]["reasoning"]),
         "retrieval_bytes": stat("retrieval_bytes"),
+        "context_token_turns": stat("context_token_turns"),
         "retrieval_calls": stat("calls"),
         "source_reads": stat("reads"),
         "retrieval_latency_ms": stat("retrieval_latency_ms"),
@@ -276,7 +291,10 @@ def report(args):
                        "First hit is a textual appearance of a gold path or symbol in a tool "
                        "result, which proves visibility, not that the model used it. Codex "
                        "reports usage once per turn, so tokens after the first hit are not "
-                       "recoverable for that client; calls and bytes after the hit are.",
+                       "recoverable for that client; calls and bytes after the hit are. "
+                       "`context_token_turns` prices a payload by how many later turns must "
+                       "carry it, at four bytes per token and assuming no prefix eviction; it "
+                       "ranks payloads, it does not reproduce a bill.",
     }
 
 
