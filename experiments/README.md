@@ -303,8 +303,93 @@ difference to argue about. `runs/.../decision.json` records the run, the defect,
 
 Two process notes. The eighth harness defect in this list was found by disbelieving a result in
 this project's own favour, which is the only reason it was found before the held-out set was
-spent. And zvec-grep never called its semantic search tool once in 21 trials — the model reached
-for the managed `rg` every time, as DeepSeek did on the coreutils suite.
+spent. And zvec-grep's semantic tool was never called once in 21 trials: offered both, the model
+took the managed `rg` every time, as DeepSeek did on the coreutils suite. That is a valid
+ecological result — the question is what happens when an agent is handed zvec-grep, not whether
+dense retrieval works — and it sharpens the comparison rather than weakening it. This server is
+not losing to a better embedding; it is losing to a cheap lexical interface the model knows when
+to stop using.
+
+### Closure: a stopping rule is worth more than a better ranker
+
+A suite no arm fails is a poor quality benchmark and an excellent efficiency laboratory: with
+accuracy pinned at the ceiling, any context a change saves is context that was never needed. The
+saturated Django development set was used that way.
+
+**What the tokens actually buy.** Across the pilot's 67 completed trials, input tokens correlate
+with call count at r = 0.74 and with retrieval bytes at r = 0.09. Every arm pays 40–45 k input
+tokens *per call*, because the whole transcript is re-sent each turn. Payload size is nearly free;
+turns are the currency. This server's overhead was never its 595 KB of tool output — it was making
+5.71 calls per question against the native control's 3.18.
+
+**Where the extra turns went.** Reading the ten traces with the largest post-hit consumption and
+labelling all 50 post-hit calls by hand:
+
+| Verdict | Calls | Bytes |
+|---|---:|---:|
+| redundant verification — re-reading source for a row a structural tool already named | 16 | 57 KB |
+| repeated retrieval — the same lookup again, or one tool reconfirming another | 13 | 52 KB |
+| structural expansion — 90–180-line reads where a symbol's own range would do | 5 | 98 KB |
+| rejected call — schema error, see below | 5 | 1 KB |
+| necessary | 11 | 131 KB |
+
+39 of 50 post-hit calls were not required to answer the question. The dominant shape is concrete:
+`find_callers` returns every caller with its file and enclosing symbol, and the model then opens
+each of those files anyway. It does not trust the compact representation enough to close.
+
+The 5 rejected calls are the harness's own fault and are counted here for honesty: the shared
+setup prompt tells the model to pass an indexed project name, which zvec-grep and codebase-memory
+need and this server's schema rejects, so 2 of 24 trials burned four calls each rediscovering
+that. The prompt is identical across arms, so it is not an asymmetry in wording — but it is an
+asymmetry in cost, and it should be fixed before the held-out run.
+
+**The intervention.** One `prompt_policy` string, no protocol change, no ranking change. The two
+arms in `comparison_systems_closure.json` are byte-identical apart from `id` and this text:
+
+> Stopping rule. Every row this server returns is a verified source fact: it names a real
+> definition with its file, and `counts`, `has_more` and the relation labels state how complete the
+> listing is. When the rows you already hold contain every fact the question asks for, answer from
+> them. Do not read a definition's source to confirm a row that already named it, do not repeat a
+> lookup you have already made, and do not reconfirm one tool's rows with another tool. Retrieve
+> again only when a required fact is missing, ambiguous, contradicted, or truncated — `has_more`
+> true, or a count larger than the rows shown. When you do read source, read the narrowest range
+> that carries the missing fact.
+
+It is not "be less curious": every clause names a completeness signal the server already emits.
+
+**Result.** 30 questions × 2 arms × 1 repetition, 60 trials, none aborted:
+
+| | baseline | + stopping rule |
+|---|---:|---:|
+| Regraded correct / 30 | 29 | **30** |
+| Input tokens | 6.73 M | **5.27 M** (−22%) |
+| Tool calls | 155 | **87** (−44%) |
+| Calls after first hit | 84 | **24** (−71%) |
+| Bytes after first hit | 574 KB | **212 KB** (−63%) |
+| Median wall time | 30.4 s | **27.3 s** |
+
+Per question the rule is cheaper on 22 of 30 and makes fewer calls on 25 of 30, median −57 k input
+tokens. Correctness did not pay for it: the one question the baseline missed
+(`dj-fields-instance-store-key-overrides`, where it answered the two *classes* instead of the two
+`cache_name` properties) the closure arm got right.
+
+On the 14 questions where the pilot compared all three arms:
+
+| | native | zvec | ours, baseline | ours, + rule |
+|---|---:|---:|---:|---:|
+| Input tokens | 2.10 M | 2.14 M | 2.80 M | 2.27 M |
+| Calls | 45 | 55 | 64 | **33** |
+| Bytes after first hit | 100 KB | 111 KB | 234 KB | **82 KB** |
+
+This server now makes the fewest calls and carries the least post-hit context of any arm, and its
+token overhead against plain grep-and-read falls from +40% to +8%. Re-running the baseline
+reproduced the pilot within 5% (2.80 M vs 2.94 M tokens, 64 vs 67 calls), so the effect is several
+times the run-to-run noise.
+
+Two cautions. The rule was measured on a suite where no arm fails, which is exactly where a
+stopping rule cannot cost an answer; on a discriminating suite it may. And the remaining 8% is
+payload, not turns — `search_concept` returns 14–33 KB per call, which is the next thing to look
+at, not the ranker behind it.
 
 ## Native-system comparison
 
