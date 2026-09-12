@@ -1,0 +1,48 @@
+# The offline half of this project: build, both test suites, lints, and the check that the
+# documentation still describes the server that exists. Nothing here calls a model or reaches the
+# network beyond fetching dependencies, so it is safe to run on every push.
+#
+# What it cannot cover: the corpora and run artifacts live outside this repository, so suite
+# compilation (`validate_suite.py`) and anything reading `runs/` has to be run locally.
+name: checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Build
+        run: cargo build --locked --release --bin retrieval-mcp
+
+      - name: Rust tests
+        run: cargo test --locked --all-targets
+
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Python tests
+        run: python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'
+
+      # Runs last: it re-runs both suites to learn the real counts, and needs the release binary
+      # above to execute the README quickstart exactly as written.
+      - name: Documentation matches the code
+        run: python3 experiments/check_docs.py

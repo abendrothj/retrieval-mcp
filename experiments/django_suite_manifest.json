@@ -47,5 +47,17 @@
       "transitive_blast_radius": 5
     }
   },
-  "heldout_model_runs_at_freeze": 0
+  "heldout_model_runs_at_freeze": 0,
+  "heldout_spent": {
+    "run": "runs/heldout-final-20260912",
+    "date": "2026-09-12",
+    "arms": [
+      "native-control",
+      "zvec-grep",
+      "retrieval-mcp"
+    ],
+    "model": "claude-sonnet-4-6",
+    "trials": 90,
+    "note": "opened once after architecture, closure policy and default tool surface were frozen; not to be used again"
+  }
 }

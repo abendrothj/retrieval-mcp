@@ -1,0 +1,45 @@
+[
+  {
+    "id": "djh-utils-kwargs-predicate-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "django/utils/inspect.py defines a one-line predicate that reports whether a callable declares a variadic keyword catch-all, by asking the module's memoized parameter extractor for the callable's parameters and testing their kinds. Find every function in the corpus outside django/utils/inspect.py that calls that predicate. Attribute each call to the definition that immediately encloses the call site, which may be a nested closure rather than the public method the closure lives in. Return a JSON list of path::name.",
+    "helper": "django/utils/inspect.py::func_accepts_kwargs",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/core/checks/registry.py::inner",
+        "django/dispatch/dispatcher.py::connect"
+      ]
+    },
+    "rejected_alternates": [
+      "django/core/checks/registry.py::register",
+      "django/utils/inspect.py::_get_callable_parameters",
+      "django/utils/inspect.py::get_func_full_args",
+      "django/dispatch/dispatcher.py::send_robust"
+    ],
+    "evidence": [
+      {
+        "path": "django/utils/inspect.py",
+        "contains": "def func_accepts_kwargs(func):"
+      },
+      {
+        "path": "django/utils/inspect.py",
+        "contains": "    return any(p for p in _get_callable_parameters(func) if p.kind == p.VAR_KEYWORD)"
+      },
+      {
+        "path": "django/core/checks/registry.py",
+        "contains": "        def inner(check):"
+      },
+      {
+        "path": "django/core/checks/registry.py",
+        "contains": "            if not func_accepts_kwargs(check):"
+      },
+      {
+        "path": "django/dispatch/dispatcher.py",
+        "contains": "            if not func_accepts_kwargs(receiver):"
+      }
+    ],
+    "author_notes": "The predicate is django/utils/inspect.py::func_accepts_kwargs. An independent ripgrep for `func_accepts_kwargs(` outside its defining module yields exactly two call sites: inside CheckRegistry.register's nested closure `inner` (django/core/checks/registry.py) and inside Signal.connect's `settings.configured and settings.DEBUG` guard (django/dispatch/dispatcher.py). Clause 1: the first plausible symbol a search for 'accepts kwargs'/'keyword arguments' surfaces in that module is the sibling introspection helper (_get_callable_parameters / get_func_full_args), and in django/core/checks the visible public API is `register`, not the closure that actually performs the call -- a system that stops at the first enclosing *public* name answers register and scores zero. Clause 4: both gold leaves are namesakes -- `connect` is defined in django/db/backends/base/base.py, django/db/models/signals.py and django/dispatch/dispatcher.py, and `inner` is defined in several modules -- so only a path-qualified answer can be credited, which is why the question demands path::name. Clause 5: the checks call site is only correct once you see that `register` returns `inner` both when used as a plain call and as a decorator, so the validation really runs inside the closure. Alternates: `register` is the enclosing public method but not the calling definition; _get_callable_parameters is the callee the predicate delegates to; get_func_full_args is a sibling that shares the same extractor but never calls the predicate; send_robust dispatches receivers but performs no signature validation."
+  }
+]

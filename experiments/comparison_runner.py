@@ -433,7 +433,8 @@ def run(args):
             client=args.client, claude_auth="subscription", model=args.model,
             max_budget_usd=args.max_budget_usd, agent_command=args.agent_command,
         )
-        agent = benchmark.agent_command(command_args, attempt, tools=visible_tools(system))
+        agent = benchmark.agent_command(command_args, attempt, tools=visible_tools(system),
+                                        native=not system["mcp_enabled"])
         state = {**trial, "status": "running", "agent_command": agent,
                  "mcp_enabled": system["mcp_enabled"], "visible_tools": visible_tools(system)}
         benchmark.write_json(attempt / "run.json", state)
@@ -454,7 +455,9 @@ def run(args):
                     process.communicate(trial["prompt"], timeout=args.timeout)
                 finally:
                     benchmark.stop_process(process)
-            outcome = benchmark.transcript_outcome(attempt / "transcript.jsonl")
+            outcome = benchmark.transcript_outcome(
+                attempt / "transcript.jsonl",
+                allowed=() if system["mcp_enabled"] else benchmark.NATIVE_CLIENT_TOOLS)
             state.update(outcome)
             healthy = (not system["mcp_enabled"] or (
                 not outcome["mcp_failures"]

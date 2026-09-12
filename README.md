@@ -30,10 +30,10 @@ cargo build --locked --release --bin retrieval-mcp
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"inspect_symbol","arguments":{"name":"build"}}}' \
-  | ./target/release/retrieval-mcp --root "$PWD" 2>/dev/null | tail -1
+  | ./target/release/retrieval-mcp --root "$PWD" --tools inspect_symbol 2>/dev/null | tail -1
 ```
 
-That prints where `build` is defined, who calls it, what it calls, and complete counts for each side. No index files are written, no network is touched, and no model is involved. To wire it into an agent, see [Connect Claude Code](#connect-claude-code) or [Connect Codex](#connect-codex).
+That prints where `build` is defined, who calls it, what it calls, and complete counts for each side. No index files are written, no network is touched, and no model is involved. `inspect_symbol` is named explicitly because the default surface is the four tools below; `--tools` is how any session picks what it exposes. To wire it into an agent, see [Connect Claude Code](#connect-claude-code) or [Connect Codex](#connect-codex).
 
 ## What the experiments found
 
@@ -79,6 +79,8 @@ Quality is a tie: the paired discordance is one to two question-repetitions. Tot
 
 **The default surface is now four tools, decided by measurement.** With the pruning rule made explicit — a tool stays only if it has an oracle-resistant task class *and* saves more context than its schema costs — each remaining tool was given its own class and its own arm. `trace_dependencies` was called **zero** times across three separate experiments, including on two-hop questions authored for it that survive a crawl which already has `find_callers`, while carrying the largest schema of any tool. `inspect_symbol` and `find_symbol` were then replicated three times on their own claimed classes, 63 trials: the baseline scored 21/21 on both classes, `inspect_symbol` was called once in 21 trials for a net −67.8 k tokens, and `find_symbol` was used fourteen times, lost a question in all three repetitions, and still came out at −24.8 k. Neither produced a single unique solve where it was supposed to. So with no `--tools` and no `--profile` the server now exposes `search_exact`, `read_source`, `find_callers` and `search_concept`; the other three are un-defaulted rather than removed, and `--profile D` still replays every command in this study.
 
+**The held-out set answered the question the project started with.** Opened once, after the architecture, closure policy and tool surface were frozen; 30 sealed questions × 3 arms × `claude-sonnet-4-6`, 90 trials, none aborted. Against zvec-grep this server scored the same **29 of 30** on the same **78 tool calls**, for **764 k input tokens against 1.00 M (−24%)**, **150 k against 227 k tok·turns of persistent payload (−34%)**, first evidence in 1.20 calls against 1.30, and a 10.6 s median trial against 11.7 s; against the native `Read`/`Grep`/`Glob` control, 28 of 30 at 1.15 M tokens and 147 calls. No arm answered without evidence. Paired against zvec the arms are discordant on one question each way — a tie, and reported as one. **Quality indistinguishable, context materially lower: an MCP can give a coding agent equal quality with fewer turns and less total context than grep-and-read.** A sixteenth harness defect surfaced in this server's own single loss — a keyed object naming both gold symbols scored 0 where prose naming them scored 1.0 — and after repairing it symmetrically and regrading all three arms, retrieval-mcp is 30/30, native 29/30, zvec 29/30. The frozen-grader row is the primary result; the set is now spent.
+
 ## Build and run
 
 Requires Rust 1.90+ (tested with 1.96), a C compiler for Tree-sitter, and `rg` on `PATH`. The optional Ollama adapter also requires `curl` and a running Ollama service with an embedding model.
@@ -89,7 +91,7 @@ cargo build --locked --release --bin retrieval-mcp --example ollama_backend
 cargo test --locked --all-targets
 cargo clippy --locked --all-targets -- -D warnings
 
-# All seven tools, in-process BM25 behind search_concept: no model, no service, no network.
+# Default four tools, in-process BM25 behind search_concept: no model, no service, no network.
 ./target/release/retrieval-mcp --root /absolute/path/to/repo \
   --run-id task-001 --log-file /absolute/path/to/task-001.jsonl
 
@@ -254,7 +256,15 @@ Structured retrieval payloads are capped at 64 KiB. MCP's text compatibility cop
 
 ## Restricting the tool set
 
-The server can expose seven tools, and defaults to the four that repaid their schema cost in the tool trials: `search_exact`, `read_source`, `find_callers`, `search_concept`. `inspect_symbol`, `find_symbol` and `trace_dependencies` are un-defaulted, not removed — name them in `--tools`, or use `--profile D` for all seven. `--tools` names exactly which ones a session may use, which is how an ablation is run:
+The server can expose seven tools, and defaults to the four that repaid their schema cost in the tool trials: `search_exact`, `read_source`, `find_callers`, `search_concept`. `inspect_symbol`, `find_symbol` and `trace_dependencies` are un-defaulted, not removed — name them in `--tools` to get them back, singly or together:
+
+```sh
+# The full seven-tool surface, named rather than presumed.
+./target/release/retrieval-mcp --root /path/to/repo \
+  --tools search_exact,read_source,inspect_symbol,find_symbol,find_callers,trace_dependencies,search_concept
+```
+
+`--tools` names exactly which ones a session may use, which is how an ablation is run:
 
 ```sh
 # Is inspect_symbol earning its place? Remove it and change nothing else.
@@ -264,16 +274,16 @@ The server can expose seven tools, and defaults to the four that repaid their sc
 
 A tool that is not listed is absent from `tools/list` and refused if called by name. Descriptions and schemas are identical however a tool was enabled, and no failure silently falls back to another tool. Unknown names are rejected at startup rather than ignored.
 
-`--profile A|B|C|D` remains as a preset over `--tools`, so commands recorded by the original availability study still run unchanged:
+`--profile A|B|C|D` is retained **only** so commands recorded by the original availability study replay unchanged. It is not a setting for new work; use `--tools`.
 
 | Profile | Equivalent `--tools` |
 |---|---|
 | A | `search_exact,read_source` |
 | B | `search_exact,read_source,inspect_symbol,find_symbol,find_callers,trace_dependencies` |
 | C | `search_exact,read_source,search_concept` |
-| D | all seven (the default) |
+| D | all seven |
 
-The two switches are mutually exclusive: passing both is an error, because the invocation log records one name for the tool set. Prefer `--tools` for new work; the letters describe an experiment that is finished, and every study since it has run the full set.
+The two switches are mutually exclusive: passing both is an error, because the invocation log records one name for the tool set. The letters describe an availability experiment that is finished; every study since has named tools directly, and the tool trials that set the current default ran per-tool arms rather than profiles.
 
 ## Logs
 
@@ -305,9 +315,9 @@ Corpora, run artifacts, transcripts, and model answers are deliberately absent. 
 ## Testing
 
 ```sh
-cargo test --locked --all-targets            # 15 library, 4 stdio (1 ignored), 6 doc/example tests
+cargo test --locked --all-targets            # 15 library, 6 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 95 tests
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 145 tests
 ```
 
 All of these run offline and call no model. The Python suite exercises the harness itself: real MCP

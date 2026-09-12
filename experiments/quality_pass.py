@@ -187,6 +187,11 @@ def credit(got, gold, index):
         expected = flatten(gold)
         return sum(mentions(got, item, index) for item in expected) / len(expected) if expected else 0.0
     if isinstance(gold, list):
+        # A keyed object whose values name the asserted identities is a spelling of the same set.
+        # Scoring it zero while a free sentence naming the same two symbols scores 1.0 would grade
+        # notation rather than retrieval, which is the oldest defect in this project.
+        if isinstance(got, dict):
+            got = flatten(got)
         if not isinstance(got, list):
             return 0.0
         matched = sum(any(same(g, expected, index) for g in got) for expected in gold)

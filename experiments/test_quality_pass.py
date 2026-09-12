@@ -174,3 +174,17 @@ class CreditTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KeyedAnswerTests(unittest.TestCase):
+    """A keyed object naming the gold identities is a spelling, not a wrong answer."""
+
+    GOLD = ["pkg/a.py::alpha", "pkg/b.py::beta"]
+
+    def test_keyed_object_scores_like_the_list_it_spells(self):
+        index = {"alpha": {"pkg/a.py"}, "beta": {"pkg/b.py"}}
+        keyed = {"first": "pkg/a.py::alpha", "second": "pkg/b.py::beta"}
+        self.assertEqual(credit(keyed, self.GOLD, index), 1.0)
+        self.assertEqual(credit({"first": "pkg/a.py::alpha"}, self.GOLD, index), 0.5)
+        self.assertEqual(
+            credit({"first": "pkg/a.py::wrong"}, self.GOLD, index), 0.0)

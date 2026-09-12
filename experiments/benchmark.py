@@ -151,7 +151,15 @@ def preflight(server_command, env, root, directory, profile, warm, timeout):
             client.close()
 
 
-def agent_command(args, directory, profile=None, *, tools=None, server_name="retrieval"):
+# The control arm's treatment is "whatever a competent agent already ships with": file reading and
+# text search, no MCP server. Under the Claude client those are built-ins rather than MCP names, so
+# they are granted explicitly; every other arm keeps `--tools ""` so its only retrieval is the
+# server under test.
+NATIVE_CLIENT_TOOLS = ("Read", "Grep", "Glob")
+
+
+def agent_command(args, directory, profile=None, *, tools=None, server_name="retrieval",
+                  native=False):
     if args.client == "command":
         substitutions = {"{model}": args.model or "", "{mcp_config}": str(directory / "mcp.json"),
                          "{prompt_file}": str(directory / "prompt.txt"), "{run_dir}": str(directory),
@@ -167,16 +175,27 @@ def agent_command(args, directory, profile=None, *, tools=None, server_name="ret
         isolation = ["--setting-sources", "", "--disable-slash-commands", "--settings",
                      json.dumps({"disableAllHooks": True, "autoMemoryEnabled": False,
                                  "claudeMdExcludes": ["/**"], "enableAllProjectMcpServers": False})]
+    if native:
+        built_in, allowed = ",".join(NATIVE_CLIENT_TOOLS), list(NATIVE_CLIENT_TOOLS)
+    else:
+        built_in = ""
+        allowed = [f"mcp__{server_name}__{tool}"
+                   for tool in (TOOLS[profile] if tools is None else tools)]
     return ["claude", *isolation, "-p", "--model", args.model, "--effort", "medium",
             "--output-format", "stream-json", "--verbose", "--no-session-persistence",
             "--strict-mcp-config", "--mcp-config", str(directory / "mcp.json"),
-            "--tools", "", "--permission-mode", "dontAsk", "--allowedTools",
-            ",".join(f"mcp__{server_name}__{tool}" for tool in
-                     (TOOLS[profile] if tools is None else tools)),
+            "--tools", built_in, "--permission-mode", "dontAsk", "--allowedTools",
+            ",".join(allowed),
             "--max-budget-usd", str(args.max_budget_usd)]
 
 
-def transcript_outcome(path):
+def transcript_outcome(path, allowed=()):
+    """Outcome plus anything the arm used that its treatment did not declare.
+
+    `allowed` names the client's own tools a native control was granted, so its Read and Grep are
+    part of the declared treatment rather than a violation; for an MCP arm it stays empty and any
+    non-`mcp__retrieval__` call is still reported.
+    """
     final, usage, client_error, unexpected, mcp_failures = None, None, None, set(), set()
     provider_detail = None
     with path.open(encoding="utf-8") as stream:
@@ -196,7 +215,8 @@ def transcript_outcome(path):
                 for block in event.get("message", {}).get("content", []):
                     if block.get("type") == "tool_use":
                         name = block.get("name", "")
-                        if not name.startswith("mcp__retrieval__") and name != "EndConversation":
+                        if (not name.startswith("mcp__retrieval__") and name != "EndConversation"
+                                and name not in allowed):
                             unexpected.add(name)
             # Codex-compatible custom wrappers can preserve their original event stream.
             item = event.get("item", {})

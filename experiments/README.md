@@ -1,6 +1,22 @@
 # Routing experiments
 
-The experiment asks whether one model, given separate retrieval tools, chooses useful evidence. `benchmark.py` runs independent model sessions under A/B/C/D. `analyze.py` reports selection patterns and matched retrieval counts. Both use Python 3.11+ standard libraries and POSIX subprocess groups; the server and semantic backend remain Rust.
+The question is whether giving a model separate retrieval tools makes it choose better evidence, and which tools earn their place. Everything here is Python 3.11+ standard library only; the server and semantic backend remain Rust.
+
+Start at [End-to-end context efficiency](#end-to-end-context-efficiency-three-arms-one-corpus) — `end_to_end.py`, `validate_suite.py`, `lexical_oracle.py` and `closure_audit.py` are the live harness, and the findings from [Compiling a suite before it is used](#compiling-a-suite-before-it-is-used) onward are the current ones. `benchmark.py` and `analyze.py` are the **frozen v1 availability harness**: they run sessions under the `--profile A/B/C/D` letters and are kept so the original runs replay, not because profiles are how new work is configured. Sections below them are retained as provenance for results already recorded.
+
+## Corpora
+
+No suite validates against an upstream checkout. `corpora/` holds the three checkouts the scoped corpora were cut from; the pinned corpus each question set was compiled against lives beside its run artifacts, and pointing a tool at the wrong one produces confusing `gold is declared exhaustive but omits N callers` failures rather than a clean error.
+
+| Question set | Pinned corpus | Files |
+|---|---|---|
+| `django_*_questions.json` (all seven) | `../runs/django-suite/corpus` | 276, scoped to `django/db`, `core`, `utils`, `dispatch`, `apps` |
+| `comparison_questions.json`, `v2_questions_draft.json` | `../runs/projects-v2-suite/coreutils/corpus` | 673 |
+| `../runs/vscode-platform-suite/authored-questions*.json` | `../runs/vscode-platform-suite/corpus` | 472 |
+| `stratified.json` | `../runs/stratified-v1-suite/corpus` | 15 |
+| v1 ModelShare / pig / Sigil | `../runs/projects-v1-suite/*/corpus` | — |
+
+Scope, upstream commit, and corpus hash for the Django suite are in `django_suite_manifest.json`; for coreutils, in [CORPUS_V2.md](CORPUS_V2.md). `comparison_questions.json` predates `validate_suite.py` and does not pass it — it was frozen under the earlier human-review gate described in [Freeze gate](#freeze-gate), and is kept as recorded rather than retrofitted.
 
 ## Offline work: no Claude calls
 
@@ -204,6 +220,10 @@ A suite is not usable until it proves its own gold and its grader, with no model
 
 ```sh
 python3 experiments/validate_suite.py --questions /path/to/questions.json --corpus /path/to/corpus
+
+# Every pinned suite passes; see Corpora above for which corpus each set requires.
+python3 experiments/validate_suite.py \
+  --questions experiments/django_heldout_questions.json --corpus ../runs/django-suite/corpus
 ```
 
 It checks four things, tagged by severity in the output.
@@ -735,6 +755,53 @@ describing it. With no `--tools` and no `--profile`, the server now exposes
 `search_exact`, `read_source`, `find_callers`, `search_concept` — `config::DEFAULT_SURFACE`, pinned
 by a stdio test. The other three are un-defaulted, not removed: naming them in `--tools` works, and
 `--profile D` is unchanged so every command recorded in this study still replays exactly.
+
+## The held-out comparison
+
+The set stayed sealed through every development cycle in this file: 30 questions, zero model runs,
+its hash pinned in `django_suite_manifest.json` and absent from all 40 prior run manifests. It was
+opened once, after the retrieval architecture, the closure policy and the default tool surface were
+all frozen, and it will not be used again.
+
+Three arms, one corpus copy each, `claude-sonnet-4-6`, 30 questions × 3 arms, 90 trials, none
+aborted: the client's own `Read`/`Grep`/`Glob` as the native control, zvec-grep 0.2.2 with its
+managed `rg`, and this server on its compiled four-tool default with the frozen policy.
+
+| | native | zvec-grep | retrieval-mcp |
+|---|---:|---:|---:|
+| Correct / 30 (frozen grader) | 28 | **29** | **29** |
+| Graded credit | 0.933 | 0.994 | 0.967 |
+| Input tokens | 1.15 M | 1.00 M | **764 k** |
+| Output tokens | 1,572 | 1,068 | **621** |
+| Tool calls | 147 | 78 | **78** |
+| Calls after first hit | 96 | 39 | 42 |
+| Calls to first hit | 1.80 | 1.30 | **1.20** |
+| Persistent payload (tok·turns) | 175 k | 227 k | **150 k** |
+| Retrieval bytes | 223 k | 364 k | 254 k |
+| Median wall time | 14.5 s | 11.7 s | **10.6 s** |
+| `answered_without_evidence` | **0** | **0** | **0** |
+
+The pre-registered outcome was quality non-inferior to zvec with less context, and that is what the
+run shows: the same 29 of 30 and the same 78 calls as zvec, for 24% fewer input tokens, 34% less
+persistent payload and a second less per question; against the native control, 34% fewer input
+tokens on half the calls. Paired against zvec the two arms are discordant on exactly two questions,
+one each way. That is a tie, and it should be read as a tie — this design cannot resolve a
+one-question quality difference. The cost differences are large and consistent: cheaper on 22 of 30
+questions, equal or fewer calls on 20 of 30.
+
+**A sixteenth harness defect, found in our own loss.** The one question this server missed,
+`dj-fields-pickle-reducer-callables`, was answered with both correct symbols — as a keyed object
+rather than a list. The grader scored that 0.0 while scoring free prose naming the same two symbols
+1.0, which is grading notation rather than retrieval, the oldest defect in this project. It is now
+repaired and pinned by a test, and the repair was applied symmetrically and re-run over all three
+arms: retrieval-mcp 29 → 30, native 28 → 29, zvec unchanged at 29.
+
+The frozen-grader row is the primary result and is reported first, because the repair was found
+after the set was opened. The repaired numbers are reported because concealing a known measurement
+defect is worse than disclosing one found late — and because the defect was found by disbelieving a
+result *against* this server, which is the same discipline that found the eleven before it. Either
+way the conclusion is the same: quality indistinguishable from zvec, and the context saving is the
+result. The set is spent; nothing further is tuned against it.
 
 ## Native-system comparison
 
