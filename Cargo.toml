@@ -1,6 +1,6 @@
 [package]
 name = "retrieval-mcp"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.90"
 description = "Context-efficient code retrieval over MCP: four tools chosen by measurement, no index files, no daemon, offline by default"
