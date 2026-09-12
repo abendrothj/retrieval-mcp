@@ -61,8 +61,17 @@ def fingerprint(root):
         with path.open("rb") as source:
             file_digest = hashlib.file_digest(source, "sha256").digest()
         digest.update(file_digest)
+    # Only a corpus that *is* a checkout has a revision. `git rev-parse HEAD` answers from any
+    # enclosing repository, so a corpus sitting inside an unrelated one would be stamped with that
+    # repository's HEAD - provenance that looks precise and means nothing. Requiring the work-tree
+    # root to be the corpus itself keeps a snapshot directory honestly revisionless.
+    toplevel = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=root,
+                              capture_output=True, timeout=10)
+    owned = (toplevel.returncode == 0
+             and Path(os.fsdecode(toplevel.stdout).strip()).resolve() == Path(root).resolve())
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, timeout=10)
-    return {"sha256": digest.hexdigest(), "git_head": head.stdout.decode().strip() if head.returncode == 0 else None}
+    return {"sha256": digest.hexdigest(),
+            "git_head": head.stdout.decode().strip() if owned and head.returncode == 0 else None}
 
 
 def stop_process(process):
