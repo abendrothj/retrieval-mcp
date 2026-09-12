@@ -99,17 +99,40 @@ pub struct Import {
     pub resolution: String,
 }
 
+/// Ceilings on one snapshot build, sized so that `--timeout-seconds` is the limit that normally
+/// binds rather than these. They exist so a pathological repository cannot exhaust memory; they are
+/// not a statement about what the tools can index. Measured cost is roughly 3 ms and 150 KB of
+/// resident memory per indexed file, so the byte ceiling corresponds to something like 1.4 GB
+/// resident in the worst case.
+/// When one of them stops the build, `Coverage::budget_truncated` says so rather than leaving a
+/// partial index indistinguishable from a complete one.
+pub struct Budget;
+
+impl Budget {
+    pub const FILES: usize = 20_000;
+    pub const BYTES: usize = 128 * 1024 * 1024;
+    pub const RECORDS: usize = 2_000_000;
+}
+
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct Coverage {
     pub snapshot_id: String,
     pub indexed_at_ms: u128,
     pub languages: Vec<String>,
     pub indexed_files: usize,
+    /// Supported-language files ripgrep enumerated, whether or not the budget allowed indexing
+    /// them. `indexed_files` below this means the snapshot does not cover the repository.
+    pub eligible_files: usize,
     pub unsupported_files: usize,
     pub skipped_files: usize,
     pub skipped_examples: Vec<String>,
     pub parse_error_files: usize,
     pub complete: bool,
+    /// Construction stopped before reading every eligible file because a budget was exhausted.
+    /// This is categorically different from `complete: false`, which is always true of syntactic
+    /// resolution: here whole files were never scanned, so absence from a structural result is not
+    /// evidence of absence anywhere in the repository.
+    pub budget_truncated: bool,
     pub freshness: String,
     pub limitations: String,
 }
@@ -431,11 +454,13 @@ impl StructuralIndex {
                 indexed_at_ms: timestamp,
                 languages: vec!["Rust".into(), "Python".into(), "TypeScript".into()],
                 indexed_files: 0,
+                eligible_files: 0,
                 unsupported_files: 0,
                 skipped_files: 0,
                 skipped_examples: Vec::new(),
                 parse_error_files: 0,
                 complete: false,
+                budget_truncated: false,
                 freshness: "Full snapshot built on first structural call; restart the server after edits to rebuild.".into(),
                 limitations: "Syntax only: no type checking, macro expansion, dynamic dispatch, alias/re-export or package resolution. Name matches are candidates, including when unique. Hidden/ignored files are excluded. Verify uncertain results with read_source.".into(),
             },
@@ -451,12 +476,16 @@ impl StructuralIndex {
                 index.coverage.unsupported_files += 1;
                 continue;
             }
+            index.coverage.eligible_files += 1;
             // Bounded full snapshots suit small repositories; replace with incremental storage when these ceilings matter.
-            if index.coverage.indexed_files >= 5000
-                || total_bytes >= 32 * 1024 * 1024
-                || total_records >= 200_000
+            if index.coverage.indexed_files >= Budget::FILES
+                || total_bytes >= Budget::BYTES
+                || total_records >= Budget::RECORDS
                 || started.elapsed() >= timeout
             {
+                // A file never scanned is not a file searched and found empty. Say so once here,
+                // rather than leaving the caller to infer it from a skip count.
+                index.coverage.budget_truncated = true;
                 index.skip(&file, "snapshot budget reached");
                 continue;
             }
@@ -534,6 +563,18 @@ impl StructuralIndex {
             if !import.candidate_files.is_empty() {
                 import.resolution = "possible_local_module".into();
             }
+        }
+        if index.coverage.budget_truncated {
+            // The standing limitations describe approximate *resolution*. Truncation is a
+            // different claim - whole files were never read - so it is said in those terms, and
+            // said where any tool result will carry it.
+            index.coverage.limitations = format!(
+                "{} Index construction stopped after {} of {} eligible files because its budget \
+                 was exhausted, so this snapshot does not cover the repository: absence from a \
+                 structural result is not evidence of absence. Narrow --root, or treat caller and \
+                 dependency sets as partial.",
+                index.coverage.limitations, index.coverage.indexed_files, index.coverage.eligible_files
+            );
         }
         Ok(index)
     }
@@ -1342,6 +1383,34 @@ fn import(path: &str, source: &str, node: Node<'_>) -> Import {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A budget-truncated snapshot must be distinguishable from a complete one. `complete` is
+    /// always false, so without this flag a partial index and a full index read identically, and
+    /// an empty caller set reads as proof of absence when whole files were never scanned.
+    #[test]
+    fn a_truncated_snapshot_says_so_and_a_complete_one_does_not() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.rs"), "fn target() {}\n").unwrap();
+        std::fs::write(dir.path().join("b.rs"), "fn caller() { target(); }\n").unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let files = vec!["a.rs".to_string(), "b.rs".to_string()];
+
+        let full =
+            StructuralIndex::from_files(&ws, files.clone(), Duration::from_secs(5)).unwrap();
+        assert!(!full.coverage.budget_truncated);
+        assert_eq!(full.coverage.indexed_files, 2);
+        assert_eq!(full.coverage.eligible_files, 2);
+        assert!(!full.coverage.limitations.contains("not evidence of absence"));
+
+        // A zero build budget truncates before the first file, which is the same code path a
+        // record or byte ceiling takes on a large repository.
+        let starved = StructuralIndex::from_files(&ws, files, Duration::ZERO).unwrap();
+        assert!(starved.coverage.budget_truncated);
+        assert_eq!(starved.coverage.indexed_files, 0);
+        assert_eq!(starved.coverage.eligible_files, 2, "eligibility is counted before the budget");
+        assert!(starved.coverage.limitations.contains("not evidence of absence"));
+        assert!(starved.coverage.limitations.contains("0 of 2 eligible files"));
+    }
     #[test]
     fn rust_and_python_definitions_calls_and_ambiguity() {
         let dir = tempfile::tempdir().unwrap();

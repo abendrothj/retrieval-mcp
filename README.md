@@ -235,9 +235,11 @@ The index records definitions, imports, function/method call syntax, and optiona
 
 Resolution is intentionally conservative: same-language spelling matches produce **candidates**, even if only one definition has that name. Receiver types, scopes/shadowing, package/module lookup, macro expansion, conditional compilation, foreign-language bindings, and runtime dispatch are not resolved. Optional references may include variable bindings and other non-call identifiers. Complex callee expressions can be missed. A name with no matching definition remains `unresolved`; multiple namesakes remain `ambiguous`. No candidate is promoted to a confirmed edge.
 
-Every structural result includes `coverage.complete:false`, supported languages, indexed/unsupported/skipped file counts, bounded skip examples, parse-error count, snapshot timestamp, and freshness/limitation notes. Counts cover files enumerated by ripgrep; hidden/ignored files are not counted. A partially parsed file may contribute results but increments the parse-error count. Empty results never establish that a symbol or caller does not exist.
+Every structural result includes `coverage.complete:false`, supported languages, indexed/eligible/unsupported/skipped file counts, bounded skip examples, parse-error count, snapshot timestamp, and freshness/limitation notes. Counts cover files enumerated by ripgrep; hidden/ignored files are not counted. A partially parsed file may contribute results but increments the parse-error count. Empty results never establish that a symbol or caller does not exist.
 
-Budget checks stop adding files after 5,000 indexed files, about 32 MiB of source, about 200,000 records, or the configured indexing time. Per-file limits are 2 MiB, 100,000 named nodes, and syntax depth 128. File-granular aggregate budgets can overshoot by one file. Skips are reported. These ceilings and the full rebuild approach are for small repositories; a larger experiment should replace the index behind `StructuralBackend`.
+`coverage.budget_truncated` is the one that changes how an answer should be written. `complete:false` is always true — syntactic resolution is never complete — so on its own it cannot distinguish "matching is approximate" from "the index stopped before scanning the repository". When `budget_truncated` is true, whole files were never read, `indexed_files` against `eligible_files` says how many, the limitations string states that absence is not evidence of absence, and the routing instructions tell the model not to answer an exhaustive question from that snapshot as though absence were proven.
+
+Budget checks stop adding files after 20,000 indexed files, 128 MiB of source, 2,000,000 records, or the configured indexing time — sized so `--timeout-seconds` is normally what binds. Measured cost is roughly 3 ms and 150 KB resident per indexed file: Django 5.1.4 indexes 2,786 files in 6 s and about 0.35 GB, VS Code 1.96 indexes 5,188 in 18 s and about 0.8 GB, both fully covered. Per-file limits are 2 MiB, 100,000 named nodes, and syntax depth 128. File-granular aggregate budgets can overshoot by one file. Skips are reported. A repository large enough to truncate says so; narrow `--root`, raise `--timeout-seconds`, or replace the index behind `StructuralBackend`.
 
 ## Concept search: one tool, three rankers
 
@@ -289,7 +291,7 @@ Corpora, run artifacts, transcripts, and model answers are deliberately absent. 
 ## Testing
 
 ```sh
-cargo test --locked --all-targets            # 15 library, 6 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 16 library, 6 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
 python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 152 tests
 ```
