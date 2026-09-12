@@ -128,13 +128,17 @@ def hit_lines(payload):
 class Crawl:
     """One question's bounded lexical search, newest evidence first."""
 
-    def __init__(self, task, budget, window):
+    def __init__(self, task, budget, window, extra_tools=()):
         self.pairs = identities(task)
         self.forbidden = {leaf for _, leaf in self.pairs}
         self.budget, self.window = budget, window
+        # The gate must model whatever surface a question would have to beat. With `find_callers`
+        # in the baseline, a class claimed for another structural tool has to survive a crawl that
+        # can already enumerate callers, not merely one that can grep.
+        self.extra_tools = tuple(extra_tools)
         self.terms = question_terms(task["question"], self.forbidden)
         self.text, self.trace = "", []
-        self.queried, self.read = set(), set()
+        self.queried, self.read, self.traced = set(), set(), set()
         self.names, self.paths = Counter(), Counter()
         self.reads = []
         self.concept_query = task["question"]
@@ -150,6 +154,11 @@ class Crawl:
             if term not in self.queried:
                 self.queried.add(term)
                 return "search_exact", {"query": term, "limit": 10}
+        if "find_callers" in self.extra_tools:
+            for name, _ in self.names.most_common():
+                if name not in self.traced and len(name) > 3:
+                    self.traced.add(name)
+                    return "find_callers", {"name": name, "limit": 50}
         # Read what the searches pointed at, widest-support file first, around the matched line.
         for path, line in self.reads:
             key = (path, line // self.window)
@@ -181,7 +190,25 @@ class Crawl:
                            "exposed": ["::".join(pair) for pair in exposed(self.text, self.pairs)]})
 
 
-def run(questions, command, corpus, environment, budget, window, timeout):
+def lower_bound(task):
+    """Why the saving should exist, independently of how one model happened to behave.
+
+    A lexical hit names a file and a line, never the definition enclosing it, so an answer that
+    must name enclosing definitions needs at least one source read per distinct gold file on top
+    of the search that found them. The structural side is whatever the question's own proven tool
+    path costs. Both numbers are mechanical, which makes the advantage portable across models.
+    """
+    pairs = identities(task)
+    files = {path for path, _ in pairs}
+    return {
+        "gold_identities": len(pairs),
+        "gold_files": len(files),
+        "minimum_lexical_calls": (1 + len(files)) if pairs else 0,
+        "structural_calls_in_proven_path": len(task.get("tool_path") or []) or None,
+    }
+
+
+def run(questions, command, corpus, environment, budget, window, timeout, extra_tools=()):
     stderr = tempfile.TemporaryFile(mode="w+")
     client = benchmark.MCP(command, environment, corpus, stderr, timeout)
     findings, solved_ids = {}, []
@@ -190,10 +217,11 @@ def run(questions, command, corpus, environment, budget, window, timeout):
                                       "clientInfo": {"name": "lexical-oracle", "version": "1"}})
         client.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
         advertised = {tool["name"] for tool in client.request("tools/list", {})["tools"]}
-        if not set(TOOLS) <= advertised:
-            raise RuntimeError(f"server must expose {TOOLS}, advertised {sorted(advertised)}")
+        required = set(TOOLS) | set(extra_tools)
+        if not required <= advertised:
+            raise RuntimeError(f"server must expose {sorted(required)}, advertised {sorted(advertised)}")
         for task in questions:
-            crawl = Crawl(task, budget, window)
+            crawl = Crawl(task, budget, window, extra_tools)
             for step in range(budget):
                 action = crawl.next_action(step)
                 if action is None:
@@ -212,6 +240,7 @@ def run(questions, command, corpus, environment, budget, window, timeout):
                 "calls_used": len(crawl.trace),
                 "gold_identities": len(crawl.pairs),
                 "exposed_identities": len(found),
+                "lexical_lower_bound": lower_bound(task),
                 "trace": [{"tool": entry["tool"], "arguments": entry["arguments"],
                            "exposed": len(entry.get("exposed", []))} for entry in crawl.trace],
             }
@@ -223,9 +252,10 @@ def run(questions, command, corpus, environment, budget, window, timeout):
     return {
         "version": "lexical-oracle-v1",
         "budget": budget,
+        "crawl_tools": sorted(set(TOOLS) | set(extra_tools)),
         "read_window": window,
         "questions": len(questions),
-        "solved_by_lexical_crawl": len(solved_ids),
+        "solved_by_crawl": len(solved_ids),
         "resistant": len(questions) - len(solved_ids),
         "solved_ids": solved_ids,
         "findings": findings,
@@ -248,6 +278,8 @@ def main():
     parser.add_argument("--budget", type=int, default=8)
     parser.add_argument("--read-window", type=int, default=120)
     parser.add_argument("--timeout", type=int, default=120)
+    parser.add_argument("--with-tool", action="append", default=[], choices=["find_callers"],
+                        help="also let the crawl use a structural tool already on the baseline surface")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--require-resistant", action="store_true",
                         help="exit nonzero when any question falls to the lexical crawl")
@@ -259,16 +291,17 @@ def main():
                "--timeout-seconds", str(args.timeout)]
     environment = dict(os.environ)
     environment["RETRIEVAL_SEMANTIC_CACHE_DIR"] = str(args.cache.resolve())
-    report = run(questions, command, corpus, environment, args.budget, args.read_window, args.timeout)
+    report = run(questions, command, corpus, environment, args.budget, args.read_window,
+                 args.timeout, tuple(args.with_tool))
     if args.output:
         if args.output.exists():
             raise FileExistsError(args.output)
         benchmark.write_json(args.output, report)
     print(json.dumps({key: report[key] for key in
-                      ("budget", "questions", "solved_by_lexical_crawl", "resistant")}, indent=2))
+                      ("budget", "crawl_tools", "questions", "solved_by_crawl", "resistant")}, indent=2))
     for task_id in report["solved_ids"]:
         finding = report["findings"][task_id]
-        print(f"  - lexical crawl solved {task_id} in {finding['calls_used']} calls")
+        print(f"  - crawl solved {task_id} in {finding['calls_used']} calls")
     return 1 if args.require_resistant and report["solved_ids"] else 0
 
 

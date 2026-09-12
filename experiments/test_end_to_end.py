@@ -79,5 +79,22 @@ class ClaudeStreamTests(unittest.TestCase):
                                             "item": {"type": "agent_message", "text": "hi"}}])
             self.assertEqual(end_to_end.events(trial), ([], None))
 
+
+class EvidenceSafetyTests(unittest.TestCase):
+    """Closure is only a win when the evidence was present; this is the line that catches the rest."""
+
+    TASK = {"expected_json": {"answer": ["pkg/a.py::alpha", "pkg/b.py::beta"]}}
+
+    def test_an_identity_absent_from_every_result_is_flagged(self):
+        seen = json.dumps({"results": [{"path": "pkg/a.py", "symbol": "alpha"}]})
+        pairs = end_to_end.gold_identities(self.TASK)
+        self.assertEqual(end_to_end.unretrieved(seen, pairs), [("pkg/b.py", "beta")])
+
+    def test_a_fully_evidenced_answer_is_not_flagged(self):
+        seen = json.dumps({"results": [{"path": "pkg/a.py", "symbol": "alpha"},
+                                       {"path": "pkg/b.py", "symbol": "beta"}]})
+        pairs = end_to_end.gold_identities(self.TASK)
+        self.assertEqual(end_to_end.unretrieved(seen, pairs), [])
+
 if __name__ == "__main__":
     unittest.main()

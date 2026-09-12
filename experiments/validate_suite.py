@@ -139,19 +139,58 @@ def check_question(task, index, corpus):
         path, _, rest = identity.partition("::")
         return f"{path}::{rest.split('::')[-1]}"
 
+    # A dict gold can assert more than one kind of fact. `caller_key` names the part that is a
+    # caller set, so the rest - a container, an implementation - is checked as a definition
+    # without being demanded to call anything.
+    caller_key = task.get("caller_key")
+    if caller_key is not None and not (isinstance(gold, dict) and caller_key in gold):
+        report("schema", f"caller_key {caller_key!r} names no key of this gold")
+    caller_identities = (quality_pass.flatten(gold[caller_key])
+                         if caller_key is not None and isinstance(gold, dict) and caller_key in gold
+                         else identities)
+
+    # A gold that claims to enumerate every definition of one name is checked against the index
+    # rather than trusted, exactly as a caller set is.
+    if task.get("definition_set"):
+        leaves = {identity.split("::")[-1] for identity in identities if qualified(identity)}
+        if len(leaves) != 1:
+            report("gold", "definition_set gold must enumerate one name, not "
+                           f"{sorted(leaves)}")
+        else:
+            leaf = leaves.pop()
+            claimed = {identity.split("::")[0] for identity in identities}
+            defined = index.get(leaf, set())
+            if claimed != defined:
+                report("gold", f"gold enumerates {len(claimed)} definitions of {leaf}; the corpus "
+                               f"defines it in {sorted(defined)}")
+
     helper = task.get("helper")
+    hops = task.get("hops", 1)
+    if hops not in (1, 2):
+        report("schema", "hops must be 1 or 2; deeper claims cannot be verified from source alone")
     if helper and qualified(helper):
         path, name = helper.split("::", 1)
         helper_leaf = name.split("::")[-1]
         if path not in index.get(helper_leaf, set()):
             report("gold", f"helper places {helper_leaf} in {path}, but the corpus does not")
-        verified = {leafwise(entry)
-                    for entry in audit_failures.true_callers(corpus, helper_leaf, path)}
-        claimed = {leafwise(identity) for identity in identities if identity != helper}
+        direct = audit_failures.true_callers(corpus, helper_leaf, path)
+        if hops == 1:
+            verified = {leafwise(entry) for entry in direct}
+        else:
+            # A transitive claim is verified one independent hop at a time: everything that calls
+            # something that calls the helper, each hop enumerated by ripgrep and attributed to its
+            # enclosing definition, each excluding its own defining module exactly as hop one does.
+            verified = set()
+            for entry in direct:
+                caller_path, caller_name = entry.split("::", 1)
+                verified |= {leafwise(reached) for reached in
+                             audit_failures.true_callers(corpus, caller_name.split("::")[-1],
+                                                         caller_path)}
+        claimed = {leafwise(identity) for identity in caller_identities if identity != helper}
         missing = claimed - verified
         if missing:
-            report("gold", f"gold claims callers of {name} that the corpus does not show: "
-                           f"{sorted(missing)}")
+            report("gold", f"gold claims callers of {name} at {hops} hop(s) that the corpus does "
+                           f"not show: {sorted(missing)}")
         if task.get("exhaustive") and verified - claimed:
             report("gold", f"gold is declared exhaustive but omits {len(verified - claimed)} "
                            f"callers of {name}: {sorted(verified - claimed)[:5]}")

@@ -15,6 +15,8 @@ import json
 from pathlib import Path
 import statistics
 
+import quality_pass
+
 # Tools that put repository content into the context window, whichever arm serves them.
 RETRIEVAL_TOOLS = {"read", "grep", "glob", "list", "bash", "lsp"}
 READ_TOOLS = {"read", "read_source", "get_code_snippet", "zvec_grep_rg"}
@@ -217,6 +219,27 @@ def context_token_turns(records):
                for position, record in enumerate(records))
 
 
+def gold_identities(task):
+    """Every (path, leaf) the gold asserts, so evidence can be judged per required claim."""
+    found = []
+    for value in quality_pass.flatten(task["expected_json"]["answer"]):
+        path, _, rest = value.partition("::")
+        if rest:
+            found.append((path, rest.split("::")[-1]))
+    return found
+
+
+def unretrieved(text, pairs):
+    """Gold identities that never appeared in any tool result: what the model could not have seen.
+
+    This is the safety half of a closure metric. Saving turns by answering sooner is only a win if
+    the evidence was already present; an answer produced while a required identity was never on
+    screen is a premature stop, and it costs correctness rather than tokens. Visibility is textual
+    and therefore generous - it can only understate this count, never invent one.
+    """
+    return [pair for pair in pairs if pair[0] not in text or pair[1] not in text]
+
+
 def trial_metrics(trial, task):
     """Replay one trial's event stream into a context-consumption profile."""
     paths, symbols = gold_markers(task)
@@ -229,6 +252,8 @@ def trial_metrics(trial, task):
         if any(path in body for path in paths) or any(symbol in body for symbol in symbols):
             hit = position
             break
+    pairs = gold_identities(task)
+    missing = unretrieved("\n".join(record["body"] for record in records), pairs)
     latencies = [record["latency_ms"] for record in records if record["latency_ms"] is not None]
     total = {key: sum(step[key] for step in steps)
              for key in ("input", "output", "reasoning", "cache_read", "cost")}
@@ -255,6 +280,9 @@ def trial_metrics(trial, task):
         "bytes_after_first_hit": None if hit is None else
         sum(len(record["body"].encode()) for record in records[hit + 1:]),
         "tokens_after_first_hit": after,
+        "gold_identities": len(pairs),
+        "unretrieved_identities": ["::".join(pair) for pair in missing],
+        "answered_without_evidence": bool(pairs) and bool(missing),
     }
 
 
@@ -291,6 +319,12 @@ def summarize(rows):
         "input_tokens_after_first_hit": stat(
             "after_input", lambda r: r["tokens_after_first_hit"]["input"]),
         "trials_with_hit": sum(1 for row in rows if row["first_hit_call"] is not None),
+        # Permanent safety line. An efficiency change that saves tokens while raising this has
+        # bought context by answering without the evidence, which is a regression whatever the
+        # token columns say. `wrong_without_evidence` is the subset that was also graded wrong.
+        "answered_without_evidence": sum(1 for row in rows if row.get("answered_without_evidence")),
+        "wrong_without_evidence": sum(1 for row in rows if row.get("answered_without_evidence")
+                                      and not row["resolved_correct"]),
         # The comparison that matters: cost of the evidence, and cost of everything after it.
         "resolved_input_tokens_median": round(statistics.median(
             [row["tokens"]["input"] for row in resolved]), 1) if resolved else None,

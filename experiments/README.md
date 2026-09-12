@@ -642,6 +642,66 @@ suites still compile clean under the corrected verifier, so no shipped gold depe
 That is defects thirteen through fifteen, and they were found by disbelieving agreement between two
 tools rather than a single result.
 
+### Safety first: a permanent premature-stop line
+
+Closure buys context by answering sooner, and the dangerous failure is not a wasted turn but a
+confident answer given while a required fact was never on screen. `end_to_end.py` now reports two
+columns for every arm, on every run, forever: `answered_without_evidence` counts trials where some
+gold identity appeared in no tool result at all, and `wrong_without_evidence` is the subset that
+was also graded wrong. Visibility is textual, so the count can understate but never invent.
+
+Applied backwards over the closure work, it agrees with `closure_audit.py`: 0 on every arm of both
+the hard-suite and ambiguity runs. On the necessity suite it immediately earned its place — the
+lexical-only arm answered without evidence three times (two of them wrong) against one for each
+structural arm. An efficiency change that moves this number is a regression whatever the token
+columns say.
+
+### Every remaining tool on trial
+
+The rule is now explicit: **a tool stays on the default surface only if it has an oracle-resistant
+task class and saves more context than its schema costs.** `find_callers` earned that. The other
+three were put through the same procedure, which needed three additions to `validate_suite.py`
+first: `hops: 2` verifies a transitive caller gold one independent ripgrep hop at a time,
+`caller_key` lets a dict gold assert a container without that container being demanded to call
+anything, and `definition_set` checks a namesake enumeration against the definition index rather
+than trusting it. The oracle also learned `--with-tool find_callers`, so a class claimed for
+another tool must survive a crawl that can already enumerate callers.
+
+`django_tool_trial_questions.json` is ten questions in three claimed classes — container plus
+exhaustive callers for `inspect_symbol`, two-hop transitive callers for `trace_dependencies`,
+namesake enumeration for `find_symbol`. All ten compile, all ten are reachable, and all ten survive
+the baseline-surface crawl. Four arms: the frozen baseline, and the baseline plus one tool.
+40 trials, `claude-sonnet-4-6`, none aborted:
+
+| arm | correct / 10 | turns | calls | input tokens | payload |
+|---|---:|---:|---:|---:|---:|
+| baseline | 7 | 34 | 37 | 317 k | 139 k |
+| + `inspect_symbol` | 8 | 40 | 40 | 458 k | 242 k |
+| + `trace_dependencies` | 8 | 35 | 38 | 375 k | 202 k |
+| + `find_symbol` | 9 | **31** | **31** | **285 k** | **105 k** |
+
+The ledgers, priced the same way `find_callers` was:
+
+| tool | calls made | turns saved | schema cost | turn saving | net | own class |
+|---|---:|---:|---:|---:|---:|---|
+| `inspect_symbol` | 5 | −6 | 30,140 | −68,639 | **−98,779** | 2/3 → 3/3 |
+| `trace_dependencies` | **0** | −1 | 40,523 | −10,720 | **−51,243** | 1/3 → 2/3 |
+| `find_symbol` | 6 | +3 | 24,102 | +27,534 | **+3,431** | 4/4 → 4/4 |
+
+The decisive line is the first column. `trace_dependencies` was never called — on a suite whose
+two-hop questions were authored for it, which survive a crawl that already has `find_callers`, with
+the tool sitting in the schema. The model answered them by issuing `find_callers` repeatedly. That
+is the third experiment in a row in which this tool was offered and not used, and it carries the
+largest schema of any tool at 1,158 tokens per turn. It comes off the default surface provisionally;
+`--tools` still exposes it.
+
+The other two are left explicitly undecided, because the honest reading of n=10 at one repetition is
+that a one-question quality difference is not a result. `find_symbol` has the only positive ledger
+and it is +3.4 k, inside noise, while its own class was already saturated for the baseline — no
+necessity class demonstrated. `inspect_symbol` cost six turns and 98.8 k net tokens, yet the only
+quality movement favouring it sits precisely in the class claimed for it. That is a narrow,
+answerable question: repeat the matrix with three repetitions over the two claimed classes.
+
 ## Native-system comparison
 
 `comparison_runner.py` holds OpenCode and DeepSeek V4 Flash constant across six arms: a native

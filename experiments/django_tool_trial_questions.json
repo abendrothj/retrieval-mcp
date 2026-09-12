@@ -1,0 +1,714 @@
+[
+  {
+    "id": "djt-inspect-signature",
+    "category": "container_and_callers",
+    "set": "dev",
+    "question": "The signing module's core class exposes a method returning the base64 keyed hash it computes for a given string, using its configured algorithm, key and salt. Identify the class that defines that method, and every definition outside the signing module that calls a method of the same name. Answer as a JSON object with keys \"container\" and \"callers\", where container is one path::name and callers is a list of path::name.",
+    "helper": "django/core/signing.py::signature",
+    "caller_key": "callers",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": {
+        "container": "django/core/signing.py::Signer",
+        "callers": [
+          "django/core/checks/security/csrf.py::check_csrf_failure_view",
+          "django/core/checks/urls.py::check_custom_error_handlers",
+          "django/db/models/expressions.py::_constructor_signature",
+          "django/utils/inspect.py::_get_func_parameters"
+        ]
+      }
+    },
+    "rejected_alternates": [
+      "django/core/signing.py::signature",
+      "django/core/signing.py::Signerx"
+    ],
+    "evidence": [
+      {
+        "path": "django/core/signing.py",
+        "contains": "    def signature(self, value, key=None):"
+      },
+      {
+        "path": "django/core/signing.py",
+        "contains": "class Signer:"
+      },
+      {
+        "path": "django/core/checks/security/csrf.py",
+        "contains": "            inspect.signature(view).bind(None, reason=None)"
+      },
+      {
+        "path": "django/core/checks/urls.py",
+        "contains": "        signature = inspect.signature(handler)"
+      }
+    ],
+    "author_notes": "Gold pairs one container with an exhaustive caller set verified by ripgrep: Signer in django/core/signing.py, 4 callers across 4 files. The class is claimed for inspect_symbol because both facts - the container of a definition and its inbound edges - come back in a single capped call with complete counts, where a baseline surface must enumerate callers and then read the definition's own file to name its container.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "base64 hmac salt key algorithm compute signature for value",
+          "limit": 10
+        },
+        "expect": [
+          "django/core/signing.py::signature"
+        ]
+      },
+      {
+        "tool": "inspect_symbol",
+        "arguments": {
+          "name": "signature",
+          "path": "django/core/signing.py"
+        },
+        "expect": [
+          "django/core/signing.py::Signer"
+        ],
+        "uses_prior": "django/core/signing.py::signature"
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "signature",
+          "limit": 50
+        },
+        "expect": [
+          "django/core/checks/security/csrf.py::check_csrf_failure_view",
+          "django/core/checks/urls.py::check_custom_error_handlers",
+          "django/db/models/expressions.py::_constructor_signature",
+          "django/utils/inspect.py::_get_func_parameters"
+        ],
+        "uses_prior": "django/core/signing.py::signature"
+      }
+    ]
+  },
+  {
+    "id": "djt-inspect-isatty",
+    "category": "container_and_callers",
+    "set": "dev",
+    "question": "The management base module wraps a stream so command output can be styled, and forwards a terminal-detection query to the stream it wraps. Identify the class that defines that forwarding method, and every definition outside the management base module that calls a method of the same name. Answer as a JSON object with keys \"container\" and \"callers\", where container is one path::name and callers is a list of path::name.",
+    "helper": "django/core/management/base.py::isatty",
+    "caller_key": "callers",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": {
+        "container": "django/core/management/base.py::OutputWrapper",
+        "callers": [
+          "django/core/management/color.py::supports_color",
+          "django/core/management/commands/dumpdata.py::handle",
+          "django/core/management/commands/shell.py::handle",
+          "django/utils/autoreload.py::ensure_echo_on"
+        ]
+      }
+    },
+    "rejected_alternates": [
+      "django/core/management/base.py::isatty",
+      "django/core/management/base.py::OutputWrapperx"
+    ],
+    "evidence": [
+      {
+        "path": "django/core/management/base.py",
+        "contains": "    def isatty(self):"
+      },
+      {
+        "path": "django/core/management/base.py",
+        "contains": "class OutputWrapper(TextIOBase):"
+      },
+      {
+        "path": "django/core/management/color.py",
+        "contains": "    is_a_tty = hasattr(sys.stdout, \"isatty\") and sys.stdout.isatty()"
+      },
+      {
+        "path": "django/core/management/commands/dumpdata.py",
+        "contains": "            if output and self.stdout.isatty() and options[\"verbosity\"] > 0:"
+      }
+    ],
+    "author_notes": "Gold pairs one container with an exhaustive caller set verified by ripgrep: OutputWrapper in django/core/management/base.py, 4 callers across 4 files. The class is claimed for inspect_symbol because both facts - the container of a definition and its inbound edges - come back in a single capped call with complete counts, where a baseline surface must enumerate callers and then read the definition's own file to name its container.",
+    "tool_path": [
+      {
+        "tool": "search_exact",
+        "arguments": {
+          "query": "def isatty",
+          "limit": 10
+        },
+        "expect": [
+          "django/core/management/base.py::isatty"
+        ]
+      },
+      {
+        "tool": "inspect_symbol",
+        "arguments": {
+          "name": "isatty",
+          "path": "django/core/management/base.py"
+        },
+        "expect": [
+          "django/core/management/base.py::OutputWrapper"
+        ],
+        "uses_prior": "django/core/management/base.py::isatty"
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "isatty",
+          "limit": 50
+        },
+        "expect": [
+          "django/core/management/color.py::supports_color",
+          "django/core/management/commands/dumpdata.py::handle",
+          "django/core/management/commands/shell.py::handle",
+          "django/utils/autoreload.py::ensure_echo_on"
+        ],
+        "uses_prior": "django/core/management/base.py::isatty"
+      }
+    ]
+  },
+  {
+    "id": "djt-inspect-get-ancestor-link",
+    "category": "container_and_callers",
+    "set": "dev",
+    "question": "The Meta options class exposes a method returning the field that points at a requested ancestor model, recursing through immediate parents and preferring a proxied model's first link. Identify the class that defines it, and every definition outside the options module that calls a method of the same name. Answer as a JSON object with keys \"container\" and \"callers\", where container is one path::name and callers is a list of path::name.",
+    "helper": "django/db/models/options.py::get_ancestor_link",
+    "caller_key": "callers",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": {
+        "container": "django/db/models/options.py::Options",
+        "callers": [
+          "django/db/models/fields/related.py::get_instance_value_for_fields",
+          "django/db/models/fields/related_descriptors.py::__get__",
+          "django/db/models/query_utils.py::_check_parent_chain",
+          "django/db/models/sql/query.py::join_parent_model"
+        ]
+      }
+    },
+    "rejected_alternates": [
+      "django/db/models/options.py::get_ancestor_link",
+      "django/db/models/options.py::Optionsx"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/options.py",
+        "contains": "    def get_ancestor_link(self, ancestor):"
+      },
+      {
+        "path": "django/db/models/options.py",
+        "contains": "class Options:"
+      },
+      {
+        "path": "django/db/models/fields/related.py",
+        "contains": "                possible_parent_link = opts.get_ancestor_link(field.model)"
+      },
+      {
+        "path": "django/db/models/fields/related_descriptors.py",
+        "contains": "                instance._meta.get_ancestor_link(self.field.model)"
+      }
+    ],
+    "author_notes": "Gold pairs one container with an exhaustive caller set verified by ripgrep: Options in django/db/models/options.py, 4 callers across 4 files. The class is claimed for inspect_symbol because both facts - the container of a definition and its inbound edges - come back in a single capped call with complete counts, where a baseline surface must enumerate callers and then read the definition's own file to name its container.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "model inheritance ancestor link field parent recursion proxy",
+          "limit": 10
+        },
+        "expect": [
+          "django/db/models/options.py::get_ancestor_link"
+        ]
+      },
+      {
+        "tool": "inspect_symbol",
+        "arguments": {
+          "name": "get_ancestor_link",
+          "path": "django/db/models/options.py"
+        },
+        "expect": [
+          "django/db/models/options.py::Options"
+        ],
+        "uses_prior": "django/db/models/options.py::get_ancestor_link"
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "get_ancestor_link",
+          "limit": 50
+        },
+        "expect": [
+          "django/db/models/fields/related.py::get_instance_value_for_fields",
+          "django/db/models/fields/related_descriptors.py::__get__",
+          "django/db/models/query_utils.py::_check_parent_chain",
+          "django/db/models/sql/query.py::join_parent_model"
+        ],
+        "uses_prior": "django/db/models/options.py::get_ancestor_link"
+      }
+    ]
+  },
+  {
+    "id": "djt-trace-table-names",
+    "category": "two_hop_transitive_callers",
+    "set": "dev",
+    "helper": "django/db/backends/base/introspection.py::table_names",
+    "hops": 2,
+    "exhaustive": true,
+    "question": "The base introspection class returns the sorted list of tables that exist in the database, optionally excluding views. Identify every definition that reaches it through exactly two caller hops - that is, every definition outside its own module that calls a definition that itself calls that listing method. Return a JSON list of path::name.",
+    "expected_json": {
+      "answer": [
+        "django/core/management/commands/loaddata.py::loaddata",
+        "django/db/backends/base/creation.py::deserialize_db_from_string",
+        "django/db/backends/sqlite3/schema.py::__exit__",
+        "django/db/migrations/executor.py::migrate"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/backends/base/introspection.py::table_names",
+      "django/core/management/commands/createcachetable.py::create_table",
+      "django/core/management/commands/migrate.py::sync_apps",
+      "django/db/backends/mysql/base.py::check_constraints"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/base/introspection.py",
+        "contains": "    def table_names(self, cursor=None, include_views=False):"
+      },
+      {
+        "path": "django/core/management/commands/createcachetable.py",
+        "contains": "        if tablename in connection.introspection.table_names():"
+      },
+      {
+        "path": "django/core/management/commands/migrate.py",
+        "contains": "            tables = connection.introspection.table_names(cursor)"
+      }
+    ],
+    "author_notes": "Gold is the verified two-hop inbound closure of table_names: 5 direct callers, 4 definitions reaching them, each hop enumerated independently by ripgrep and attributed to its enclosing definition, each excluding the module defining the callee. The class is claimed for trace_dependencies because a baseline surface must issue one caller enumeration per direct caller, while one bounded trace returns the whole closure with depths.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "introspection existing tables in database excluding views sorted",
+          "limit": 10
+        },
+        "expect": [
+          "django/db/backends/base/introspection.py::table_names"
+        ]
+      },
+      {
+        "tool": "trace_dependencies",
+        "arguments": {
+          "name": "table_names",
+          "direction": "callers",
+          "depth": 2,
+          "limit": 60
+        },
+        "expect": [
+          "django/core/management/commands/loaddata.py::loaddata",
+          "django/db/backends/base/creation.py::deserialize_db_from_string",
+          "django/db/backends/sqlite3/schema.py::__exit__",
+          "django/db/migrations/executor.py::migrate"
+        ],
+        "uses_prior": "django/db/backends/base/introspection.py::table_names"
+      }
+    ]
+  },
+  {
+    "id": "djt-trace-log-response",
+    "category": "two_hop_transitive_callers",
+    "set": "dev",
+    "helper": "django/utils/log.py::log_response",
+    "hops": 2,
+    "exhaustive": true,
+    "question": "A logging helper in django/utils emits one request-logger record for a response, choosing the level from the status code and suppressing a repeat when the response was already logged. Identify every definition that reaches it through exactly two caller hops, each hop attributed to the definition enclosing the call and excluding the module that defines the callee. Return a JSON list of path::name.",
+    "expected_json": {
+      "answer": [
+        "django/core/handlers/exception.py::inner",
+        "django/core/handlers/wsgi.py::__call__",
+        "django/utils/deprecation.py::__acall__",
+        "django/utils/deprecation.py::__call__"
+      ]
+    },
+    "rejected_alternates": [
+      "django/utils/log.py::log_response",
+      "django/core/handlers/base.py::get_response",
+      "django/core/handlers/exception.py::response_for_exception",
+      "django/utils/cache.py::_precondition_failed"
+    ],
+    "evidence": [
+      {
+        "path": "django/utils/log.py",
+        "contains": "def log_response("
+      },
+      {
+        "path": "django/core/handlers/base.py",
+        "contains": "            log_response("
+      },
+      {
+        "path": "django/core/handlers/exception.py",
+        "contains": "        log_response("
+      },
+      {
+        "path": "django/core/handlers/exception.py",
+        "contains": "                response = await get_response(request)"
+      }
+    ],
+    "author_notes": "Gold is the verified two-hop inbound closure of log_response: 3 direct callers, 4 definitions reaching them, each hop enumerated independently by ripgrep and attributed to its enclosing definition, each excluding the module defining the callee. The class is claimed for trace_dependencies because a baseline surface must issue one caller enumeration per direct caller, while one bounded trace returns the whole closure with depths.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "log response status code level request logger already logged",
+          "limit": 10
+        },
+        "expect": [
+          "django/utils/log.py::log_response"
+        ]
+      },
+      {
+        "tool": "trace_dependencies",
+        "arguments": {
+          "name": "log_response",
+          "direction": "callers",
+          "depth": 2,
+          "limit": 60
+        },
+        "expect": [
+          "django/core/handlers/exception.py::inner",
+          "django/core/handlers/wsgi.py::__call__",
+          "django/utils/deprecation.py::__acall__",
+          "django/utils/deprecation.py::__call__"
+        ],
+        "uses_prior": "django/utils/log.py::log_response"
+      }
+    ]
+  },
+  {
+    "id": "djt-trace-iterator",
+    "category": "two_hop_transitive_callers",
+    "set": "dev",
+    "helper": "django/db/models/query.py::iterator",
+    "hops": 2,
+    "exhaustive": true,
+    "question": "The queryset class exposes a method returning a generator that streams rows from the database in chunks instead of filling the result cache. Identify every definition that reaches a method of that name through exactly two caller hops, each hop excluding the module defining the callee. Return a JSON list of path::name.",
+    "expected_json": {
+      "answer": [
+        "django/core/management/commands/dumpdata.py::handle",
+        "django/core/serializers/python.py::handle_m2m_field",
+        "django/core/serializers/xml_serializer.py::handle_m2m_field",
+        "django/db/backends/base/creation.py::serialize_db_to_string"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/models/query.py::iterator",
+      "django/core/management/commands/dumpdata.py::get_objects",
+      "django/core/serializers/python.py::queryset_iterator",
+      "django/core/serializers/xml_serializer.py::queryset_iterator"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/query.py",
+        "contains": "    def iterator(self, chunk_size=None):"
+      },
+      {
+        "path": "django/core/management/commands/dumpdata.py",
+        "contains": "                        yield from queryset.iterator(chunk_size=chunk_size)"
+      },
+      {
+        "path": "django/core/serializers/python.py",
+        "contains": "                    return getattr(obj, field.name).iterator()"
+      },
+      {
+        "path": "django/core/management/commands/dumpdata.py",
+        "contains": "                object_count = sum(get_objects(count_only=True))"
+      }
+    ],
+    "author_notes": "Gold is the verified two-hop inbound closure of iterator: 4 direct callers, 4 definitions reaching them, each hop enumerated independently by ripgrep and attributed to its enclosing definition, each excluding the module defining the callee. The class is claimed for trace_dependencies because a baseline surface must issue one caller enumeration per direct caller, while one bounded trace returns the whole closure with depths.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "queryset iterator chunked server side cursor no result cache",
+          "limit": 10
+        },
+        "expect": [
+          "django/db/models/query.py::iterator"
+        ]
+      },
+      {
+        "tool": "trace_dependencies",
+        "arguments": {
+          "name": "iterator",
+          "direction": "callers",
+          "depth": 2,
+          "limit": 60
+        },
+        "expect": [
+          "django/core/management/commands/dumpdata.py::handle",
+          "django/core/serializers/python.py::handle_m2m_field",
+          "django/core/serializers/xml_serializer.py::handle_m2m_field",
+          "django/db/backends/base/creation.py::serialize_db_to_string"
+        ],
+        "uses_prior": "django/db/models/query.py::iterator"
+      }
+    ]
+  },
+  {
+    "id": "djt-identity-settings-to-cmd-args-env",
+    "category": "namesake_enumeration",
+    "set": "dev",
+    "definition_set": true,
+    "question": "Each database backend ships a client class whose one hook turns a connection settings dict plus extra arguments into the argv list and environment mapping needed to launch that database's interactive shell. Enumerate every definition of that hook in the corpus, including the base declaration. Return a JSON list of path::name.",
+    "expected_json": {
+      "answer": [
+        "django/db/backends/base/client.py::settings_to_cmd_args_env",
+        "django/db/backends/mysql/client.py::settings_to_cmd_args_env",
+        "django/db/backends/oracle/client.py::settings_to_cmd_args_env",
+        "django/db/backends/postgresql/client.py::settings_to_cmd_args_env",
+        "django/db/backends/sqlite3/client.py::settings_to_cmd_args_env"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/backends/base/client.py::__init__",
+      "django/db/backends/base/base.py::connect"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/base/client.py",
+        "contains": "    def settings_to_cmd_args_env(cls, settings_dict, parameters):"
+      },
+      {
+        "path": "django/db/backends/mysql/client.py",
+        "contains": "    def settings_to_cmd_args_env(cls, settings_dict, parameters):"
+      },
+      {
+        "path": "django/db/backends/oracle/client.py",
+        "contains": "    def settings_to_cmd_args_env(cls, settings_dict, parameters):"
+      },
+      {
+        "path": "django/db/backends/postgresql/client.py",
+        "contains": "    def settings_to_cmd_args_env(cls, settings_dict, parameters):"
+      }
+    ],
+    "author_notes": "Gold enumerates every definition of the hook in the corpus - 5 of them - checked against the definition index rather than trusted. The class is claimed for find_symbol because the answer is pure identity resolution across namesakes; it is included precisely to test whether that is cheaper than an exact search for the declaration.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "runshell client program arguments environment database credentials",
+          "limit": 10
+        },
+        "expect": [
+          "django/db/backends/base/client.py::settings_to_cmd_args_env"
+        ]
+      },
+      {
+        "tool": "find_symbol",
+        "arguments": {
+          "name": "settings_to_cmd_args_env",
+          "limit": 50
+        },
+        "expect": [
+          "django/db/backends/base/client.py::settings_to_cmd_args_env",
+          "django/db/backends/mysql/client.py::settings_to_cmd_args_env",
+          "django/db/backends/oracle/client.py::settings_to_cmd_args_env",
+          "django/db/backends/postgresql/client.py::settings_to_cmd_args_env",
+          "django/db/backends/sqlite3/client.py::settings_to_cmd_args_env"
+        ],
+        "uses_prior": "django/db/backends/base/client.py::settings_to_cmd_args_env"
+      }
+    ]
+  },
+  {
+    "id": "djt-identity-get-new-connection",
+    "category": "namesake_enumeration",
+    "set": "dev",
+    "definition_set": true,
+    "question": "Each database backend's connection wrapper implements one hook that opens a fresh DB-API connection from already-prepared parameters. Enumerate every definition of that hook in the corpus, including the base declaration. Return a JSON list of path::name.",
+    "expected_json": {
+      "answer": [
+        "django/db/backends/base/base.py::get_new_connection",
+        "django/db/backends/mysql/base.py::get_new_connection",
+        "django/db/backends/oracle/base.py::get_new_connection",
+        "django/db/backends/postgresql/base.py::get_new_connection",
+        "django/db/backends/sqlite3/base.py::get_new_connection"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/backends/base/base.py::__init__",
+      "django/db/backends/base/base.py::connect"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/base/base.py",
+        "contains": "    def get_new_connection(self, conn_params):"
+      },
+      {
+        "path": "django/db/backends/mysql/base.py",
+        "contains": "    def get_new_connection(self, conn_params):"
+      },
+      {
+        "path": "django/db/backends/oracle/base.py",
+        "contains": "    def get_new_connection(self, conn_params):"
+      },
+      {
+        "path": "django/db/backends/postgresql/base.py",
+        "contains": "    def get_new_connection(self, conn_params):"
+      }
+    ],
+    "author_notes": "Gold enumerates every definition of the hook in the corpus - 5 of them - checked against the definition index rather than trusted. The class is claimed for find_symbol because the answer is pure identity resolution across namesakes; it is included precisely to test whether that is cheaper than an exact search for the declaration.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "open new DB-API connection from connection parameters backend",
+          "limit": 10
+        },
+        "expect": [
+          "django/db/backends/base/base.py::get_new_connection"
+        ]
+      },
+      {
+        "tool": "find_symbol",
+        "arguments": {
+          "name": "get_new_connection",
+          "limit": 50
+        },
+        "expect": [
+          "django/db/backends/base/base.py::get_new_connection",
+          "django/db/backends/mysql/base.py::get_new_connection",
+          "django/db/backends/oracle/base.py::get_new_connection",
+          "django/db/backends/postgresql/base.py::get_new_connection",
+          "django/db/backends/sqlite3/base.py::get_new_connection"
+        ],
+        "uses_prior": "django/db/backends/base/base.py::get_new_connection"
+      }
+    ]
+  },
+  {
+    "id": "djt-identity-quote-value",
+    "category": "namesake_enumeration",
+    "set": "dev",
+    "definition_set": true,
+    "question": "Each backend's schema editor implements one hook that renders a Python value as a literal safe to embed directly in DDL, which is not the same as parameter binding. Enumerate every definition of that hook in the corpus, including the base declaration. Return a JSON list of path::name.",
+    "expected_json": {
+      "answer": [
+        "django/db/backends/base/schema.py::quote_value",
+        "django/db/backends/mysql/schema.py::quote_value",
+        "django/db/backends/oracle/schema.py::quote_value",
+        "django/db/backends/postgresql/schema.py::quote_value",
+        "django/db/backends/sqlite3/schema.py::quote_value"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/backends/base/schema.py::__init__",
+      "django/db/backends/base/base.py::connect"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/base/schema.py",
+        "contains": "    def quote_value(self, value):"
+      },
+      {
+        "path": "django/db/backends/mysql/schema.py",
+        "contains": "    def quote_value(self, value):"
+      },
+      {
+        "path": "django/db/backends/oracle/schema.py",
+        "contains": "    def quote_value(self, value):"
+      },
+      {
+        "path": "django/db/backends/postgresql/schema.py",
+        "contains": "    def quote_value(self, value):"
+      }
+    ],
+    "author_notes": "Gold enumerates every definition of the hook in the corpus - 5 of them - checked against the definition index rather than trusted. The class is claimed for find_symbol because the answer is pure identity resolution across namesakes; it is included precisely to test whether that is cheaper than an exact search for the declaration.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "quote literal value for DDL schema editor not parameter binding",
+          "limit": 10
+        },
+        "expect": [
+          "django/db/backends/base/schema.py::quote_value"
+        ]
+      },
+      {
+        "tool": "find_symbol",
+        "arguments": {
+          "name": "quote_value",
+          "limit": 50
+        },
+        "expect": [
+          "django/db/backends/base/schema.py::quote_value",
+          "django/db/backends/mysql/schema.py::quote_value",
+          "django/db/backends/oracle/schema.py::quote_value",
+          "django/db/backends/postgresql/schema.py::quote_value",
+          "django/db/backends/sqlite3/schema.py::quote_value"
+        ],
+        "uses_prior": "django/db/backends/base/schema.py::quote_value"
+      }
+    ]
+  },
+  {
+    "id": "djt-identity-is-usable",
+    "category": "namesake_enumeration",
+    "set": "dev",
+    "definition_set": true,
+    "question": "Each database backend's connection wrapper implements one hook reporting whether the underlying connection is still alive, typically by issuing a trivial statement and catching the driver error. Enumerate every definition of that hook in the corpus, including the base declaration. Return a JSON list of path::name.",
+    "expected_json": {
+      "answer": [
+        "django/db/backends/base/base.py::is_usable",
+        "django/db/backends/dummy/base.py::is_usable",
+        "django/db/backends/mysql/base.py::is_usable",
+        "django/db/backends/oracle/base.py::is_usable",
+        "django/db/backends/postgresql/base.py::is_usable",
+        "django/db/backends/sqlite3/base.py::is_usable"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/backends/base/base.py::__init__",
+      "django/db/backends/base/base.py::connect"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/base/base.py",
+        "contains": "    def is_usable(self):"
+      },
+      {
+        "path": "django/db/backends/dummy/base.py",
+        "contains": "    def is_usable(self):"
+      },
+      {
+        "path": "django/db/backends/mysql/base.py",
+        "contains": "    def is_usable(self):"
+      },
+      {
+        "path": "django/db/backends/oracle/base.py",
+        "contains": "    def is_usable(self):"
+      }
+    ],
+    "author_notes": "Gold enumerates every definition of the hook in the corpus - 6 of them - checked against the definition index rather than trusted. The class is claimed for find_symbol because the answer is pure identity resolution across namesakes; it is included precisely to test whether that is cheaper than an exact search for the declaration.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "connection still usable ping trivial query catch driver error",
+          "limit": 10
+        },
+        "expect": [
+          "django/db/backends/base/base.py::is_usable"
+        ]
+      },
+      {
+        "tool": "find_symbol",
+        "arguments": {
+          "name": "is_usable",
+          "limit": 50
+        },
+        "expect": [
+          "django/db/backends/base/base.py::is_usable",
+          "django/db/backends/dummy/base.py::is_usable",
+          "django/db/backends/mysql/base.py::is_usable",
+          "django/db/backends/oracle/base.py::is_usable",
+          "django/db/backends/postgresql/base.py::is_usable",
+          "django/db/backends/sqlite3/base.py::is_usable"
+        ],
+        "uses_prior": "django/db/backends/base/base.py::is_usable"
+      }
+    ]
+  }
+]
