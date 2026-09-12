@@ -23,6 +23,10 @@ def symbol_path(qualified):
     return qualified.split("::", 1)[0]
 
 
+# The pinned corpus lives beside its run artifacts, outside this repository, so these checks are a
+# local gate rather than a CI one. Skipping keeps that honest: a machine without the corpus reports
+# "skipped", never a pass it did not earn.
+@unittest.skipUnless(CORPUS.is_dir(), f"pinned corpus not present at {CORPUS}")
 class DraftTests(unittest.TestCase):
     def test_corpus_matches_its_snapshot(self):
         manifest = json.loads((SUITE/"snapshot.json").read_text())

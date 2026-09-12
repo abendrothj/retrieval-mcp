@@ -31,6 +31,39 @@ persistent context, with no unsupported answers by any arm.
 retrieval, bounded source verification, one relational primitive, and a stopping rule — everything
 else was removed after it failed to pay for itself.
 
+## How it converged
+
+The project began as a ranker question — dense against BM25 — and the first offline bake-off said
+dense won clearly. Then the same rankers were run on questions rewritten into code vocabulary, and
+BM25 overtook dense on every metric. The expensive part was never the ranking; it was translating a
+human sentence into repository words, and the model already does that. Dense retrieval stopped being
+the default and became an optional backend.
+
+The next three hypotheses each looked like an architectural finding and each turned out to be
+arithmetic about turns. Input tokens correlate with *call count* at r = 0.74 and with retrieval
+bytes at 0.09, because every call re-sends the transcript; so payload optimisations were costed and
+abandoned before being built, and a stopping rule written in the completeness signals the server
+already emitted cut calls by 44% at unchanged correctness. Tool schemas turned out to be the same
+kind of cost — re-sent every turn whether called or not — which made the seven-tool surface the most
+expensive arm on a suite where it answered no better.
+
+Cutting tools on that evidence would have been wrong, and the reason is the most useful thing the
+project learned: **reachability is not necessity.** A suite can require a structural route and still
+be dissolved by two ordinary searches, which is what a deterministic bounded crawl showed for half
+the questions written to be hard. Only after questions were built around a relation lexical hits
+genuinely do not encode — the enclosing definition of a call site — did one structural tool,
+`find_callers`, return a positive ledger; the other three failed their own claimed classes under
+replication and left the default surface.
+
+Running alongside all of it: fifteen defects in the measuring apparatus, several of which had already
+produced convincing results. A stopping rule that looked like a free 22% saving, a treatment loss
+that looked like a premature stop, an arm whose payload metrics read zero, a 0.40 that looked like a
+noisy tool, and — in the held-out run itself — this server's only loss, which had actually named both
+correct symbols. The habit that caught them is the one methodological claim worth repeating: **every
+surprising result triggers an evaluator audit before an architectural interpretation.**
+
+What survived is what was left after each hypothesis and each tool was made to earn its place.
+
 ## Harness defect ledger
 
 The harness is the second experimental subject. Fifteen defects in it have produced or nearly

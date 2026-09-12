@@ -36,6 +36,9 @@ def answer_paths(task):
     return set()
 
 
+# Same local-gate rule as test_v2_questions: without the pinned corpus these cannot check anything,
+# so they skip rather than fail or silently pass.
+@unittest.skipUnless(CORPUS.is_dir(), f"pinned corpus not present at {CORPUS}")
 class ComparisonQuestionTests(unittest.TestCase):
     def test_corpus_matches_its_snapshot(self):
         manifest = json.loads((SUITE / "snapshot.json").read_text())
