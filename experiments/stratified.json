@@ -5,7 +5,7 @@
     "Cargo.toml": "018e23e326c2f0df2bd4c80b8cc388fe40d126765bea144e3e124c3e402f03b7",
     "Cargo.lock": "be6990242c430398404d316cb281d9d67ae79146121ebb756ee04d42f618036b",
     "src/lib.rs": "3491d7f875642a69c473c5609a14c4671f9754ff0ef9e29b6ebacb6c2257d153",
-    "src/main.rs": "af0fed569af7c3a4c9f767d82af373c0a95a13ab06f6a3d850fe4c55d2c91da6",
+    "src/main.rs": "91420329e044b8c2316bf278a44147318df47a55b0eae6cb0a4857ab6beba1b2",
     "src/config/mod.rs": "6fc277a92088abede035fe6ce7db0db9826eaa8dcc71dd872565b2c67db3d92e",
     "src/index/mod.rs": "3821016fedad8f447d8566cdf491f8bb4ea750f6758a70bfbb34f422ccde708a",
     "src/logging/mod.rs": "45cc308d50c77ead9cebae858aba354613988dcf46fb76d8f9c0088eabf3ac8e",
@@ -14,7 +14,7 @@
     "src/search/process.rs": "e374206308a7df2ba39a1227e69b1f2749cec7cee21f63a59f8c5ef39086d770",
     "src/search/semantic.rs": "9953a98b2e21b5e0fc7a20a00a06a8e5b1168f0df4f88035d3c7703b041cb44f",
     "src/source/mod.rs": "82d1d2d625d28f352b1461311cc30620e9535b89a299343555e694f3658a9074",
-    "src/tools/mod.rs": "da7c0cd5ea0f0d4d38c5eac6a444f261593d50f0a157eaeaf56f21ebc756bb79",
+    "src/tools/mod.rs": "e86ae2a5693799e5c1f48b42b5923da8cf6c715c452085334d0c31dc1172c7f2",
     "examples/ollama_backend.rs": "413f40ece28b28f6d711062dc9d79e8f570b7cfcf72665ce46ff0f3db443717e",
     "examples/support/cache.rs": "56d98597c67919fd26c73dd696398712d989f46e39b58b2d2e68e9384dd377eb"
   },

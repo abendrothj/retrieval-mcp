@@ -291,7 +291,7 @@ Corpora, run artifacts, transcripts, and model answers are deliberately absent. 
 ## Testing
 
 ```sh
-cargo test --locked --all-targets            # 16 library, 6 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 16 library, 7 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
 python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 152 tests
 ```

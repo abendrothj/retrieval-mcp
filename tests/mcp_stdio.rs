@@ -316,6 +316,76 @@ async fn the_unrestricted_default_exposes_only_the_tools_that_repaid_their_schem
     client.stop().await;
 }
 
+/// A request the server accepted is a reply it owes, even if the client closes stdin immediately.
+///
+/// Pipelines, scripts and tests all write their requests and close the pipe. rmcp treats end of
+/// input as a shutdown signal and drains in-flight work for five seconds before giving up, so any
+/// handler slower than that - a first structural call over a large repository takes eighteen
+/// seconds - finishes internally while its response is discarded, and the request appears to
+/// vanish. `DrainingStdin` in `main.rs` withholds end-of-input instead. The fixture backend sleeps
+/// past that window, which is what makes this test fail without the fix.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_reply_is_flushed_even_when_stdin_closes_during_a_slow_call() {
+    use std::io::Write;
+    use std::process::Stdio;
+
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("sample.rs"), "fn meaning() {}\n").unwrap();
+    let payload = json!({"protocol_version":1,"backend":"fixture","index_note":"test only","has_more":false,
+        "results":[{"path":"sample.rs","start_line":1,"end_line":1,"score":0.75}]});
+    let backend = json!([
+        "/bin/sh",
+        "-c",
+        format!("read -r request || true; sleep 6; printf '%s' '{payload}'")
+    ]);
+
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"))
+        .args([
+            "--root",
+            root.path().to_str().unwrap(),
+            "--ranker",
+            "semantic",
+            "--semantic-command",
+            &backend.to_string(),
+            "--timeout-seconds",
+            "30",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+
+    // Write both requests, then close the pipe without waiting for either answer.
+    let mut stdin = child.stdin.take().unwrap();
+    for line in [
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}),
+        json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_concept","arguments":{"query":"describe behavior","limit":1}}}),
+    ] {
+        writeln!(stdin, "{line}").unwrap();
+    }
+    stdin.flush().unwrap();
+    drop(stdin);
+
+    let finished = child.wait_with_output().unwrap();
+    let answered: Vec<Value> = String::from_utf8(finished.stdout)
+        .unwrap()
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    let call = answered
+        .iter()
+        .find(|message| message["id"] == 2)
+        .unwrap_or_else(|| panic!("the accepted tools/call was never answered: {answered:?}"));
+    assert_ne!(call["result"]["isError"], true, "{call}");
+    assert_eq!(
+        call["result"]["structuredContent"]["results"][0]["symbol"]["symbol"],
+        "sample.rs::meaning"
+    );
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn semantic_subprocess_contract_over_stdio() {
