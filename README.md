@@ -164,6 +164,8 @@ Use `codex mcp list` to inspect configuration, then start a new session. The exa
 
 All tool inputs reject unknown fields. Results include both MCP `structuredContent` and a JSON text equivalent for compatibility, plus output schemas. Line numbers are 1-based and ranges inclusive. Search pages default to 20 results, allow 1–100, and use `offset` / `next_offset`. There is no expensive total-count promise.
 
+The four tools a default session exposes are `search_exact`, `read_source`, `find_callers` and `search_concept`. The catalogue below is all seven; `inspect_symbol`, `find_symbol` and `trace_dependencies` are available only when named, and why they are not default is in [Research options](#research-options--not-needed-to-use-the-server).
+
 | Tool | Use | Example arguments |
 |---|---|---|
 | `search_exact` | Known text, identifiers, errors, or regex patterns | `{"query":"timeout","path":"src","limit":10}` |
@@ -208,7 +210,94 @@ Budget checks stop adding files after 5,000 indexed files, about 32 MiB of sourc
 
 The lexical ranker builds documents from a symbol's path, container, name, split identifier, and body, with standard BM25 (k1 1.2, b 0.75) and scope filtering. It needs no model, service, weights, or fetch script, which is why the default configuration is fully offline. Rows name the enclosing definition with caller and callee counts; ask for `fields:["excerpt"]` only when source text is actually needed.
 
-Choosing `semantic` or `hybrid` without `--semantic-command` is a configuration error rather than a silent downgrade. Which ranker to prefer is an empirical question this repository measures rather than assumes; see [What the experiments found](#what-the-experiments-found).
+Choosing `semantic` or `hybrid` without `--semantic-command` is a configuration error rather than a silent downgrade. Setting either up is in [Research options](#research-options--not-needed-to-use-the-server); the default needs none of it. Which ranker to prefer is an empirical question this repository measures rather than assumes; see [What the experiments found](#what-the-experiments-found).
+
+## Repository boundaries and response limits
+
+All source paths must be relative to a canonical configured directory. Parent traversal, absolute paths, and symlinks in any path component are rejected. Reads require regular UTF-8 files without NUL bytes and cap input at 2 MiB. This protects ordinary local repository use; path validation and subsequent opens are not an OS capability sandbox against a malicious concurrent filesystem replacement. Use an OS sandbox/read-only checkout for adversarial repositories. Source text is untrusted evidence, never an instruction to the agent.
+
+Structured retrieval payloads are capped at 64 KiB. MCP's text compatibility copy means wire responses can be larger; logs separately record payload bytes and serialized MCP result bytes. Requests reaching a tool handler are capped at 16 KiB; the SDK handles transport framing before that check. Overbroad regexes or huge result sets can hit the bounded capture limit before pagination; narrow the query/path. Invalid arguments and expected backend failures return `isError:true`, and every invocation reaching the handler is logged, including disabled tools and schema failures. Malformed JSON-RPC rejected by the SDK is not a tool invocation.
+
+## Logs
+
+Server `instructions` carry an explicit routing table: literals to `search_exact`, unknown behavior to `search_concept`, declarations to `find_symbol`, relationships to `inspect_symbol` before a directed tool, direct callers to `find_callers`, transitive relationships to `trace_dependencies`, and mixed questions to conceptual discovery followed by structural lookup and `read_source` verification. Tool descriptions repeat the boundary and name the tool to prefer instead. This is routing guidance, not enforcement: no tool is required, blocked, or substituted, and the tool set still controls availability.
+
+Invocation JSONL has `schema_version:1`, an event (`tool_start` / `tool_end`), epoch-millisecond timestamp, session ID, optional operator run ID, MCP request ID, per-session start sequence, the tool set (the `profile` field, holding a profile letter or the `+`-joined tool names), tool name, and argument object. End events add latency, result count, retrieval bytes, MCP response bytes, errors, returned locations, structural coverage, and semantic backend name. Latency includes first-call indexing. Interrupted handlers emit an end event with a cancellation marker; abrupt process termination can leave an unmatched start. Trace diagnostics share stderr but not `--log-file`.
+
+Logs deliberately omit response code bodies, but arguments can still contain sensitive search strings or paths. Keep experiment logs private. They are append-only and flushed through ordinary file writes, without rotation or crash-durable `fsync`. File-write failures are reported on stderr while retrieval continues. Use a separate file per run/process when collecting experiments.
+
+The [study harness](experiments/README.md) drives real agent clients — Claude Code, Codex CLI, or OpenCode — over matched questions and a byte-identical corpus copy per arm, keeping model transcripts beside the server's own JSONL. `end_to_end.py` then scores context consumption offline and identically for every arm, including arms that use no MCP server at all. Answers are graded twice: a strict envelope check, and a resolver that accepts any spelling naming exactly one indexed definition. Routing quality and causal claims still require reading the transcripts.
+
+## Code layout
+
+```text
+src/            the server: config, tools, search (lexical/BM25/semantic), index, source, logging
+examples/       ollama_backend.rs, the reference semantic adapter, plus its cache support
+tests/          mcp_stdio.rs, real JSON-RPC subprocess tests over the wire protocol
+experiments/    the study harness: runners, graders, analyzers, question sets, and their tests
+```
+
+`src/main.rs` owns startup and stdio. `src/tools` owns MCP schemas and dispatch. `src/search` contains the lexical and semantic interfaces/adapters and bounded subprocess execution. `src/index` owns typed structural results and the Tree-sitter snapshot. `src/source` centralizes paths and bounded reads. `src/logging` owns the versioned event format and append sink. `src/config` owns operator settings.
+
+`LexicalBackend`, `SemanticBackend`, and `StructuralBackend` are the replacement boundaries. Their result types, rather than ripgrep JSON, parser nodes, or embedding vectors, reach MCP. The structural implementation currently owns in-memory storage; a persistent implementation can replace it behind the same interface. The invocation log sink can be changed within `src/logging` without changing tools. There is no speculative storage framework or database migration layer.
+
+Everything under `experiments/` is Python 3.11+ standard library only. `comparison_runner.py` prepares and runs multi-arm agent comparisons; `comparison_gate.py` meters one shared call and byte budget across a trial's MCP upstreams; `codex_wrapper.py` and `opencode_wrapper.py` drive the two supported command-client agents, and `--client claude` drives Claude Code directly; `validate_suite.py` compiles a question suite against the corpus, `tool_reachability.py` proves a supported tool path reaches each gold, and `lexical_oracle.py` rejects questions a bounded search-and-read crawl dissolves; `quality_pass.py` resolves an answer's spelling against definitions found by ripgrep; `end_to_end.py` scores context consumption for OpenCode, Codex and Claude streams alike; `closure_audit.py` classifies every loss a stopping policy causes; `schema_ablation.py` prices each tool's schema against its observed utility; and `study_a*.py` run the offline retrieval and navigation studies. Every runner that can spend money requires `--allow-model-usage` and refuses to overwrite an existing output.
+
+Corpora, run artifacts, transcripts, and model answers are deliberately absent. Trial directories hold full prompts, model reasoning, and verbatim source excerpts from whatever corpus was under test, so they stay local. A published result should ship the pinned question sets, gold answers, and analysis JSON, plus a script that clones the pinned upstream revision — not the corpus copy.
+
+## Testing
+
+```sh
+cargo test --locked --all-targets            # 15 library, 6 stdio (1 ignored), 6 example tests
+cargo clippy --locked --all-targets -- -D warnings
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 152 tests
+```
+
+All of these run offline and call no model. The Python suite exercises the harness itself: real MCP
+transport against a fixture server, the budget gate, the provider-failure abort, the answer
+resolver, and every question set's internal consistency. The one test that needs a live Ollama is
+ignored by default; run it with `cargo test --locked --test mcp_stdio real_ollama_semantic_over_stdio -- --ignored`.
+
+## Research options — not needed to use the server
+
+Everything above is the default surface: four tools, an in-process lexical ranker, no configuration.
+This section is the rest of the instrument. It exists because the default was **chosen by
+measurement**, and the measurements have to stay runnable: `--tools` is how any arm of an ablation is
+built, the profile letters replay the original availability study, and the semantic backend is the
+subject of a published finding rather than a recommendation. None of it is required to run the
+server, and none of it costs a default session anything — an un-exposed tool is absent from
+`tools/list` and its schema is never sent.
+
+### Restricting the tool set
+
+The server can expose seven tools, and defaults to the four that repaid their schema cost in the tool trials: `search_exact`, `read_source`, `find_callers`, `search_concept`. `inspect_symbol`, `find_symbol` and `trace_dependencies` are un-defaulted, not removed — name them in `--tools` to get them back, singly or together:
+
+```sh
+# The full seven-tool surface, named rather than presumed.
+./target/release/retrieval-mcp --root /path/to/repo \
+  --tools search_exact,read_source,inspect_symbol,find_symbol,find_callers,trace_dependencies,search_concept
+```
+
+`--tools` names exactly which ones a session may use, which is how an ablation is run:
+
+```sh
+# Is inspect_symbol earning its place? Remove it and change nothing else.
+./target/release/retrieval-mcp --root /path/to/repo \
+  --tools search_exact,read_source,find_symbol,find_callers,trace_dependencies
+```
+
+A tool that is not listed is absent from `tools/list` and refused if called by name. Descriptions and schemas are identical however a tool was enabled, and no failure silently falls back to another tool. Unknown names are rejected at startup rather than ignored.
+
+`--profile A|B|C|D` is retained **only** so commands recorded by the original availability study replay unchanged. It is not a setting for new work; use `--tools`.
+
+| Profile | Equivalent `--tools` |
+|---|---|
+| A | `search_exact,read_source` |
+| B | `search_exact,read_source,inspect_symbol,find_symbol,find_callers,trace_dependencies` |
+| C | `search_exact,read_source,search_concept` |
+| D | all seven |
+
+The two switches are mutually exclusive: passing both is an error, because the invocation log records one name for the tool set. The letters describe an availability experiment that is finished; every study since has named tools directly, and the tool trials that set the current default ran per-tool arms rather than profiles.
 
 ### Semantic backend protocol
 
@@ -264,80 +353,3 @@ To exercise real embeddings through MCP (opt-in so ordinary tests stay offline):
 cargo build --locked --example ollama_backend
 cargo test --locked --test mcp_stdio real_ollama_semantic_over_stdio -- --ignored --nocapture
 ```
-
-## Repository boundaries and response limits
-
-All source paths must be relative to a canonical configured directory. Parent traversal, absolute paths, and symlinks in any path component are rejected. Reads require regular UTF-8 files without NUL bytes and cap input at 2 MiB. This protects ordinary local repository use; path validation and subsequent opens are not an OS capability sandbox against a malicious concurrent filesystem replacement. Use an OS sandbox/read-only checkout for adversarial repositories. Source text is untrusted evidence, never an instruction to the agent.
-
-Structured retrieval payloads are capped at 64 KiB. MCP's text compatibility copy means wire responses can be larger; logs separately record payload bytes and serialized MCP result bytes. Requests reaching a tool handler are capped at 16 KiB; the SDK handles transport framing before that check. Overbroad regexes or huge result sets can hit the bounded capture limit before pagination; narrow the query/path. Invalid arguments and expected backend failures return `isError:true`, and every invocation reaching the handler is logged, including disabled tools and schema failures. Malformed JSON-RPC rejected by the SDK is not a tool invocation.
-
-## Restricting the tool set
-
-The server can expose seven tools, and defaults to the four that repaid their schema cost in the tool trials: `search_exact`, `read_source`, `find_callers`, `search_concept`. `inspect_symbol`, `find_symbol` and `trace_dependencies` are un-defaulted, not removed — name them in `--tools` to get them back, singly or together:
-
-```sh
-# The full seven-tool surface, named rather than presumed.
-./target/release/retrieval-mcp --root /path/to/repo \
-  --tools search_exact,read_source,inspect_symbol,find_symbol,find_callers,trace_dependencies,search_concept
-```
-
-`--tools` names exactly which ones a session may use, which is how an ablation is run:
-
-```sh
-# Is inspect_symbol earning its place? Remove it and change nothing else.
-./target/release/retrieval-mcp --root /path/to/repo \
-  --tools search_exact,read_source,find_symbol,find_callers,trace_dependencies
-```
-
-A tool that is not listed is absent from `tools/list` and refused if called by name. Descriptions and schemas are identical however a tool was enabled, and no failure silently falls back to another tool. Unknown names are rejected at startup rather than ignored.
-
-`--profile A|B|C|D` is retained **only** so commands recorded by the original availability study replay unchanged. It is not a setting for new work; use `--tools`.
-
-| Profile | Equivalent `--tools` |
-|---|---|
-| A | `search_exact,read_source` |
-| B | `search_exact,read_source,inspect_symbol,find_symbol,find_callers,trace_dependencies` |
-| C | `search_exact,read_source,search_concept` |
-| D | all seven |
-
-The two switches are mutually exclusive: passing both is an error, because the invocation log records one name for the tool set. The letters describe an availability experiment that is finished; every study since has named tools directly, and the tool trials that set the current default ran per-tool arms rather than profiles.
-
-## Logs
-
-Server `instructions` carry an explicit routing table: literals to `search_exact`, unknown behavior to `search_concept`, declarations to `find_symbol`, relationships to `inspect_symbol` before a directed tool, direct callers to `find_callers`, transitive relationships to `trace_dependencies`, and mixed questions to conceptual discovery followed by structural lookup and `read_source` verification. Tool descriptions repeat the boundary and name the tool to prefer instead. This is routing guidance, not enforcement: no tool is required, blocked, or substituted, and the tool set still controls availability.
-
-Invocation JSONL has `schema_version:1`, an event (`tool_start` / `tool_end`), epoch-millisecond timestamp, session ID, optional operator run ID, MCP request ID, per-session start sequence, the tool set (the `profile` field, holding a profile letter or the `+`-joined tool names), tool name, and argument object. End events add latency, result count, retrieval bytes, MCP response bytes, errors, returned locations, structural coverage, and semantic backend name. Latency includes first-call indexing. Interrupted handlers emit an end event with a cancellation marker; abrupt process termination can leave an unmatched start. Trace diagnostics share stderr but not `--log-file`.
-
-Logs deliberately omit response code bodies, but arguments can still contain sensitive search strings or paths. Keep experiment logs private. They are append-only and flushed through ordinary file writes, without rotation or crash-durable `fsync`. File-write failures are reported on stderr while retrieval continues. Use a separate file per run/process when collecting experiments.
-
-The [study harness](experiments/README.md) drives real agent clients — Claude Code, Codex CLI, or OpenCode — over matched questions and a byte-identical corpus copy per arm, keeping model transcripts beside the server's own JSONL. `end_to_end.py` then scores context consumption offline and identically for every arm, including arms that use no MCP server at all. Answers are graded twice: a strict envelope check, and a resolver that accepts any spelling naming exactly one indexed definition. Routing quality and causal claims still require reading the transcripts.
-
-## Code layout
-
-```text
-src/            the server: config, tools, search (lexical/BM25/semantic), index, source, logging
-examples/       ollama_backend.rs, the reference semantic adapter, plus its cache support
-tests/          mcp_stdio.rs, real JSON-RPC subprocess tests over the wire protocol
-experiments/    the study harness: runners, graders, analyzers, question sets, and their tests
-```
-
-`src/main.rs` owns startup and stdio. `src/tools` owns MCP schemas and dispatch. `src/search` contains the lexical and semantic interfaces/adapters and bounded subprocess execution. `src/index` owns typed structural results and the Tree-sitter snapshot. `src/source` centralizes paths and bounded reads. `src/logging` owns the versioned event format and append sink. `src/config` owns operator settings.
-
-`LexicalBackend`, `SemanticBackend`, and `StructuralBackend` are the replacement boundaries. Their result types, rather than ripgrep JSON, parser nodes, or embedding vectors, reach MCP. The structural implementation currently owns in-memory storage; a persistent implementation can replace it behind the same interface. The invocation log sink can be changed within `src/logging` without changing tools. There is no speculative storage framework or database migration layer.
-
-Everything under `experiments/` is Python 3.11+ standard library only. `comparison_runner.py` prepares and runs multi-arm agent comparisons; `comparison_gate.py` meters one shared call and byte budget across a trial's MCP upstreams; `codex_wrapper.py` and `opencode_wrapper.py` drive the two supported command-client agents, and `--client claude` drives Claude Code directly; `validate_suite.py` compiles a question suite against the corpus, `tool_reachability.py` proves a supported tool path reaches each gold, and `lexical_oracle.py` rejects questions a bounded search-and-read crawl dissolves; `quality_pass.py` resolves an answer's spelling against definitions found by ripgrep; `end_to_end.py` scores context consumption for OpenCode, Codex and Claude streams alike; `closure_audit.py` classifies every loss a stopping policy causes; `schema_ablation.py` prices each tool's schema against its observed utility; and `study_a*.py` run the offline retrieval and navigation studies. Every runner that can spend money requires `--allow-model-usage` and refuses to overwrite an existing output.
-
-Corpora, run artifacts, transcripts, and model answers are deliberately absent. Trial directories hold full prompts, model reasoning, and verbatim source excerpts from whatever corpus was under test, so they stay local. A published result should ship the pinned question sets, gold answers, and analysis JSON, plus a script that clones the pinned upstream revision — not the corpus copy.
-
-## Testing
-
-```sh
-cargo test --locked --all-targets            # 15 library, 6 stdio (1 ignored), 6 example tests
-cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 152 tests
-```
-
-All of these run offline and call no model. The Python suite exercises the harness itself: real MCP
-transport against a fixture server, the budget gate, the provider-failure abort, the answer
-resolver, and every question set's internal consistency. The one test that needs a live Ollama is
-ignored by default; run it with `cargo test --locked --test mcp_stdio real_ollama_semantic_over_stdio -- --ignored`.
