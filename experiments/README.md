@@ -4,6 +4,60 @@ The question is whether giving a model separate retrieval tools makes it choose 
 
 Start at [End-to-end context efficiency](#end-to-end-context-efficiency-three-arms-one-corpus) — `end_to_end.py`, `validate_suite.py`, `lexical_oracle.py` and `closure_audit.py` are the live harness, and the findings from [Compiling a suite before it is used](#compiling-a-suite-before-it-is-used) onward are the current ones. `benchmark.py` and `analyze.py` are the **frozen v1 availability harness**: they run sessions under the `--profile A/B/C/D` letters and are kept so the original runs replay, not because profiles are how new work is configured. Sections below them are retained as provenance for results already recorded.
 
+## Findings at a glance
+
+Chronological detail is below; this is the spine. Every row links to the section holding its run
+artifacts, caveats, and the commands that produced it.
+
+| # | Question asked | What the run showed |
+|---|---|---|
+| 1 | Does a retrieval MCP beat grep-and-read? | [Not on a saturating suite](#end-to-end-context-efficiency-three-arms-one-corpus): every arm answered nearly everything, so nothing could be claimed |
+| 2 | Were the "hard" questions hard? | [Mostly broken, not hard](#audit-of-the-never-solved-questions) — two golds were wrong about the corpus, three failed on answer shape |
+| 3 | Can a suite be trusted before it is run? | [Only if compiled](#compiling-a-suite-before-it-is-used): gold, evidence anchors and grader all verified against the corpus, no model needed |
+| 4 | What actually drives context cost? | [Turns, not payload bytes](#closure-a-stopping-rule-is-worth-more-than-a-better-ranker) — r = 0.74 with calls, 0.09 with bytes |
+| 5 | Can a stopping rule cut cost safely? | [Yes](#closure-a-stopping-rule-is-worth-more-than-a-better-ranker): −44% calls, −22% tokens at unchanged correctness, and it [survived a suite built to punish it](#does-closure-survive-uncertainty-the-hard-suite) |
+| 6 | What was the one closure loss? | [Ambiguity, not premature stopping](#the-regression-was-ambiguity-not-stopping-one-clause-re-run) — one clause restored it with fewer calls |
+| 7 | Do seven tool schemas pay for themselves? | [No](#schema-surface-the-tax-is-real-the-capability-pressure-is-not): the full surface was the most expensive arm on every axis at equal quality |
+| 8 | Why did that ablation prove nothing about capability? | [Reachability is not necessity](#necessity-not-reachability-a-gate-a-suite-and-the-first-tool-that-pays) — a bounded lexical crawl dissolved half the suite |
+| 9 | Does any structural tool earn its schema? | [`find_callers` does](#necessity-not-reachability-a-gate-a-suite-and-the-first-tool-that-pays): net +234.8 k tokens on exhaustive caller questions |
+| 10 | Do the other three? | [No](#every-remaining-tool-on-trial), and [replication confirmed it](#the-replication-and-the-frozen-surface) — `trace_dependencies` was never called even on questions authored for it |
+| 11 | Does the frozen system beat the alternatives? | [Yes on context, tie on quality](#the-held-out-comparison): 29/30 each against zvec, −24% input tokens, −34% persistent context |
+
+**The result in one line.** On a sealed 30-question held-out set, this server matched zvec-grep at
+29/30 on the same 78 tool calls while spending 24% fewer input tokens and carrying 34% less
+persistent context, with no unsupported answers by any arm.
+
+**Why, in one line.** Not a better ranker: model-side vocabulary translation, cheap lexical
+retrieval, bounded source verification, one relational primitive, and a stopping rule — everything
+else was removed after it failed to pay for itself.
+
+## Harness defect ledger
+
+The harness is the second experimental subject. Fifteen defects in it have produced or nearly
+produced believable false findings, and they run in both directions: some flattered this server,
+some penalised it, and the last was found inside its own single held-out loss. Each is pinned by a
+test. This table is the authoritative list; prose below refers to it rather than to ordinals.
+
+| Defect | Would have shown |
+|---|---|
+| Grader accepted a payload only when the whole reply was the JSON object | Correct answers preceded by one sentence scored zero; an envelope-discipline ranking read as retrieval quality |
+| Vector cache written inside the corpus under test | A contaminated corpus whose fingerprint drifted mid-run |
+| MCP tool errors swallowed by the runner | 36 successful calls scored as failures |
+| Output-file check ran after the model spend | Runs discovered to be unusable only after they were paid for |
+| Gold resolver indexed only Rust and Python | Every TypeScript answer failed on spelling, not on retrieval |
+| Set-valued grader returned zero for any prose answer | 13 of 42 audited trials scored wrong while naming every gold symbol |
+| TypeScript indexer dropped methods with more than one modifier | 359 definitions invisible, including golds that named them |
+| Python indexer saw `def` but not `class` | A gold naming a class rejected as undefined |
+| Caller verifier globbed the wrong tree | Gold caller sets verified against the wrong corpus |
+| Symbol resolver would not split `file.py:Class.method` on a single colon | A correct answer in editor notation scored zero, manufacturing a treatment loss |
+| Context scorer knew OpenCode and Codex streams but not Claude's | Every payload metric for a Claude arm silently read zero, making MCP arms look free |
+| `enclosing()` credited a closed nested helper for later calls | Exhaustive golds demanding callers that do not exist |
+| `enclosing()` credited the class when a decorator or wrapped signature intervened | The same, one scope too high |
+| `true_callers()` counted a call written inside a comment | An exhaustive gold demanding a caller that is documentation |
+| Grader scored a keyed object naming the gold identities as zero | This server's only held-out loss, which had named both correct symbols |
+
+The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
+
 ## Corpora
 
 No suite validates against an upstream checkout. `corpora/` holds the three checkouts the scoped corpora were cut from; the pinned corpus each question set was compiled against lives beside its run artifacts, and pointing a tool at the wrong one produces confusing `gold is declared exhaustive but omits N callers` failures rather than a clean error.
@@ -321,7 +375,7 @@ tokens and 2.75× the bytes after first hit to commit to the answer all three al
 the same stopping-criterion problem the VS Code run showed, now visible without a quality
 difference to argue about. `runs/.../decision.json` records the run, the defect, and the decision.
 
-Two process notes. The eighth harness defect in this list was found by disbelieving a result in
+Two process notes. One ledger defect was found by disbelieving a result in
 this project's own favour, which is the only reason it was found before the held-out set was
 spent. And zvec-grep's semantic tool was never called once in 21 trials: offered both, the model
 took the managed `rg` every time, as DeepSeek did on the coreutils suite. That is a valid
@@ -497,7 +551,7 @@ The suite has one clear shortcoming: it does not discriminate the control, which
 is harder than the first development set and it does separate stopping policies, which is what
 this run needed, but a suite that separates *retrieval strategies* still does not exist.
 
-A ninth harness defect surfaced here, again by disbelieving a result — this time one against the
+Another ledger defect surfaced here, again by disbelieving a result — this time one against the
 treatment. The closure arm appeared to lose a second question by answering
 `query.py:Query.combine` with a single colon, which the resolver did not split, though the answer
 named both correct symbols. `quality_pass.context_segments` now treats a single colon as a
@@ -587,8 +641,7 @@ MCP arms look free. It now parses that stream, matching `tool_result` payloads b
 `tool_use` that requested them and deduplicating the usage object Claude repeats across the blocks
 of one API response; `schema_ablation.py` takes tokens from that normalised stream rather than from
 a client-specific usage envelope, because Claude reports fresh, newly cached, and replayed prefix
-separately while Codex reports one total. That is the twelfth defect in this list, and it was found
-by disbelieving a zero. Separately, the first attempt at this matrix aborted at trial 27 of 72 on a
+separately while Codex reports one total. That is another entry in the [defect ledger](#harness-defect-ledger), found by disbelieving a zero. Separately, the first attempt at this matrix aborted at trial 27 of 72 on a
 provider usage limit; `runs/django-schema-ablation-20260910/partial-state.json` records why those
 trials must not be compared.
 
@@ -670,8 +723,8 @@ are not statements in the parent block. Third, `true_callers` counted `Field.set
 written inside a comment as a call site, which would have demanded that an exhaustive gold name a
 caller that does not exist. All three are pinned by `test_audit_failures.py`, and all four existing
 suites still compile clean under the corrected verifier, so no shipped gold depended on the bugs.
-That is defects thirteen through fifteen, and they were found by disbelieving agreement between two
-tools rather than a single result.
+Those are three more [ledger](#harness-defect-ledger) entries, found by disbelieving agreement between
+two tools rather than a single result.
 
 ### Safety first: a permanent premature-stop line
 
@@ -789,7 +842,7 @@ one each way. That is a tie, and it should be read as a tie — this design cann
 one-question quality difference. The cost differences are large and consistent: cheaper on 22 of 30
 questions, equal or fewer calls on 20 of 30.
 
-**A sixteenth harness defect, found in our own loss.** The one question this server missed,
+**One more harness defect, found in our own loss.** The one question this server missed,
 `dj-fields-pickle-reducer-callables`, was answered with both correct symbols — as a keyed object
 rather than a list. The grader scored that 0.0 while scoring free prose naming the same two symbols
 1.0, which is grading notation rather than retrieval, the oldest defect in this project. It is now
@@ -813,9 +866,9 @@ it then prints the exact validate/prepare/run/score commands. It calls no model.
 
 ### The habit that made the numbers trustworthy
 
-Sixteen harness defects appear in this file, and they run in both directions — some flattered this
-server, some penalised it, and the last one was found inside its own single held-out loss. None was
-found by auditing on a schedule. Every one came from the same rule, which is the methodological
+The fifteen entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
+flattered this server, some penalised it, and the last was found inside its own single held-out loss.
+None was found by auditing on a schedule. Every one came from the same rule, which is the methodological
 claim this project would actually defend:
 
 > **Every surprising result triggers an evaluator audit before an architectural interpretation.**

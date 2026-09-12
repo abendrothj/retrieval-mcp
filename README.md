@@ -39,7 +39,20 @@ That prints where `build` is defined, who calls it, what it calls, and complete 
 
 ## What the experiments found
 
-Each finding names the model it came from, because none of them transferred cleanly between models. Protocol, artifacts, and caveats: [experiments/README.md](experiments/README.md).
+**The headline, measured once on a sealed held-out set and not tuned against afterwards** — 30 questions × 3 arms × `claude-sonnet-4-6`, 90 trials, frozen four-tool surface, frozen grader:
+
+| | native `Read`/`Grep`/`Glob` | zvec-grep 0.2.2 | **retrieval-mcp** |
+|---|---:|---:|---:|
+| Correct / 30 | 28 | **29** | **29** |
+| Input tokens | 1.15 M | 1.00 M | **764 k** |
+| Tool calls | 147 | 78 | **78** |
+| Persistent context (tok·turns) | 175 k | 227 k | **150 k** |
+| Calls to first evidence | 1.80 | 1.30 | **1.20** |
+| Answered without evidence | **0** | **0** | **0** |
+
+Quality is a tie with zvec and is reported as one; the context saving is the result. Details, paired analysis and the post-hoc sensitivity row: [The held-out comparison](experiments/README.md#the-held-out-comparison). Everything below explains how the surface that produced it was chosen.
+
+Each finding names the model it came from, because none of them transferred cleanly between models. Protocol, artifacts, and caveats: [experiments/README.md](experiments/README.md). A one-screen index of every result is [Findings at a glance](experiments/README.md#findings-at-a-glance).
 
 **Description questions are a vocabulary problem, not an embedding problem.** A model-free ranker bake-off on 18 gradable coreutils questions put dense retrieval well ahead of BM25: recall@5 of 12/18 semantic and 13/18 hybrid against 6/18 lexical. On a separate authored VS Code suite the same three rankers ran twice — once on the raw question, once on a frozen one-shot rewrite of it into code vocabulary. Rewriting moved BM25 from 3/15 to 9/15 at recall@5 (MRR 0.167 → 0.484) while dense moved 2/15 to 4/15 (0.144 → 0.273), so reformulated BM25 beat dense on every metric, reformulated or not. The expensive semantic work pays off in *query formation*, not in document ranking, which is why `lexical` is the default ranker and embeddings are an optional backend.
 
@@ -61,7 +74,7 @@ Quality is a tie: the paired discordance is one to two question-repetitions. Tot
 
 **Most of that suite's hard questions were broken, not hard.** Auditing the 7 questions no arm ever solved found no tool-surface gap and at most one retrieval failure: two golds are factually wrong against a ripgrep enumeration of the corpus — in one case a trial listed all 11 true callers and scored 0 against a gold naming 3, one of which calls nothing — three fail on answer shape or an ambiguous name, and one question admits two defensible answers. Repairing the golds and the grader lifts the arms to 19/18/17 of 30 (this server, zvec, native) with paired discordance of 3:1 and 2:1 in this server's favour, still far too small to claim on 15 questions, and 4 of 15 questions now discriminate at all. Suites are therefore compiled before use: `validate_suite.py` verifies every gold against the corpus and every grader expectation against synthetic answers, and exits nonzero otherwise.
 
-**The harness is the second experimental subject.** Fifteen defects in it have produced or nearly produced believable false findings: a grader that scored notation instead of retrieval, a vector cache written inside the corpus under test, swallowed MCP tool errors that scored 36 calls as failures, an output-file check that ran after the model spend rather than before, a gold resolver that indexed only Rust and Python so every TypeScript answer failed on spelling, a set-valued grader that returned zero for any prose answer however complete, a TypeScript indexer that dropped every method with more than one modifier — 359 definitions in this corpus, `private async request(` among them — a Python indexer that saw `def` but not `class`, a caller verifier that globbed the wrong tree, a symbol resolver that would not split `file.py:Class.method` on a single colon, a context scorer that knew the OpenCode and Codex event files but not the Claude stream, so every payload metric for a Claude arm silently read zero and made the MCP arms look free, and three separate flaws in the gold verifier's call-site attribution: a closed nested helper capturing later calls, a decorator or wrapped signature crediting the enclosing class, and a call written inside a comment counted as a caller. Each was found by disbelieving a result, including results in this project's favour, and each is now pinned by a test.
+**The harness is the second experimental subject.** Fifteen defects in it have produced or nearly produced believable false findings — a grader that scored notation instead of retrieval, a vector cache written inside the corpus under test, swallowed MCP tool errors, an output-file check that ran after the model spend, a resolver blind to TypeScript, a set grader that rejected prose, indexers that missed multi-modifier methods and Python classes, three separate call-site attribution flaws, a context scorer that read zero for Claude arms, and a grader that scored a keyed answer zero while crediting the same symbols in prose. They run in both directions: some flattered this server, some penalised it, and the last was found inside its own held-out loss. The full list, with what each would have shown, is the [defect ledger](experiments/README.md#harness-defect-ledger); each is pinned by a test.
 
 **The newest suite does not discriminate yet.** A 60-question Django 5.1.4 suite — 30 development, 30 held-out, compiled clean by `validate_suite.py` — was piloted on its development half with `gpt-5.6-luna`. Under the repaired grader all three arms answer every completed trial correctly, so the questions separate nothing, and this server spends 40% more input tokens and 2.75× the bytes after first hit than plain grep-and-read to reach the same answers. The held-out half stays unrun until the development half is made hard enough to discriminate.
 
