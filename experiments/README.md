@@ -433,6 +433,57 @@ JSON Schema structure. Removing a tool is not a cleanup, though — it changes a
 that the navigation study showed mattered for transitive questions — so it is the next
 *experiment*, not the next commit. `runs/.../payload-analysis.json` holds the full accounting.
 
+### Does closure survive uncertainty? The hard suite
+
+A stopping rule tested where nothing can be lost is not tested. `django_hard_questions.json` is
+30 further development questions authored against an explicit difficulty contract: the first
+plausible symbol must be a distractor, or the answer must combine two definitions, or need a
+two-hop traversal, or discriminate between namesakes. Difficulty had to come from code structure,
+not from vocabulary — the VS Code suite already showed that obfuscated phrasing produces a floor
+rather than a frontier. The suite compiles clean and is disjoint from the first development set;
+the held-out set was never opened by any author.
+
+`closure_audit.py` is the instrument the run exists for. For every question the treatment loses
+and the control wins, it asks whether a gold identity ever appeared in *any* tool result of the
+treatment trial:
+
+* `premature_stop` — a required fact was never on screen, so the model answered without
+  retrieving it. Where the control did retrieve it, the skipped expansion was demonstrably
+  available (`expansion_skipped`).
+* `evidence_seen` — everything required was on screen and the answer is still wrong. The stopping
+  rule did not cause that.
+
+Result over 60 trials, none aborted:
+
+| | baseline | + stopping rule |
+|---|---:|---:|
+| Regraded correct / 30 | 30 | 29 |
+| Input tokens | 7.15 M | **5.70 M** (−20%) |
+| Tool calls | 187 | **101** (−46%) |
+| Calls after first hit | 123 | **32** (−74%) |
+| Persistent context load | 1.60 M | **0.42 M** tok·turns (−74%) |
+| Median wall time | 31.8 s | **27.8 s** |
+
+Fewer calls on 29 of 30 questions, cheaper on 21, median −43.8 k input tokens. **No premature
+stops and no skipped expansions.** The single regression is
+`djh-orm-internal-manager-fallback-chain`: the closure arm answered `options.py::default_manager`
+after one concept search where the control read the source and answered `options.py::base_manager`.
+Both gold markers were already on screen, so the rule did not stop it seeing the fact — it stopped
+it checking which of two neighbouring properties the question described. That is the honest cost:
+roughly 3% of answers for 20% of tokens and 46% of calls, on a suite where one distractor sits
+directly beside the answer.
+
+The suite has one clear shortcoming: it does not discriminate the control, which scored 30/30. It
+is harder than the first development set and it does separate stopping policies, which is what
+this run needed, but a suite that separates *retrieval strategies* still does not exist.
+
+A ninth harness defect surfaced here, again by disbelieving a result — this time one against the
+treatment. The closure arm appeared to lose a second question by answering
+`query.py:Query.combine` with a single colon, which the resolver did not split, though the answer
+named both correct symbols. `quality_pass.context_segments` now treats a single colon as a
+separator, exactly as editors and grep write it, while a line reference such as `query.py:1234`
+still fails to parse rather than resolving to something wrong.
+
 ## Native-system comparison
 
 `comparison_runner.py` holds OpenCode and DeepSeek V4 Flash constant across six arms: a native

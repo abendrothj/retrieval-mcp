@@ -39,6 +39,13 @@ class ResolverTests(unittest.TestCase):
                                 "django/apps/config.py::create", index), 1.0)
         self.assertEqual(credit("django/db/models/query.py::QuerySet.create", gold, index), 0.0)
 
+    def test_an_editor_style_single_colon_names_the_same_definition(self):
+        """`query.py:Query.combine` is how grep and editors write it; a line number is not a name."""
+        index = {"combine": {"django/db/models/sql/query.py"}}
+        gold = "django/db/models/sql/query.py::combine"
+        self.assertEqual(credit("django/db/models/sql/query.py:Query.combine", gold, index), 1.0)
+        self.assertIsNone(resolve("django/db/models/sql/query.py:1234", index))
+
 
 TS_INDEX = {"getResolvedShellEnv": {"src/vs/platform/shell/node/shellEnv.ts"},
             "isSuccess": {"src/vs/platform/request/common/request.ts",

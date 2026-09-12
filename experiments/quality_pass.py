@@ -66,13 +66,17 @@ def definitions(corpus):
 
 
 def context_segments(written):
-    """The identifier-like pieces of a written symbol: `::`, `/` and `.` all separate them.
+    """The identifier-like pieces of a written symbol: `::`, `:`, `/` and `.` all separate them.
 
     A source-file chunk is location, not a name, so `base.py` contributes nothing; a dotted owner
-    such as `Model.from_db` or a dotted module such as `django.apps.config` contributes each piece.
+    such as `Model.from_db` or a dotted module such as `django.apps.config` contributes each
+    piece. A single colon is how editors and grep write the same thing - `query.py:Query.combine`
+    names one definition exactly as `query.py::Query.combine` does, and a trailing line number
+    such as `query.py:1234` is not an identifier, so it still fails to parse rather than
+    resolving to something wrong.
     """
     segments = []
-    for chunk in re.split(r"::|/", written.strip()):
+    for chunk in re.split(r"::|:|/", written.strip()):
         if not chunk or chunk.endswith(SOURCE_SUFFIXES):
             continue
         segments.extend(piece for piece in chunk.split(".") if piece)
