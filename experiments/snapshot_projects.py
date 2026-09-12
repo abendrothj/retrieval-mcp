@@ -8,8 +8,9 @@ import subprocess
 
 from benchmark import fingerprint, write_json
 
-PROJECTS = {"modelshare": Path("/Users/ja/dev/modelshare"),
-            "pig": Path("/Users/ja/dev/mine/pig"), "sigil": Path("/Users/ja/dev/mine/sigil")}
+# The v1 three-project study snapshotted three checkouts that live on the operator's machine, not in
+# this repository. Their locations are an operator input rather than a constant: naming them here
+# would publish private paths and would be wrong on any other machine.
 
 
 def snapshot(repository, destination):
@@ -53,12 +54,10 @@ def snapshot(repository, destination):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--repository", type=Path, help="snapshot this checkout instead of the built-in projects")
-    parser.add_argument("--name", help="suite subdirectory for --repository")
+    parser.add_argument("--repository", type=Path, required=True, help="the checkout to snapshot")
+    parser.add_argument("--name", required=True, help="suite subdirectory for --repository")
     args = parser.parse_args()
-    if bool(args.repository) != bool(args.name):
-        parser.error("--repository and --name are used together")
-    projects = {args.name: args.repository} if args.repository else PROJECTS
+    projects = {args.name: args.repository}
     output = args.output.resolve()
     if any(output.is_relative_to(root.resolve()) for root in projects.values()):
         parser.error("output must be outside the source repositories")

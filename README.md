@@ -23,6 +23,8 @@ Rust retrieval server ── invocation events → JSONL
 
 Design decisions here are downstream of measurements; the protocol, artifacts, and caveats behind every claim are in [experiments/README.md](experiments/README.md).
 
+**Companion research record.** The held-out comparison against zvec-grep and a native control, the reasoning that cut the surface from seven tools to four, the ledger of measurement defects found along the way, and a hash-verified reproduction path all live in the retrieval study repository. This repository is the thing you install; that one is the evidence for why it is shaped this way. Neither publishes a corpus copy or run artifacts: `experiments/reproduce_heldout.py` rebuilds the pinned corpus from upstream and fails on any mismatch.
+
 ## Quickstart
 
 ```sh

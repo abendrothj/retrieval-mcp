@@ -5,7 +5,10 @@ sys.path.insert(0, "experiments")
 import benchmark
 
 ROOT = Path("../runs/projects-v2-suite/coreutils/corpus").resolve()
-CACHE = Path("/Users/ja/dev/retrieval-study/runs/semantic-cache-coreutils-v2")
+# The warm semantic cache lives beside the run artifacts, outside this repository; its location is
+# an operator input, not a constant that could be correct on another machine.
+CACHE = Path(os.environ.get("RETRIEVAL_SEMANTIC_CACHE_DIR")
+             or sys.exit("set RETRIEVAL_SEMANTIC_CACHE_DIR to the warm coreutils cache")).resolve()
 questions = json.load(open("experiments/v2_questions_draft.json"))
 server = Path("target/release/retrieval-mcp").resolve()
 backend = Path("target/release/examples/ollama_backend").resolve()
