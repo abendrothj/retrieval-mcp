@@ -572,6 +572,76 @@ by disbelieving a zero. Separately, the first attempt at this matrix aborted at 
 provider usage limit; `runs/django-schema-ablation-20260910/partial-state.json` records why those
 trials must not be compared.
 
+### Necessity, not reachability: a gate, a suite, and the first tool that pays
+
+The schema ablation left one question: is a structural tool ever *needed*, or merely available?
+`lexical_oracle.py` is the gate that question needs. It runs a deterministic, model-free crawl over
+one question using only `search_concept`, `search_exact` and `read_source`, starting from the
+question text, forbidden from ever querying a gold identifier directly, harvesting definition names
+and paths from each result and following them, and stopping the moment every gold identity is
+visible. Nothing about it is a proof — given enough calls a crawl reads the whole repository — so
+the claim is budgeted and operational: within a budget at least as large as the treatment arm's,
+this crawl did or did not recover the complete gold.
+
+Pointed at the existing suites at a budget of 8, it explains the ablation result directly:
+
+| suite | dissolved by the lexical crawl |
+|---|---:|
+| Django development (30) | 12 |
+| Django hard (30) | 14 |
+| retrieval-strategy (12) | **6** |
+
+Most of those fall to a *single* `search_concept` call on the question text. Half of the suite
+built to separate retrieval strategies was never about retrieval strategy at all.
+
+**What lexical results do not encode.** A grep hit carries a path and a line; it does not carry the
+definition that encloses the line. `django_necessity_questions.json` is ten questions built on that
+asymmetry: each names a helper behaviourally and demands *every* enclosing definition outside its
+module that calls it, as `path::name`, exhaustively. Five to six callers spread over four to five
+files means a search-and-read arm pays one read per file to name them, while one structural call
+certifies the set with its enclosing symbols and a complete count. All ten compile clean, all ten
+are structurally reachable in two calls, and all ten survive the oracle at budget 8.
+
+**The pilot.** Three arms, identical corpora and frozen policy, ten-call ceiling,
+`claude-sonnet-4-6`, 30 trials, none aborted:
+
+| arm | correct / 10 | graded credit | turns | calls | input tokens | persistent payload |
+|---|---:|---:|---:|---:|---:|---:|
+| full surface | 8 | 9.20 | 36 | 41 | 368 k | 121 k |
+| lexical only | 7 | 9.27 | 64 | 77 | 679 k | 256 k |
+| lexical + `find_callers` | 8 | 9.23 | **33** | **29** | **298 k** | **71 k** |
+
+Adding one relational primitive to the lexical surface cut calls by 62% and input tokens by 56%.
+Priced properly — schema tokens times turns against turns avoided times the cost of a turn —
+`find_callers` pays 45,556 tokens of schema and returns 280,356 in avoided turns, a net of
+**+234,800**. That is the first structural tool in this project to clear its own schema tax on
+measured evidence, and `schema_ablation.break_even` now computes that ledger for any arm pair.
+
+Two honest qualifications. Graded credit is a wash (9.20 / 9.27 / 9.23), so the win is cost, not
+quality; the correct count moved by one question, which n=10 cannot support. And the full surface is
+*not* the best arm — lexical plus `find_callers` beats it on every cost axis at the same correct
+count, so the other three structural tools still do not pay, even on a suite about relations.
+
+Over-listing also showed its cost. On `djn-field-cache-writer-callers` both structural arms scored
+0.40 against the lexical arm's 1.00: `find_callers` returned thirteen candidate rows spanning two
+descriptor classes, and both arms reported the class methods while dropping the callers in
+`base.py` and `compiler.py` that sat in the same rows. The grader was checked before that was
+written down — a class-qualified spelling of the complete answer scores 1.0 — so this is selection
+under a noisy result set, not notation.
+
+**Three defects in the gold verifier, found while building the suite.** Candidate golds were
+cross-checked against the structural index and disagreed on five of ten helpers; the index was
+right every time. `audit_failures.enclosing` returned the nearest preceding `def` indented less
+than the call, which credits a *closed* nested helper for any call that follows it; tightening the
+indentation bound on every shallower statement fixed that, and then credited the enclosing class
+whenever a decorator or a wrapped signature sat between the call and its `def`, because those lines
+are not statements in the parent block. Third, `true_callers` counted `Field.set_cached_value()`
+written inside a comment as a call site, which would have demanded that an exhaustive gold name a
+caller that does not exist. All three are pinned by `test_audit_failures.py`, and all four existing
+suites still compile clean under the corrected verifier, so no shipped gold depended on the bugs.
+That is defects thirteen through fifteen, and they were found by disbelieving agreement between two
+tools rather than a single result.
+
 ## Native-system comparison
 
 `comparison_runner.py` holds OpenCode and DeepSeek V4 Flash constant across six arms: a native

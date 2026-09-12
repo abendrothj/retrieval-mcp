@@ -64,6 +64,33 @@ def stat(values):
     }
 
 
+def break_even(tool, schema_tokens, full_rows, utility):
+    """What a tool's permanent schema costs, against what its use measurably bought.
+
+    A tool is re-sent on every turn whether or not it is called, so its cost is
+    `schema_tokens x turns`. Its benefit has two terms: turns it avoided, priced at what a turn of
+    this conversation actually costs, and questions that are only answered when it is present. The
+    second term has no token price - an unanswered question is not worth a token count - so it is
+    reported separately and dominates the verdict when it is nonzero.
+    """
+    turns = sum(row["turns"] for row in full_rows)
+    cost = schema_tokens * turns
+    input_per_turn = sum(row["input_tokens"] for row in full_rows) / turns if turns else 0.0
+    saving = utility["turns_avoided"] * input_per_turn
+    return {
+        "schema_cost_tokens": round(cost),
+        "input_tokens_per_turn": round(input_per_turn),
+        "turns_avoided": utility["turns_avoided"],
+        "turn_saving_tokens": round(saving),
+        "net_tokens": round(saving - cost),
+        "unique_solves_enabled": utility["unique_solves_enabled"],
+        "verdict": "earns its schema by enabling answers" if utility["unique_solves_enabled"]
+        else "earns its schema on turns alone" if saving > cost
+        else "does not pay for its schema on this suite",
+    }
+
+
+
 def analyze(rows, full_system):
     systems = sorted({row["system"] for row in rows})
     full_rows = [row for row in rows if row["system"] == full_system]
@@ -116,11 +143,12 @@ def analyze(rows, full_system):
             pairs = [(base, arm_by_key[key]) for key, base in full_by_key.items() if key in arm_by_key]
             helped = sorted({base["task_id"] for base, arm in pairs
                              if base["score"] == 1.0 and arm["score"] < 1.0})
+            turns_avoided = sum(arm["turns"] - base["turns"] for base, arm in pairs)
             utility = {
                 "ablation_system": ablation,
                 "unique_solves_enabled": len(helped),
                 "questions": helped,
-                "turns_avoided": sum(arm["turns"] - base["turns"] for base, arm in pairs),
+                "turns_avoided": turns_avoided,
                 "input_tokens_avoided": sum(
                     arm["input_tokens"] - base["input_tokens"] for base, arm in pairs
                 ),
@@ -132,6 +160,7 @@ def analyze(rows, full_system):
             ),
             "calls_in_full": full_usage[tool],
             "leave_one_out_utility": utility,
+            "break_even": break_even(tool, schema_tokens, full_rows, utility) if utility else None,
         }
     return {
         "version": "schema-ablation-v1",

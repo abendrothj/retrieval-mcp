@@ -67,30 +67,34 @@ def call_sites(corpus, name):
 def enclosing(path, line):
     """The definition a line sits inside, by reading backwards. Independent of every index.
 
-    Python is indentation-scoped, so the enclosing definition is the nearest `def` or `class`
-    indented less than the call site; brace languages are matched on their declaration syntax.
+    Python is indentation-scoped, so the enclosing definition is not merely the nearest `def` or
+    `class` indented less than the call site: a nested helper defined earlier in the same body is
+    also indented less, and it has already closed. The bound therefore tightens on every statement
+    shallower than the current one, so only a definition that still contains the line can match.
+    Brace languages are matched on their declaration syntax.
     """
     source = path.read_text(encoding="utf-8", errors="ignore").splitlines()
     if path.suffix == ".py":
         call = source[line - 1] if line <= len(source) else ""
-        depth = len(call) - len(call.lstrip())
+        limit = len(call) - len(call.lstrip())
         for position in range(min(line, len(source)) - 1, -1, -1):
             text = source[position]
+            stripped = text.strip()
+            # Decorators and the tail of a wrapped signature or call sit at the definition's own
+            # indentation without being statements in its parent block, so they must not tighten
+            # the bound - doing so skips past the `def` and credits the enclosing class instead.
+            if not stripped or stripped[0] in "#@)]},":
+                continue
+            indent = len(text) - len(text.lstrip())
+            if indent >= limit:
+                continue
             declaration = re.match(r"(\s*)(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)", text)
-            if declaration and len(declaration.group(1)) < depth:
+            if declaration:
                 return declaration.group(2)
+            # A shallower statement means the inner block has closed; nothing at or below this
+            # indentation can enclose the call any more.
+            limit = indent
         return None
-    for position in range(min(line, len(source)) - 1, -1, -1):
-        text = source[position]
-        method = re.match(
-            r"\s*(?:public |private |protected |static |override |async )*"
-            r"([A-Za-z_$][\w$]*)\s*\(.*\)\s*[:{]", text)
-        if method and method.group(1) not in ("if", "for", "while", "switch", "catch", "return"):
-            return method.group(1)
-        function = re.match(r"\s*(?:export )?(?:async )?function\s+([A-Za-z_$][\w$]*)", text)
-        if function:
-            return function.group(1)
-    return None
 
 
 def true_callers(corpus, name, defining_path):
@@ -108,6 +112,11 @@ def true_callers(corpus, name, defining_path):
             continue
         # A declaration is not a call site, in any of the three languages.
         if re.search(rf"(function|const|let|class|def|fn)\s+{re.escape(name)}\b", body):
+            continue
+        # Nor is prose. `Field.set_cached_value()` written inside a comment is documentation, and
+        # counting it demands that an exhaustive gold name a caller that does not exist.
+        match = re.search(rf"\b{re.escape(name)}\s*\(", body)
+        if match and re.search(r"#|//", body[:match.start()]):
             continue
         owner = enclosing(Path(corpus) / path, int(number))
         if owner:

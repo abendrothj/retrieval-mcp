@@ -1,0 +1,684 @@
+[
+  {
+    "id": "djn-field-cache-writer-callers",
+    "category": "exhaustive_caller_attribution",
+    "set": "dev",
+    "question": "A small mixin in the fields package stores a resolved related object on an instance's field cache, writing it under the descriptor cache key the field computes for itself. Identify every definition outside that mixin's module that writes through it. Attribute each call to the definition that immediately encloses it, which may be a dunder accessor or a closure rather than the public method around it. Return a JSON list of path::name.",
+    "helper": "django/db/models/fields/mixins.py::set_cached_value",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/db/models/base.py::refresh_from_db",
+        "django/db/models/fields/related_descriptors.py::__get__",
+        "django/db/models/fields/related_descriptors.py::__set__",
+        "django/db/models/fields/related_descriptors.py::get_prefetch_querysets",
+        "django/db/models/sql/compiler.py::local_setter"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/models/fields/mixins.py::set_cached_value",
+      "django/db/models/fields/mixins.py::FieldCacheMixin",
+      "django/db/models/fields/mixins.py::get_cache_name"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/models/fields/mixins.py",
+        "contains": "    def set_cached_value(self, instance, value):"
+      },
+      {
+        "path": "django/db/models/base.py",
+        "contains": "                    field.set_cached_value(self, field.get_cached_value(db_instance))"
+      },
+      {
+        "path": "django/db/models/fields/related_descriptors.py",
+        "contains": "                remote_field.set_cached_value(rel_obj, instance)"
+      },
+      {
+        "path": "django/db/models/fields/related_descriptors.py",
+        "contains": "                remote_field.set_cached_value(rel_obj, instance)"
+      }
+    ],
+    "author_notes": "Gold is every enclosing definition outside django/db/models/fields/mixins.py that calls set_cached_value, verified by an independent ripgrep enumeration: 5 definitions across 3 files. The question is a necessity candidate because a lexical hit carries a path and a line but not the definition that encloses it, so a search-and-read arm must spend one read per file to name the callers, while one structural call certifies the whole set with its enclosing symbols and a complete count.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "FieldCacheMixin cached value instance fields_cache descriptor",
+          "limit": 10
+        },
+        "expect": [
+          "django/db/models/fields/mixins.py::set_cached_value"
+        ]
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "set_cached_value",
+          "limit": 50
+        },
+        "expect": [
+          "django/db/models/base.py::refresh_from_db",
+          "django/db/models/fields/related_descriptors.py::__get__",
+          "django/db/models/fields/related_descriptors.py::__set__",
+          "django/db/models/fields/related_descriptors.py::get_prefetch_querysets",
+          "django/db/models/sql/compiler.py::local_setter"
+        ],
+        "uses_prior": "django/db/models/fields/mixins.py::set_cached_value"
+      }
+    ]
+  },
+  {
+    "id": "djn-identifier-shortener-callers",
+    "category": "exhaustive_caller_attribution",
+    "set": "dev",
+    "question": "A helper in the database backends utility module shortens a database identifier to a maximum length, preserving any schema-qualified prefix and appending a short digest of what it cut so the result stays unique. Identify every definition outside that utility module that calls it. Return a JSON list of path::name.",
+    "helper": "django/db/backends/utils.py::truncate_name",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/db/backends/base/schema.py::_constraint_names",
+        "django/db/backends/oracle/operations.py::_get_no_autofield_sequence_name",
+        "django/db/backends/oracle/operations.py::quote_name",
+        "django/db/models/fields/related.py::_get_m2m_db_table",
+        "django/db/models/options.py::contribute_to_class"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/backends/utils.py::truncate_name",
+      "django/db/backends/utils.py::CursorWrapper",
+      "django/db/backends/utils.py::__init__"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/utils.py",
+        "contains": "def truncate_name(identifier, length=None, hash_len=4):"
+      },
+      {
+        "path": "django/db/backends/base/schema.py",
+        "contains": "                        truncate_name(name, self.connection.ops.max_name_length())"
+      },
+      {
+        "path": "django/db/backends/oracle/operations.py",
+        "contains": "            name = '\"%s\"' % truncate_name(name, self.max_name_length())"
+      },
+      {
+        "path": "django/db/backends/oracle/operations.py",
+        "contains": "            name = '\"%s\"' % truncate_name(name, self.max_name_length())"
+      }
+    ],
+    "author_notes": "Gold is every enclosing definition outside django/db/backends/utils.py that calls truncate_name, verified by an independent ripgrep enumeration: 5 definitions across 4 files. The question is a necessity candidate because a lexical hit carries a path and a line but not the definition that encloses it, so a search-and-read arm must spend one read per file to name the callers, while one structural call certifies the whole set with its enclosing symbols and a complete count.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "shorten database identifier max length hash suffix namespace",
+          "limit": 10
+        },
+        "expect": [
+          "django/db/backends/utils.py::truncate_name"
+        ]
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "truncate_name",
+          "limit": 50
+        },
+        "expect": [
+          "django/db/backends/base/schema.py::_constraint_names",
+          "django/db/backends/oracle/operations.py::_get_no_autofield_sequence_name",
+          "django/db/backends/oracle/operations.py::quote_name",
+          "django/db/models/fields/related.py::_get_m2m_db_table",
+          "django/db/models/options.py::contribute_to_class"
+        ],
+        "uses_prior": "django/db/backends/utils.py::truncate_name"
+      }
+    ]
+  },
+  {
+    "id": "djn-migration-forward-plan-callers",
+    "category": "exhaustive_caller_attribution",
+    "set": "dev",
+    "question": "The migration graph exposes a method returning the ordered list of nodes that must be applied to reach a given target, walking the dependency edges forwards from the roots. Identify every definition outside the graph's own module that calls it. Return a JSON list of path::name.",
+    "helper": "django/db/migrations/graph.py::forwards_plan",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/core/management/commands/makemigrations.py::handle_merge",
+        "django/core/management/commands/showmigrations.py::show_list",
+        "django/core/management/commands/showmigrations.py::show_plan",
+        "django/core/management/commands/squashmigrations.py::handle",
+        "django/db/migrations/executor.py::migration_plan"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/migrations/graph.py::forwards_plan",
+      "django/db/migrations/graph.py::Node",
+      "django/db/migrations/graph.py::__init__"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/migrations/graph.py",
+        "contains": "    def forwards_plan(self, target):"
+      },
+      {
+        "path": "django/core/management/commands/makemigrations.py",
+        "contains": "                    for mig in loader.graph.forwards_plan((app_label, migration_name))"
+      },
+      {
+        "path": "django/core/management/commands/showmigrations.py",
+        "contains": "                for plan_node in graph.forwards_plan(node):"
+      },
+      {
+        "path": "django/core/management/commands/showmigrations.py",
+        "contains": "                for plan_node in graph.forwards_plan(node):"
+      }
+    ],
+    "author_notes": "Gold is every enclosing definition outside django/db/migrations/graph.py that calls forwards_plan, verified by an independent ripgrep enumeration: 5 definitions across 4 files. The question is a necessity candidate because a lexical hit carries a path and a line but not the definition that encloses it, so a search-and-read arm must spend one read per file to name the callers, while one structural call certifies the whole set with its enclosing symbols and a complete count.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "migration graph ordered nodes to apply target dependencies forwards",
+          "limit": 10
+        },
+        "expect": [
+          "django/db/migrations/graph.py::forwards_plan"
+        ]
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "forwards_plan",
+          "limit": 50
+        },
+        "expect": [
+          "django/core/management/commands/makemigrations.py::handle_merge",
+          "django/core/management/commands/showmigrations.py::show_list",
+          "django/core/management/commands/showmigrations.py::show_plan",
+          "django/core/management/commands/squashmigrations.py::handle",
+          "django/db/migrations/executor.py::migration_plan"
+        ],
+        "uses_prior": "django/db/migrations/graph.py::forwards_plan"
+      }
+    ]
+  },
+  {
+    "id": "djn-external-formatter-callers",
+    "category": "exhaustive_caller_attribution",
+    "set": "dev",
+    "question": "A management utility shells out to an external code formatter over a list of files just written to disk, resolving the formatter binary once and doing nothing when it is absent. Identify every definition outside that utility module that invokes it. Return a JSON list of path::name.",
+    "helper": "django/core/management/utils.py::run_formatters",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/core/management/commands/makemigrations.py::handle_merge",
+        "django/core/management/commands/makemigrations.py::write_migration_files",
+        "django/core/management/commands/optimizemigration.py::handle",
+        "django/core/management/commands/squashmigrations.py::handle",
+        "django/core/management/templates.py::handle"
+      ]
+    },
+    "rejected_alternates": [
+      "django/core/management/utils.py::run_formatters",
+      "django/core/management/utils.py::popen_wrapper",
+      "django/core/management/utils.py::handle_extensions"
+    ],
+    "evidence": [
+      {
+        "path": "django/core/management/utils.py",
+        "contains": "def run_formatters(written_files, black_path=(sentinel := object())):"
+      },
+      {
+        "path": "django/core/management/commands/makemigrations.py",
+        "contains": "        run_formatters(self.written_files)"
+      },
+      {
+        "path": "django/core/management/commands/makemigrations.py",
+        "contains": "        run_formatters(self.written_files)"
+      },
+      {
+        "path": "django/core/management/commands/optimizemigration.py",
+        "contains": "        run_formatters([writer.path])"
+      }
+    ],
+    "author_notes": "Gold is every enclosing definition outside django/core/management/utils.py that calls run_formatters, verified by an independent ripgrep enumeration: 5 definitions across 4 files. The question is a necessity candidate because a lexical hit carries a path and a line but not the definition that encloses it, so a search-and-read arm must spend one read per file to name the callers, while one structural call certifies the whole set with its enclosing symbols and a complete count.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "run black formatter on written migration files subprocess",
+          "limit": 10
+        },
+        "expect": [
+          "django/core/management/utils.py::run_formatters"
+        ]
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "run_formatters",
+          "limit": 50
+        },
+        "expect": [
+          "django/core/management/commands/makemigrations.py::handle_merge",
+          "django/core/management/commands/makemigrations.py::write_migration_files",
+          "django/core/management/commands/optimizemigration.py::handle",
+          "django/core/management/commands/squashmigrations.py::handle",
+          "django/core/management/templates.py::handle"
+        ],
+        "uses_prior": "django/core/management/utils.py::run_formatters"
+      }
+    ]
+  },
+  {
+    "id": "djn-idna-encoder-callers",
+    "category": "exhaustive_caller_attribution",
+    "set": "dev",
+    "question": "A one-line encoding helper converts an internationalised domain to its ASCII-compatible form and decodes the result back to str. Identify every definition outside the encoding module that calls it. Attribute each call to the definition that immediately encloses it. Return a JSON list of path::name.",
+    "helper": "django/utils/encoding.py::punycode",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/core/mail/message.py::sanitize_address",
+        "django/core/mail/utils.py::get_fqdn",
+        "django/core/validators.py::__call__",
+        "django/utils/html.py::handle_word",
+        "django/utils/html.py::smart_urlquote"
+      ]
+    },
+    "rejected_alternates": [
+      "django/utils/encoding.py::punycode",
+      "django/utils/encoding.py::DjangoUnicodeDecodeError",
+      "django/utils/encoding.py::__str__"
+    ],
+    "evidence": [
+      {
+        "path": "django/utils/encoding.py",
+        "contains": "def punycode(domain):"
+      },
+      {
+        "path": "django/core/mail/message.py",
+        "contains": "    domain = punycode(domain)"
+      },
+      {
+        "path": "django/core/mail/utils.py",
+        "contains": "            self._fqdn = punycode(socket.getfqdn())"
+      },
+      {
+        "path": "django/core/validators.py",
+        "contains": "                    netloc = punycode(netloc)  # IDN -> ACE"
+      }
+    ],
+    "author_notes": "Gold is every enclosing definition outside django/utils/encoding.py that calls punycode, verified by an independent ripgrep enumeration: 5 definitions across 4 files. The question is a necessity candidate because a lexical hit carries a path and a line but not the definition that encloses it, so a search-and-read arm must spend one read per file to name the callers, while one structural call certifies the whole set with its enclosing symbols and a complete count.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "internationalised domain IDNA ascii encode decode",
+          "limit": 10
+        },
+        "expect": [
+          "django/utils/encoding.py::punycode"
+        ]
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "punycode",
+          "limit": 50
+        },
+        "expect": [
+          "django/core/mail/message.py::sanitize_address",
+          "django/core/mail/utils.py::get_fqdn",
+          "django/core/validators.py::__call__",
+          "django/utils/html.py::handle_word",
+          "django/utils/html.py::smart_urlquote"
+        ],
+        "uses_prior": "django/utils/encoding.py::punycode"
+      }
+    ]
+  },
+  {
+    "id": "djn-aware-to-naive-callers",
+    "category": "exhaustive_caller_attribution",
+    "set": "dev",
+    "question": "A timezone helper converts an aware datetime into a naive one in a given zone, raising when it is handed a value that is already naive. Identify every definition outside the timezone module that calls it. Note that three database backends each contain a same-named conversion method, and all of them count separately. Return a JSON list of path::name.",
+    "helper": "django/utils/timezone.py::make_naive",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/db/backends/mysql/operations.py::adapt_datetimefield_value",
+        "django/db/backends/oracle/operations.py::adapt_datetimefield_value",
+        "django/db/backends/sqlite3/operations.py::adapt_datetimefield_value",
+        "django/db/models/fields/__init__.py::_to_naive",
+        "django/db/models/fields/__init__.py::to_python"
+      ]
+    },
+    "rejected_alternates": [
+      "django/utils/timezone.py::make_naive",
+      "django/utils/timezone.py::get_fixed_timezone",
+      "django/utils/timezone.py::get_default_timezone"
+    ],
+    "evidence": [
+      {
+        "path": "django/utils/timezone.py",
+        "contains": "def make_naive(value, timezone=None):"
+      },
+      {
+        "path": "django/db/backends/mysql/operations.py",
+        "contains": "                value = timezone.make_naive(value, self.connection.timezone)"
+      },
+      {
+        "path": "django/db/backends/oracle/operations.py",
+        "contains": "                value = timezone.make_naive(value, self.connection.timezone)"
+      },
+      {
+        "path": "django/db/backends/sqlite3/operations.py",
+        "contains": "                value = timezone.make_naive(value, self.connection.timezone)"
+      }
+    ],
+    "author_notes": "Gold is every enclosing definition outside django/utils/timezone.py that calls make_naive, verified by an independent ripgrep enumeration: 5 definitions across 4 files. The question is a necessity candidate because a lexical hit carries a path and a line but not the definition that encloses it, so a search-and-read arm must spend one read per file to name the callers, while one structural call certifies the whole set with its enclosing symbols and a complete count.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "convert aware datetime to naive in timezone raise if naive",
+          "limit": 10
+        },
+        "expect": [
+          "django/utils/timezone.py::make_naive"
+        ]
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "make_naive",
+          "limit": 50
+        },
+        "expect": [
+          "django/db/backends/mysql/operations.py::adapt_datetimefield_value",
+          "django/db/backends/oracle/operations.py::adapt_datetimefield_value",
+          "django/db/backends/sqlite3/operations.py::adapt_datetimefield_value",
+          "django/db/models/fields/__init__.py::_to_naive",
+          "django/db/models/fields/__init__.py::to_python"
+        ],
+        "uses_prior": "django/utils/timezone.py::make_naive"
+      }
+    ]
+  },
+  {
+    "id": "djn-existing-table-listing-callers",
+    "category": "exhaustive_caller_attribution",
+    "set": "dev",
+    "question": "The base introspection class exposes a method returning the sorted list of tables that exist in the database, optionally excluding views, by mapping its raw table description rows. Identify every definition outside the base introspection module that calls it. Return a JSON list of path::name.",
+    "helper": "django/db/backends/base/introspection.py::table_names",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/core/management/commands/createcachetable.py::create_table",
+        "django/core/management/commands/migrate.py::sync_apps",
+        "django/db/backends/mysql/base.py::check_constraints",
+        "django/db/migrations/executor.py::detect_soft_applied",
+        "django/db/migrations/recorder.py::has_table"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/backends/base/introspection.py::table_names",
+      "django/db/backends/base/introspection.py::BaseDatabaseIntrospection",
+      "django/db/backends/base/introspection.py::__init__"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/base/introspection.py",
+        "contains": "    def table_names(self, cursor=None, include_views=False):"
+      },
+      {
+        "path": "django/core/management/commands/createcachetable.py",
+        "contains": "        if tablename in connection.introspection.table_names():"
+      },
+      {
+        "path": "django/core/management/commands/migrate.py",
+        "contains": "            tables = connection.introspection.table_names(cursor)"
+      },
+      {
+        "path": "django/db/backends/mysql/base.py",
+        "contains": "                table_names = self.introspection.table_names(cursor)"
+      }
+    ],
+    "author_notes": "Gold is every enclosing definition outside django/db/backends/base/introspection.py that calls table_names, verified by an independent ripgrep enumeration: 5 definitions across 5 files. The question is a necessity candidate because a lexical hit carries a path and a line but not the definition that encloses it, so a search-and-read arm must spend one read per file to name the callers, while one structural call certifies the whole set with its enclosing symbols and a complete count.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "introspection list of tables in database excluding views sorted",
+          "limit": 10
+        },
+        "expect": [
+          "django/db/backends/base/introspection.py::table_names"
+        ]
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "table_names",
+          "limit": 50
+        },
+        "expect": [
+          "django/core/management/commands/createcachetable.py::create_table",
+          "django/core/management/commands/migrate.py::sync_apps",
+          "django/db/backends/mysql/base.py::check_constraints",
+          "django/db/migrations/executor.py::detect_soft_applied",
+          "django/db/migrations/recorder.py::has_table"
+        ],
+        "uses_prior": "django/db/backends/base/introspection.py::table_names"
+      }
+    ]
+  },
+  {
+    "id": "djn-schema-editor-context-callers",
+    "category": "exhaustive_caller_attribution",
+    "set": "dev",
+    "question": "The backend-independent connection wrapper exposes a context manager that hands out the backend's schema editor class, forwarding its arguments and pairing it with the connection. Identify every definition outside that wrapper's own module that opens it. Return a JSON list of path::name.",
+    "helper": "django/db/backends/base/base.py::schema_editor",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/core/management/commands/migrate.py::sync_apps",
+        "django/db/migrations/executor.py::apply_migration",
+        "django/db/migrations/executor.py::unapply_migration",
+        "django/db/migrations/loader.py::collect_sql",
+        "django/db/migrations/recorder.py::ensure_schema"
+      ]
+    },
+    "rejected_alternates": [
+      "django/db/backends/base/base.py::schema_editor",
+      "django/db/backends/base/base.py::BaseDatabaseWrapper",
+      "django/db/backends/base/base.py::__init__"
+    ],
+    "evidence": [
+      {
+        "path": "django/db/backends/base/base.py",
+        "contains": "    def schema_editor(self, *args, **kwargs):"
+      },
+      {
+        "path": "django/core/management/commands/migrate.py",
+        "contains": "        with connection.schema_editor() as editor:"
+      },
+      {
+        "path": "django/db/migrations/executor.py",
+        "contains": "                with self.connection.schema_editor("
+      },
+      {
+        "path": "django/db/migrations/executor.py",
+        "contains": "                with self.connection.schema_editor("
+      }
+    ],
+    "author_notes": "Gold is every enclosing definition outside django/db/backends/base/base.py that calls schema_editor, verified by an independent ripgrep enumeration: 5 definitions across 4 files. The question is a necessity candidate because a lexical hit carries a path and a line but not the definition that encloses it, so a search-and-read arm must spend one read per file to name the callers, while one structural call certifies the whole set with its enclosing symbols and a complete count.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "connection context manager returning backend schema editor class",
+          "limit": 10
+        },
+        "expect": [
+          "django/db/backends/base/base.py::schema_editor"
+        ]
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "schema_editor",
+          "limit": 50
+        },
+        "expect": [
+          "django/core/management/commands/migrate.py::sync_apps",
+          "django/db/migrations/executor.py::apply_migration",
+          "django/db/migrations/executor.py::unapply_migration",
+          "django/db/migrations/loader.py::collect_sql",
+          "django/db/migrations/recorder.py::ensure_schema"
+        ],
+        "uses_prior": "django/db/backends/base/base.py::schema_editor"
+      }
+    ]
+  },
+  {
+    "id": "djn-deserialization-error-raisers",
+    "category": "exhaustive_caller_attribution",
+    "set": "dev",
+    "question": "The serializers package defines an exception wrapping any problem that occurs while turning serialized data back into objects, and it carries a helper that re-raises an arbitrary exception as itself with the original traceback attached. Identify every definition outside the module that defines it which raises or constructs it. Return a JSON list of path::name.",
+    "helper": "django/core/serializers/base.py::DeserializationError",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/core/serializers/json.py::Deserializer",
+        "django/core/serializers/jsonl.py::Deserializer",
+        "django/core/serializers/python.py::_get_model",
+        "django/core/serializers/pyyaml.py::Deserializer",
+        "django/core/serializers/xml_serializer.py::_get_model_from_node",
+        "django/core/serializers/xml_serializer.py::_handle_object"
+      ]
+    },
+    "rejected_alternates": [
+      "django/core/serializers/base.py::DeserializationError",
+      "django/core/serializers/base.py::SerializerDoesNotExist",
+      "django/core/serializers/base.py::SerializationError"
+    ],
+    "evidence": [
+      {
+        "path": "django/core/serializers/base.py",
+        "contains": "class DeserializationError(Exception):"
+      },
+      {
+        "path": "django/core/serializers/json.py",
+        "contains": "        raise DeserializationError() from exc"
+      },
+      {
+        "path": "django/core/serializers/jsonl.py",
+        "contains": "            raise DeserializationError() from exc"
+      },
+      {
+        "path": "django/core/serializers/python.py",
+        "contains": "        raise base.DeserializationError("
+      }
+    ],
+    "author_notes": "Gold is every enclosing definition outside django/core/serializers/base.py that calls DeserializationError, verified by an independent ripgrep enumeration: 6 definitions across 5 files. The question is a necessity candidate because a lexical hit carries a path and a line but not the definition that encloses it, so a search-and-read arm must spend one read per file to name the callers, while one structural call certifies the whole set with its enclosing symbols and a complete count.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "deserialization exception wraps original traceback serialized data",
+          "limit": 10
+        },
+        "expect": [
+          "django/core/serializers/base.py::DeserializationError"
+        ]
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "DeserializationError",
+          "limit": 50
+        },
+        "expect": [
+          "django/core/serializers/json.py::Deserializer",
+          "django/core/serializers/jsonl.py::Deserializer",
+          "django/core/serializers/python.py::_get_model",
+          "django/core/serializers/pyyaml.py::Deserializer",
+          "django/core/serializers/xml_serializer.py::_get_model_from_node",
+          "django/core/serializers/xml_serializer.py::_handle_object"
+        ],
+        "uses_prior": "django/core/serializers/base.py::DeserializationError"
+      }
+    ]
+  },
+  {
+    "id": "djn-unsafe-file-operation-raisers",
+    "category": "exhaustive_caller_attribution",
+    "set": "dev",
+    "question": "One exception in the core exceptions module marks a filesystem operation that would escape its permitted location or otherwise be unsafe. Identify every definition outside the core exceptions module that raises it. Return a JSON list of path::name.",
+    "helper": "django/core/exceptions.py::SuspiciousFileOperation",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "django/core/files/storage/base.py::generate_filename",
+        "django/core/files/storage/base.py::get_available_name",
+        "django/core/files/utils.py::validate_file_name",
+        "django/utils/_os.py::safe_join",
+        "django/utils/text.py::get_valid_filename"
+      ]
+    },
+    "rejected_alternates": [
+      "django/core/exceptions.py::SuspiciousFileOperation",
+      "django/core/exceptions.py::FieldDoesNotExist",
+      "django/core/exceptions.py::AppRegistryNotReady"
+    ],
+    "evidence": [
+      {
+        "path": "django/core/exceptions.py",
+        "contains": "class SuspiciousFileOperation(SuspiciousOperation):"
+      },
+      {
+        "path": "django/core/files/storage/base.py",
+        "contains": "            raise SuspiciousFileOperation("
+      },
+      {
+        "path": "django/core/files/storage/base.py",
+        "contains": "            raise SuspiciousFileOperation("
+      },
+      {
+        "path": "django/core/files/utils.py",
+        "contains": "        raise SuspiciousFileOperation(\"Could not derive file name from '%s'\" % name)"
+      }
+    ],
+    "author_notes": "Gold is every enclosing definition outside django/core/exceptions.py that calls SuspiciousFileOperation, verified by an independent ripgrep enumeration: 5 definitions across 4 files. The question is a necessity candidate because a lexical hit carries a path and a line but not the definition that encloses it, so a search-and-read arm must spend one read per file to name the callers, while one structural call certifies the whole set with its enclosing symbols and a complete count.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {
+          "query": "unsafe filesystem operation outside permitted location exception",
+          "limit": 10
+        },
+        "expect": [
+          "django/core/exceptions.py::SuspiciousFileOperation"
+        ]
+      },
+      {
+        "tool": "find_callers",
+        "arguments": {
+          "name": "SuspiciousFileOperation",
+          "limit": 50
+        },
+        "expect": [
+          "django/core/files/storage/base.py::generate_filename",
+          "django/core/files/storage/base.py::get_available_name",
+          "django/core/files/utils.py::validate_file_name",
+          "django/utils/_os.py::safe_join",
+          "django/utils/text.py::get_valid_filename"
+        ],
+        "uses_prior": "django/core/exceptions.py::SuspiciousFileOperation"
+      }
+    ]
+  }
+]

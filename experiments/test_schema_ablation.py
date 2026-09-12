@@ -39,6 +39,22 @@ class SchemaAblationTests(unittest.TestCase):
         self.assertEqual(utility["turns_avoided"], 4)
         self.assertEqual(report["systems"]["no-trace"]["regressions_vs_full"], ["q1"])
 
+    def test_break_even_prices_schema_against_turns_and_answers(self):
+        full = [{"turns": 4, "input_tokens": 400}, {"turns": 6, "input_tokens": 600}]
+        stub = {"turns_avoided": 4, "unique_solves_enabled": 0}
+        # 10 turns x 50 tokens = 500 of schema, against 4 avoided turns x 100 tokens = 400.
+        verdict = schema_ablation.break_even("t", 50.0, full, stub)
+        self.assertEqual((verdict["schema_cost_tokens"], verdict["turn_saving_tokens"]), (500, 400))
+        self.assertEqual(verdict["net_tokens"], -100)
+        self.assertEqual(verdict["verdict"], "does not pay for its schema on this suite")
+
+        paying = schema_ablation.break_even("t", 10.0, full, stub)
+        self.assertEqual(paying["verdict"], "earns its schema on turns alone")
+
+        enabling = schema_ablation.break_even(
+            "t", 50.0, full, {"turns_avoided": 0, "unique_solves_enabled": 1})
+        self.assertEqual(enabling["verdict"], "earns its schema by enabling answers")
+
 
 if __name__ == "__main__":
     unittest.main()
