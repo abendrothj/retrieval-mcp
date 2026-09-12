@@ -12,16 +12,24 @@ input tokens** and carried **34% less context** — [the numbers](#what-the-expe
 cargo install retrieval-mcp
 ```
 
-Then, from the repository you want it to answer questions about:
+Then register it with your client. MCP servers are declared in configuration and started by the
+client on demand — you never launch this yourself, and it exits with the session:
 
-```sh
-claude mcp add --transport stdio --scope local retrieval -- \
-  retrieval-mcp --root "$PWD" --timeout-seconds 120
+```json
+{
+  "mcpServers": {
+    "retrieval": {
+      "command": "retrieval-mcp",
+      "args": ["--root", "/absolute/path/to/your/repo", "--timeout-seconds", "120"]
+    }
+  }
+}
 ```
 
-That is the whole setup — `/mcp` in Claude Code confirms it. [Connect Codex](#connect-codex) is the
-equivalent one-liner. Nothing is written to your repository, nothing is downloaded, and no index is
-built ahead of time.
+`--root` is fixed at startup and is the only repository the session can read, so a server entry is
+per-project. [Connect Claude Code](#connect-claude-code) and [Connect Codex](#connect-codex) give the
+one-liners that write this entry for you. Nothing is written to your repository, no index is built
+ahead of time, and the first structural call builds an in-memory snapshot that dies with the process.
 
 ## Quickstart
 
@@ -36,7 +44,8 @@ printf '%s\n' \
 ```
 
 That is the payload an agent receives: every call site of `build` with the definition enclosing it
-and a complete count, from one call, against the current files on disk.
+and a complete count, from one call, against the current files on disk. It is a smoke check from a
+clone — a wired-up client never needs it.
 
 ## What it is
 
