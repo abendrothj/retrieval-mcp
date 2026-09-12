@@ -1,22 +1,24 @@
 # retrieval-mcp
 
-A small Rust MCP server for testing whether a coding model can choose its own retrieval mechanism, and what that choice costs in context. It exposes seven tools over stdio. There is no LLM router, no combined search tool, and no automatic fallback between methods: server instructions and tool descriptions say which tool suits which question shape, and the model does all the routing.
+A small Rust MCP server for testing whether a coding model can choose its own retrieval mechanism, and what that choice costs in context. It can expose seven tools over stdio and defaults to the four that measurably repaid their schema cost. There is no LLM router, no combined search tool, and no automatic fallback between methods: server instructions and tool descriptions say which tool suits which question shape, and the model does all the routing.
 
-This is a research instrument that happens to be a usable MCP server, not a product. It runs offline by default and needs no index files, database, daemon, or model. Its honest current standing against alternatives is in [What the experiments found](#what-the-experiments-found): on the one head-to-head so far it ties on answer quality and spends slightly *more* total context than plain grep-and-read.
+This is a research instrument that happens to be a usable MCP server, not a product. It runs offline by default and needs no index files, database, daemon, or model. Its standing against alternatives is in [What the experiments found](#what-the-experiments-found): on a sealed 30-question held-out set it matched zvec-grep's answer quality (29/30 each) on the same number of tool calls while spending 24% fewer input tokens and carrying 34% less persistent context, and beat a native `Read`/`Grep`/`Glob` control on both quality and cost.
+
+What produced that was subtraction rather than sophistication. Dense retrieval is not the default, hybrid is not the default, there is no server-side routing, and three of the seven tools were removed from the default surface on replicated evidence. What remains is query reformulation by the model, cheap lexical retrieval, bounded source verification, one relational primitive for facts lexical search cannot cheaply certify, and an evidence-grounded stopping rule. In this setting interaction design dominated retrieval sophistication.
 
 ```text
 Claude Code / Codex / OpenCode
         │ MCP over stdio
         ▼
 Rust retrieval server ── invocation events → JSONL
-        ├── search_exact       → ripgrep subprocess
-        ├── read_source        → bounded filesystem reads
+        ├── search_exact       → ripgrep subprocess                          [default]
+        ├── read_source        → bounded filesystem reads                    [default]
+        ├── find_callers       → syntactic references + candidate definitions [default]
+        ├── search_concept     → BM25 over symbol chunks, or a semantic/hybrid ranker
+        │                          └── optional: local Ollama embeddings     [default]
         ├── inspect_symbol     → one-hop neighbourhood, both directions, capped
         ├── find_symbol        → Tree-sitter snapshot (Rust/Python/TypeScript)
-        ├── find_callers       → syntactic references + candidate definitions
-        ├── trace_dependencies → bounded transitive call traversal
-        └── search_concept     → BM25 over symbol chunks, or a semantic/hybrid ranker
-                                   └── optional: local Ollama embeddings
+        └── trace_dependencies → bounded transitive call traversal
 ```
 
 Design decisions here are downstream of measurements; the protocol, artifacts, and caveats behind every claim are in [experiments/README.md](experiments/README.md).
@@ -317,7 +319,7 @@ Corpora, run artifacts, transcripts, and model answers are deliberately absent. 
 ```sh
 cargo test --locked --all-targets            # 15 library, 6 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 145 tests
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 149 tests
 ```
 
 All of these run offline and call no model. The Python suite exercises the harness itself: real MCP

@@ -796,12 +796,34 @@ rather than a list. The grader scored that 0.0 while scoring free prose naming t
 repaired and pinned by a test, and the repair was applied symmetrically and re-run over all three
 arms: retrieval-mcp 29 → 30, native 28 → 29, zvec unchanged at 29.
 
-The frozen-grader row is the primary result and is reported first, because the repair was found
-after the set was opened. The repaired numbers are reported because concealing a known measurement
-defect is worse than disclosing one found late — and because the defect was found by disbelieving a
-result *against* this server, which is the same discipline that found the eleven before it. Either
-way the conclusion is the same: quality indistinguishable from zvec, and the context saving is the
-result. The set is spent; nothing further is tuned against it.
+**Post-hoc sensitivity analysis, not a second result.** The frozen-grader row above is the result.
+Repairing the notation defect and regrading all three arms identically gives retrieval-mcp 30/30,
+native 29/30, zvec 29/30 — reported because concealing a known measurement defect is worse than
+disclosing one found late, and labelled as sensitivity because it was computed after the seal broke.
+It does not change the conclusion either way: quality indistinguishable from zvec, and the context
+saving is the result. The set is spent; nothing further is tuned against it.
+
+### Reproducing it
+
+No corpus is shipped, so `reproduce_heldout.py` rebuilds it: a blobless sparse clone of the pinned
+Django revision, the five scoped packages, and a hard failure unless the result matches the
+fingerprint in `django_suite_manifest.json` byte for byte. It was run against a fresh clone and
+returns `038e9fdd…` over 276 files, the same corpus every number in this file was measured on, and
+it then prints the exact validate/prepare/run/score commands. It calls no model.
+
+### The habit that made the numbers trustworthy
+
+Sixteen harness defects appear in this file, and they run in both directions — some flattered this
+server, some penalised it, and the last one was found inside its own single held-out loss. None was
+found by auditing on a schedule. Every one came from the same rule, which is the methodological
+claim this project would actually defend:
+
+> **Every surprising result triggers an evaluator audit before an architectural interpretation.**
+
+A stopping rule that looked like a free 22% saving, a treatment loss that looked like a premature
+stop, an arm whose payload metrics read zero, two tools that agreed on nine helpers and disagreed on
+five, a 0.40 that looked like over-listing: each was a measurement bug, and each would have become a
+published architectural finding under the opposite habit.
 
 ## Native-system comparison
 
