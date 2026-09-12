@@ -3,8 +3,15 @@ name = "retrieval-mcp"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.90"
-description = "Separate code retrieval tools for model-directed routing experiments"
+description = "Context-efficient code retrieval over MCP: four tools chosen by measurement, no index files, no daemon, offline by default"
 license = "MIT"
+repository = "https://github.com/abendrothj/retrieval-mcp"
+readme = "README.md"
+keywords = ["mcp", "code-search", "retrieval", "llm", "agents"]
+categories = ["development-tools", "command-line-utilities"]
+# The Python harness, question sets and CI are the research record, not part of the crate a
+# dependent builds. They stay in the repository and out of the published archive.
+exclude = ["experiments/", ".github/"]
 
 [dependencies]
 anyhow = "1"

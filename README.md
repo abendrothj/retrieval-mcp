@@ -1,10 +1,56 @@
 # retrieval-mcp
 
-A small Rust MCP server for testing whether a coding model can choose its own retrieval mechanism, and what that choice costs in context. It can expose seven tools over stdio and defaults to the four that measurably repaid their schema cost. There is no LLM router, no combined search tool, and no automatic fallback between methods: server instructions and tool descriptions say which tool suits which question shape, and the model does all the routing.
+**Code retrieval for coding agents, with the tool surface chosen by measurement instead of taste.**
+Four tools over stdio, for Claude Code, Codex, or anything else that speaks MCP. No index to build,
+no database, no daemon, no API key, no embedding service unless you want one. On a sealed held-out
+set it matched a specialist code-search MCP on answer quality while the agent spent **24% fewer
+input tokens** and carried **34% less context** — [the numbers](#what-the-experiments-found).
 
-This is a research instrument that happens to be a usable MCP server, not a product. It runs offline by default and needs no index files, database, daemon, or model. Its standing against alternatives is in [What the experiments found](#what-the-experiments-found): on a sealed 30-question held-out set it matched zvec-grep's answer quality (29/30 each) on the same number of tool calls while spending 24% fewer input tokens and carrying 34% less persistent context, and beat a native `Read`/`Grep`/`Glob` control on both quality and cost.
+## Install
 
-What produced that was subtraction rather than sophistication. Dense retrieval is not the default, hybrid is not the default, there is no server-side routing, and three of the seven tools were removed from the default surface on replicated evidence. What remains is query reformulation by the model, cheap lexical retrieval, bounded source verification, one relational primitive for facts lexical search cannot cheaply certify, and an evidence-grounded stopping rule. In this setting interaction design dominated retrieval sophistication.
+```sh
+cargo install retrieval-mcp
+```
+
+Then, from the repository you want it to answer questions about:
+
+```sh
+claude mcp add --transport stdio --scope local retrieval -- \
+  retrieval-mcp --root "$PWD" --timeout-seconds 120
+```
+
+That is the whole setup — `/mcp` in Claude Code confirms it. [Connect Codex](#connect-codex) is the
+equivalent one-liner. Nothing is written to your repository, nothing is downloaded, and no index is
+built ahead of time.
+
+## Quickstart
+
+```sh
+cargo build --locked --release --bin retrieval-mcp
+
+# Make the call your agent will make, and see exactly what it gets back:
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"find_callers","arguments":{"name":"build"}}}' \
+  | ./target/release/retrieval-mcp --root "$PWD" 2>/dev/null | tail -1
+```
+
+That is the payload an agent receives: every call site of `build` with the definition enclosing it
+and a complete count, from one call, against the current files on disk.
+
+## What it is
+
+A small Rust MCP server, and the experiment that chose its shape. It can expose seven tools and
+defaults to the four that measurably repaid the schema cost of advertising them. There is no LLM
+router, no combined search tool, and no automatic fallback: tool descriptions say which tool suits
+which question shape, and the model does all the routing.
+
+What produced the result was subtraction rather than sophistication. Dense retrieval is not the
+default, hybrid is not the default, there is no server-side routing, and three of the seven tools
+were un-defaulted on replicated evidence. What remains is query reformulation by the model, cheap
+lexical retrieval, bounded source verification, one relational primitive for facts lexical search
+cannot cheaply certify, and an evidence-grounded stopping rule. In this setting interaction design
+dominated retrieval sophistication.
 
 ```text
 Claude Code / Codex / OpenCode
@@ -24,20 +70,6 @@ Rust retrieval server ── invocation events → JSONL
 Design decisions here are downstream of measurements; the protocol, artifacts, and caveats behind every claim are in [experiments/README.md](experiments/README.md).
 
 **Where the evidence lives.** This repository is both the server and its research record: [experiments/README.md](experiments/README.md) holds the held-out comparison against zvec-grep and a native control, [how the project converged](experiments/README.md#how-it-converged), the reasoning that cut the surface from seven tools to four, and a [ledger of the measurement defects](experiments/README.md#harness-defect-ledger) found along the way. No corpus copy or run artifact is published: [`experiments/reproduce_heldout.py`](experiments/reproduce_heldout.py) rebuilds the pinned corpus from upstream and fails on any mismatch.
-
-## Quickstart
-
-```sh
-cargo build --locked --release --bin retrieval-mcp
-
-# Ask the server a structural question directly, no agent and no model:
-printf '%s\n' \
-  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"inspect_symbol","arguments":{"name":"build"}}}' \
-  | ./target/release/retrieval-mcp --root "$PWD" --tools inspect_symbol 2>/dev/null | tail -1
-```
-
-That prints where `build` is defined, who calls it, what it calls, and complete counts for each side. No index files are written, no network is touched, and no model is involved. `inspect_symbol` is named explicitly because the default surface is the four tools below; `--tools` is how any session picks what it exposes. To wire it into an agent, see [Connect Claude Code](#connect-claude-code) or [Connect Codex](#connect-codex).
 
 ## What the experiments found
 
@@ -108,7 +140,7 @@ cargo build --locked --release --bin retrieval-mcp --example ollama_backend
 cargo test --locked --all-targets
 cargo clippy --locked --all-targets -- -D warnings
 
-# Default four tools, in-process BM25 behind search_concept: no model, no service, no network.
+# Default four tools, in-process BM25 behind search_concept: no embedding model, no service, no network.
 ./target/release/retrieval-mcp --root /absolute/path/to/repo \
   --run-id task-001 --log-file /absolute/path/to/task-001.jsonl
 
