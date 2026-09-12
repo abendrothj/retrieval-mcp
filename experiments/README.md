@@ -484,6 +484,94 @@ named both correct symbols. `quality_pass.context_segments` now treats a single 
 separator, exactly as editors and grep write it, while a line reference such as `query.py:1234`
 still fails to parse rather than resolving to something wrong.
 
+### The regression was ambiguity, not stopping: one clause, re-run
+
+The hard suite's single closure loss was not a missing fact — both candidate properties were on
+screen — so the repair had to be narrow enough to leave the closure win intact. One sentence was
+added to the policy, and nothing else in either arm changed:
+
+> If multiple visible symbols plausibly satisfy a requested fact, disambiguate between those
+> candidates before answering. Do not expand merely to reconfirm a single unambiguous candidate.
+
+Criterion set before the run: restore the lost answer without materially increasing turns.
+30 questions × 2 arms × 1 repetition, 60 trials, none aborted, `gpt-5.6-luna`:
+
+| | closure | + ambiguity clause |
+|---|---:|---:|
+| Regraded correct / 30 | 28 | **30** |
+| Tool calls | 100 | **96** |
+| Calls after first hit | 33 | **30** |
+| Input tokens | 5.62 M | 6.07 M (+8%) |
+| `closure_audit.py` regressions | — | **0** |
+
+Both losses came back: `djh-orm-internal-manager-fallback-chain` (`default_manager` → `base_manager`)
+and `djh-backends-literal-default-hook-override` (`quote_value` → `prepare_default`), each in the
+same number of calls as before. Calls fell by four while quality rose, so the clause is not buying
+correctness with turns. Input tokens nevertheless rose 8%, dominated by one trial that spent eight
+extra `read_source` calls confirming a caller list; that is reported as a caveat, not as a saving.
+The clause is now frozen into `comparison_systems_closure.json` and every later arm carries it.
+
+### A suite that was supposed to separate retrieval strategies, and a validator for it
+
+`django_retrieval_strategy_questions.json` is 12 development questions aimed at capability
+boundaries rather than stopping behaviour: caller/callee orientation, two-hop traversal,
+container/member distinction, same-name definitions where the path decides, an interface whose two
+overrides are textually identical, evidence combined from distant definitions, and a lexical
+distractor that outranks the answer.
+
+The earlier suites showed that authoring "hard" questions is how impossible ones get in, so
+`tool_reachability.py` adds a compilation property no earlier validator had: **there exists a
+supported tool path from an initial retrievable seed to the complete gold, and it executes.** Each
+question carries a `tool_path`; the checker runs it against the pinned server and fails when a step
+errors, when a declared marker is absent from that step's own output, or when the complete gold
+never appears. It also refuses two ways of cheating the property: step 0 may not query a gold
+identifier directly, and every later step's arguments must consume a marker an earlier step
+produced. All 12 questions pass in 26 tool calls; the first draft did not, which is the point.
+
+### Schema surface: the tax is real, the capability pressure is not
+
+`trace_dependencies` costs 1,158 schema tokens on every turn and had been called zero times in 60
+trials, so the open question was whether a rarely used tool earns its schema. Six arms —
+the full surface, one leave-one-out arm per structural tool, and a lexical-only arm — over the
+12 retrieval-strategy questions, identical corpora, identical frozen policy, a shared five-call
+ceiling, `claude-sonnet-4-6`, 72 trials, none aborted:
+
+| arm | correct / 12 | schema tok/turn | schema tok·turns | input tokens | persistent payload |
+|---|---:|---:|---:|---:|---:|
+| full surface | 11 | 5,786 | 208 k | 341 k | 72.3 k |
+| − `inspect_symbol` | 11 | 5,032 | 171 k | 306 k | 64.4 k |
+| − `find_symbol` | 11 | 5,008 | 180 k | 315 k | 58.4 k |
+| − `find_callers` | 11 | 4,406 | 150 k | 294 k | 55.1 k |
+| − `trace_dependencies` | 11 | 4,628 | 162 k | 299 k | 60.0 k |
+| lexical only | 11 | **1,717** | **62 k** | **277 k** | **52.0 k** |
+
+No structural tool enabled a single unique solve. The full surface was the most expensive arm on
+every axis, and the one question every arm missed is the same one in all six — the ambiguous
+manager property, whose gold was re-checked against source and is correct — so that failure
+measures commitment, not tool surface. `trace_dependencies` was never called even on the six
+questions authored to require two caller hops: the model reached those golds with paired
+`search_concept` calls, or `search_exact` plus a narrow `read_source`.
+
+The tempting conclusion is to cut the surface, and it is not supported. What the run actually shows
+is that **tool reachability is not tool necessity**. The validator proves a structural route to the
+gold exists; it says nothing about whether a lexical seed plus reads also reaches it inside the
+budget, and here it did, 11 times out of 12. Removing a tool on this evidence would be justified by
+an absence of pressure, not an absence of capability. The next compilation property is necessity:
+admit a question only when no lexical-seed-plus-read path reaches its complete gold within the call
+budget. `runs/django-schema-ablation-claude-20260911/decision.json` holds the full accounting.
+
+Two harness notes. `end_to_end.py` could not read a Claude transcript at all — it knew the OpenCode
+and Codex event files, and the Claude client has no side channel, its stream-json output *is* the
+transcript — so every payload metric for these arms would have silently read zero and made the
+MCP arms look free. It now parses that stream, matching `tool_result` payloads back to the
+`tool_use` that requested them and deduplicating the usage object Claude repeats across the blocks
+of one API response; `schema_ablation.py` takes tokens from that normalised stream rather than from
+a client-specific usage envelope, because Claude reports fresh, newly cached, and replayed prefix
+separately while Codex reports one total. That is the twelfth defect in this list, and it was found
+by disbelieving a zero. Separately, the first attempt at this matrix aborted at trial 27 of 72 on a
+provider usage limit; `runs/django-schema-ablation-20260910/partial-state.json` records why those
+trials must not be compared.
+
 ## Native-system comparison
 
 `comparison_runner.py` holds OpenCode and DeepSeek V4 Flash constant across six arms: a native

@@ -1,0 +1,424 @@
+[
+  {
+    "id": "djr-ambiguous-internal-manager-policy",
+    "category": "lexical_distractor",
+    "set": "dev",
+    "question": "Every model class exposes a manager that the ORM itself uses when it must query a table without user-supplied filtering. The model metaclass only forwards to Meta options. On the options object, the cached computation inherits the first non-fabricated manager name from the MRO, rejects a configured missing name, and otherwise constructs an auto-created plain Manager. Identify the definition that owns that policy. Return path::name.",
+    "expected_json": {"answer": "django/db/models/options.py::base_manager"},
+    "rejected_alternates": [
+      "django/db/models/base.py::_base_manager",
+      "django/db/models/options.py::default_manager",
+      "django/db/models/options.py::managers_map"
+    ],
+    "evidence": [
+      {"path": "django/db/models/base.py", "contains": "        return cls._meta.base_manager"},
+      {"path": "django/db/models/options.py", "contains": "    def base_manager(self):"},
+      {"path": "django/db/models/options.py", "contains": "                    if parent._base_manager.name != \"_base_manager\":"},
+      {"path": "django/db/models/options.py", "contains": "        manager.auto_created = True"}
+    ],
+    "author_notes": "Semantic retrieval exposes base_manager and default_manager together; correctness requires resolving the visible role ambiguity rather than stopping on the neighboring property.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {"query": "internal unfiltered manager MRO auto_created missing manager name", "limit": 10},
+        "expect": ["django/db/models/options.py::base_manager"]
+      }
+    ]
+  },
+  {
+    "id": "djr-same-name-related-object-builder",
+    "category": "namesake_disambiguation",
+    "set": "dev",
+    "question": "Within django/db/models, one definition named for related objects is a cascade-planning query builder: it receives the far model, relation fields, and collected instances; OR-connects one field__in predicate per relation; and queries through the far model's unfiltered manager on the deletion alias. Another same-named definition is only field metadata. Return the query-builder definition as path::name.",
+    "expected_json": {"answer": "django/db/models/deletion.py::related_objects"},
+    "rejected_alternates": [
+      "django/db/models/options.py::related_objects",
+      "django/db/models/deletion.py::get_del_batches",
+      "django/db/models/options.py::_populate_directed_relation_graph"
+    ],
+    "evidence": [
+      {"path": "django/db/models/deletion.py", "contains": "    def related_objects(self, related_model, related_fields, objs):"},
+      {"path": "django/db/models/deletion.py", "contains": "            connector=query_utils.Q.OR,"},
+      {"path": "django/db/models/deletion.py", "contains": "        return related_model._base_manager.using(self.using).filter(predicate)"},
+      {"path": "django/db/models/options.py", "contains": "    def related_objects(self):"}
+    ],
+    "author_notes": "The same leaf exists in deletion.py and options.py. The semantic result must be resolved by behavior and path.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {"query": "cascade related model Q OR base manager delete collector", "limit": 10},
+        "expect": ["django/db/models/deletion.py::related_objects"]
+      },
+      {
+        "tool": "find_symbol",
+        "arguments": {"name": "related_objects"},
+        "expect": [
+          "django/db/models/deletion.py::related_objects",
+          "django/db/models/options.py::related_objects"
+        ],
+        "uses_prior": "django/db/models/deletion.py::related_objects"
+      }
+    ]
+  },
+  {
+    "id": "djr-reverse-cache-property-expansion",
+    "category": "distant_definition_expansion",
+    "set": "dev",
+    "question": "When a relation field is added, the far model's Meta options object invalidates only incoming-relation caches. That branch iterates a class-level set of cache names and removes each from the instance dictionary, while abstract models skip it. Identify every cached definition named by that reverse-only set. Return each as path::name.",
+    "expected_json": {"answer": [
+      "django/db/models/options.py::related_objects",
+      "django/db/models/options.py::fields_map",
+      "django/db/models/options.py::_relation_tree"
+    ]},
+    "rejected_alternates": [
+      "django/db/models/options.py::_forward_fields_map",
+      "django/db/models/options.py::fields",
+      "django/db/models/options.py::_expire_cache"
+    ],
+    "evidence": [
+      {"path": "django/db/models/options.py", "contains": "    REVERSE_PROPERTIES = {\"related_objects\", \"fields_map\", \"_relation_tree\"}"},
+      {"path": "django/db/models/options.py", "contains": "        if reverse and not self.abstract:"},
+      {"path": "django/db/models/options.py", "contains": "    def related_objects(self):"},
+      {"path": "django/db/models/options.py", "contains": "    def fields_map(self):"},
+      {"path": "django/db/models/options.py", "contains": "    def _relation_tree(self):"}
+    ],
+    "author_notes": "The seed is the invalidation method, but the complete answer requires expanding a constant into three distant definitions.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {"query": "reverse cache properties relation tree fields map", "limit": 10},
+        "expect": ["django/db/models/options.py::_expire_cache"]
+      },
+      {
+        "tool": "read_source",
+        "arguments": {"path": "django/db/models/options.py", "start_line": 90, "end_line": 100},
+        "expect": ["REVERSE_PROPERTIES", "related_objects", "fields_map", "_relation_tree"],
+        "uses_prior": "django/db/models/options.py::_expire_cache"
+      },
+      {
+        "tool": "find_symbol",
+        "arguments": {"name": "related_objects", "path": "django/db/models/options.py"},
+        "expect": ["django/db/models/options.py::related_objects"],
+        "uses_prior": "related_objects"
+      },
+      {
+        "tool": "find_symbol",
+        "arguments": {"name": "fields_map", "path": "django/db/models/options.py"},
+        "expect": ["django/db/models/options.py::fields_map"],
+        "uses_prior": "fields_map"
+      },
+      {
+        "tool": "find_symbol",
+        "arguments": {"name": "_relation_tree", "path": "django/db/models/options.py"},
+        "expect": ["django/db/models/options.py::_relation_tree"],
+        "uses_prior": "_relation_tree"
+      }
+    ]
+  },
+  {
+    "id": "djr-interface-to-sqlite-default-implementation",
+    "category": "interface_implementation",
+    "set": "dev",
+    "question": "A base schema-editor hook for literal defaults raises NotImplementedError, while two concrete editors override it with the same one-line delegation to quote_value. Which override resolves to a delegate that first uses sqlite3.adapt, renders booleans as 0 or 1, renders bytes as an X-prefixed hexadecimal literal, and rejects unsupported types? Return path::name.",
+    "expected_json": {"answer": "django/db/backends/sqlite3/schema.py::prepare_default"},
+    "rejected_alternates": [
+      "django/db/backends/oracle/schema.py::prepare_default",
+      "django/db/backends/base/schema.py::prepare_default",
+      "django/db/backends/sqlite3/schema.py::quote_value"
+    ],
+    "evidence": [
+      {"path": "django/db/backends/base/schema.py", "contains": "requires_literal_defaults must provide a prepare_default() method"},
+      {"path": "django/db/backends/sqlite3/schema.py", "contains": "    def prepare_default(self, value):\n        return self.quote_value(value)"},
+      {"path": "django/db/backends/sqlite3/schema.py", "contains": "value = sqlite3.adapt(value)"},
+      {"path": "django/db/backends/oracle/schema.py", "contains": "    def prepare_default(self, value):\n        return self.quote_value(value)"}
+    ],
+    "author_notes": "The abstract/base declaration and two identical overrides force implementation resolution through the receiver's backend-specific delegate.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {"query": "literal defaults quote value sqlite3 adapt", "limit": 10},
+        "expect": [
+          "django/db/backends/base/schema.py::prepare_default",
+          "django/db/backends/sqlite3/schema.py::quote_value"
+        ]
+      },
+      {
+        "tool": "find_symbol",
+        "arguments": {"name": "prepare_default"},
+        "expect": ["django/db/backends/sqlite3/schema.py::prepare_default"],
+        "uses_prior": "django/db/backends/base/schema.py::prepare_default"
+      }
+    ]
+  },
+  {
+    "id": "djr-cache-culling-backend-override",
+    "category": "interface_implementation",
+    "set": "dev",
+    "question": "The database cache's culling path asks connection operations for a query that selects the first key above the n smallest. The portable implementation uses LIMIT 1 OFFSET. Exactly one backend overrides the operation with OFFSET rows followed by FETCH FIRST 1 ROWS ONLY. Return that override as path::name.",
+    "expected_json": {"answer": "django/db/backends/oracle/operations.py::cache_key_culling_sql"},
+    "rejected_alternates": [
+      "django/db/backends/base/operations.py::cache_key_culling_sql",
+      "django/core/cache/backends/db.py::_cull",
+      "django/db/backends/oracle/operations.py::limit_offset_sql"
+    ],
+    "evidence": [
+      {"path": "django/core/cache/backends/db.py", "contains": "connection.ops.cache_key_culling_sql() % table, [cull_num]"},
+      {"path": "django/db/backends/base/operations.py", "contains": "LIMIT 1 OFFSET %%s"},
+      {"path": "django/db/backends/oracle/operations.py", "contains": "OFFSET %%s ROWS FETCH FIRST 1 ROWS ONLY"}
+    ],
+    "author_notes": "The behavior starts in the cache package, crosses an operations interface, and ends at one backend override.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {"query": "cache culling SQL offset fetch first key", "limit": 10},
+        "expect": [
+          "django/db/backends/base/operations.py::cache_key_culling_sql",
+          "django/db/backends/oracle/operations.py::cache_key_culling_sql"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "djr-container-member-deferred-serializer-error",
+    "category": "container_member",
+    "set": "dev",
+    "question": "When a serializer module import fails, registration stores one stub instance under both entry-point attributes of a dynamic module-like type. The stub keeps the original import exception and re-raises it only when invoked later. Return a JSON object with `container` naming the stub class and `member` naming the method that performs the re-raise; use path::name for both.",
+    "expected_json": {"answer": {
+      "container": "django/core/serializers/__init__.py::BadSerializer",
+      "member": "django/core/serializers/__init__.py::__call__"
+    }},
+    "rejected_alternates": [
+      "django/core/serializers/__init__.py::register_serializer",
+      "django/core/serializers/__init__.py::__init__",
+      "django/core/serializers/__init__.py::get_serializer"
+    ],
+    "evidence": [
+      {"path": "django/core/serializers/__init__.py", "contains": "class BadSerializer:"},
+      {"path": "django/core/serializers/__init__.py", "contains": "    def __call__(self, *args, **kwargs):"},
+      {"path": "django/core/serializers/__init__.py", "contains": "        raise self.exception"},
+      {"path": "django/core/serializers/__init__.py", "contains": "bad_serializer = BadSerializer(exc)"}
+    ],
+    "author_notes": "The answer requires preserving the class/member relation rather than returning the registration function or an unqualified generic method.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {"query": "serializer registration import error deferred cached raises exception call", "limit": 10},
+        "expect": ["django/core/serializers/__init__.py::BadSerializer"]
+      },
+      {
+        "tool": "inspect_symbol",
+        "arguments": {"name": "BadSerializer", "path": "django/core/serializers/__init__.py"},
+        "expect": [
+          "django/core/serializers/__init__.py::BadSerializer",
+          "django/core/serializers/__init__.py::__call__"
+        ],
+        "uses_prior": "django/core/serializers/__init__.py::BadSerializer"
+      }
+    ]
+  },
+  {
+    "id": "djr-two-hop-inheritance-column-selection",
+    "category": "two_hop_callers",
+    "set": "dev",
+    "question": "The Meta options layer can return the relation field pointing to a requested ancestor, recursively following immediate parents and preferring the first proxy link. A Query method uses it while joining parent models. Which SQLCompiler method reaches that options helper in two caller hops by invoking the parent-join method once per concrete field? Return path::name.",
+    "expected_json": {"answer": "django/db/models/sql/compiler.py::get_default_columns"},
+    "rejected_alternates": [
+      "django/db/models/sql/query.py::join_parent_model",
+      "django/db/models/options.py::get_path_from_parent",
+      "django/db/models/sql/compiler.py::get_from_clause"
+    ],
+    "evidence": [
+      {"path": "django/db/models/options.py", "contains": "    def get_ancestor_link(self, ancestor):"},
+      {"path": "django/db/models/sql/query.py", "contains": "            link_field = curr_opts.get_ancestor_link(int_model)"},
+      {"path": "django/db/models/sql/compiler.py", "contains": "            alias = self.query.join_parent_model(opts, model, start_alias, seen_models)"},
+      {"path": "django/db/models/sql/compiler.py", "contains": "    def get_default_columns("}
+    ],
+    "author_notes": "The gold is not a direct caller of the seed. The supported route is semantic discovery followed by an inbound dependency trace to depth two.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {"query": "model inheritance ancestor link field parent join", "limit": 10},
+        "expect": ["django/db/models/options.py::get_ancestor_link"]
+      },
+      {
+        "tool": "trace_dependencies",
+        "arguments": {"name": "get_ancestor_link", "direction": "callers", "depth": 2, "limit": 50},
+        "expect": ["django/db/models/sql/compiler.py::get_default_columns"],
+        "uses_prior": "django/db/models/options.py::get_ancestor_link"
+      }
+    ]
+  },
+  {
+    "id": "djr-two-hop-xml-natural-key-builder",
+    "category": "two_hop_callers",
+    "set": "dev",
+    "question": "A serializer helper constructs a model instance and, when the primary key is absent and natural keys are supported, asks the default manager for an existing key. The XML deserializer's per-object handler calls that helper. Which iterator method reaches the helper through that handler? Return path::name.",
+    "expected_json": {"answer": "django/core/serializers/xml_serializer.py::__next__"},
+    "rejected_alternates": [
+      "django/core/serializers/xml_serializer.py::_handle_object",
+      "django/core/serializers/python.py::Deserializer",
+      "django/core/serializers/base.py::build_instance"
+    ],
+    "evidence": [
+      {"path": "django/core/serializers/base.py", "contains": "def build_instance(Model, data, db):"},
+      {"path": "django/core/serializers/xml_serializer.py", "contains": "                return self._handle_object(node)"},
+      {"path": "django/core/serializers/xml_serializer.py", "contains": "        obj = base.build_instance(Model, data, self.db)"},
+      {"path": "django/core/serializers/xml_serializer.py", "contains": "    def __next__(self):"}
+    ],
+    "author_notes": "A one-hop caller lookup stops at the handler; the requested iterator is exactly one more inbound edge.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {"query": "natural key missing primary key build model serializer", "limit": 10},
+        "expect": ["django/core/serializers/base.py::build_instance"]
+      },
+      {
+        "tool": "trace_dependencies",
+        "arguments": {"name": "build_instance", "direction": "callers", "depth": 2, "limit": 50},
+        "expect": ["django/core/serializers/xml_serializer.py::__next__"],
+        "uses_prior": "django/core/serializers/base.py::build_instance"
+      }
+    ]
+  },
+  {
+    "id": "djr-two-hop-model-registration-drain",
+    "category": "two_hop_callers",
+    "set": "dev",
+    "question": "The application registry drains callbacks waiting for a freshly registered model by popping the model key and invoking each queued function. Its model-registration method calls that drain after inserting the model. Which metaclass construction method reaches the drain through registration for every non-abstract model class? Return path::name.",
+    "expected_json": {"answer": "django/db/models/base.py::__new__"},
+    "rejected_alternates": [
+      "django/apps/registry.py::register_model",
+      "django/db/migrations/state.py::register_model",
+      "django/db/models/base.py::_prepare"
+    ],
+    "evidence": [
+      {"path": "django/apps/registry.py", "contains": "    def do_pending_operations(self, model):"},
+      {"path": "django/apps/registry.py", "contains": "        self.do_pending_operations(model)"},
+      {"path": "django/db/models/base.py", "contains": "        new_class._meta.apps.register_model(new_class._meta.app_label, new_class)"},
+      {"path": "django/db/models/base.py", "contains": "    def __new__(cls, name, bases, attrs, **kwargs):"}
+    ],
+    "author_notes": "The migration-state namesake is a distractor. The structural route follows Apps.register_model inbound to ModelBase construction.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {"query": "pending model operations pop callbacks registry", "limit": 10},
+        "expect": ["django/apps/registry.py::do_pending_operations"]
+      },
+      {
+        "tool": "trace_dependencies",
+        "arguments": {"name": "do_pending_operations", "direction": "callers", "depth": 2, "limit": 50},
+        "expect": ["django/db/models/base.py::__new__"],
+        "uses_prior": "django/apps/registry.py::do_pending_operations"
+      }
+    ]
+  },
+  {
+    "id": "djr-two-hop-ordering-parser-consumer",
+    "category": "two_hop_callers",
+    "set": "dev",
+    "question": "A module-level SQL query helper parses an ordering string into a field name and ASC or DESC, flipping the default for a leading minus. SQLCompiler's ordering-pair generator calls it while resolving requested ordering. Which compiler method reaches the parser through that generator and returns compiled ORDER BY entries? Return path::name.",
+    "expected_json": {"answer": "django/db/models/sql/compiler.py::get_order_by"},
+    "rejected_alternates": [
+      "django/db/models/sql/compiler.py::_order_by_pairs",
+      "django/db/models/sql/compiler.py::find_ordering_name",
+      "django/db/models/sql/query.py::get_order_dir"
+    ],
+    "evidence": [
+      {"path": "django/db/models/sql/query.py", "contains": "def get_order_dir(field, default=\"ASC\"):"},
+      {"path": "django/db/models/sql/compiler.py", "contains": "            col, order = get_order_dir(field, default_order)"},
+      {"path": "django/db/models/sql/compiler.py", "contains": "        for expr, is_ref in self._order_by_pairs():"},
+      {"path": "django/db/models/sql/compiler.py", "contains": "    def get_order_by(self):"}
+    ],
+    "author_notes": "The direct generator is explicitly not the requested answer; an inbound trace must preserve hop depth and direction.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {"query": "order specification leading minus ASC DESC parser", "limit": 10},
+        "expect": ["django/db/models/sql/query.py::get_order_dir"]
+      },
+      {
+        "tool": "trace_dependencies",
+        "arguments": {"name": "get_order_dir", "direction": "callers", "depth": 2, "limit": 50},
+        "expect": ["django/db/models/sql/compiler.py::get_order_by"],
+        "uses_prior": "django/db/models/sql/query.py::get_order_dir"
+      }
+    ]
+  },
+  {
+    "id": "djr-two-hop-queryset-or-alias-rewrite",
+    "category": "caller_orientation",
+    "set": "dev",
+    "question": "Combining two SQL Query objects clones the right side, builds an alias-change map, clones its where tree, and asks that tree to rewrite aliases in place. QuerySet exposes three boolean combination overloads that delegate to this combine method. Which overload passes the OR connector and therefore reaches the alias-rewrite method in two call hops? Return path::name.",
+    "expected_json": {"answer": "django/db/models/query.py::__or__"},
+    "rejected_alternates": [
+      "django/db/models/query.py::__and__",
+      "django/db/models/query.py::__xor__",
+      "django/db/models/sql/query.py::combine",
+      "django/db/models/sql/where.py::relabel_aliases"
+    ],
+    "evidence": [
+      {"path": "django/db/models/query.py", "contains": "        combined.query.combine(other.query, sql.OR)"},
+      {"path": "django/db/models/sql/query.py", "contains": "    def combine(self, rhs, connector):"},
+      {"path": "django/db/models/sql/query.py", "contains": "        w.relabel_aliases(change_map)"},
+      {"path": "django/db/models/query.py", "contains": "    def __or__(self, other):"}
+    ],
+    "author_notes": "The question supplies three inbound candidates and asks for relation orientation plus the connector-specific path.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {"query": "combine querysets relabel rhs aliases change map", "limit": 10},
+        "expect": ["django/db/models/sql/where.py::relabel_aliases"]
+      },
+      {
+        "tool": "trace_dependencies",
+        "arguments": {"name": "relabel_aliases", "direction": "callers", "depth": 2, "limit": 50},
+        "expect": [
+          "django/db/models/query.py::__and__",
+          "django/db/models/query.py::__or__",
+          "django/db/models/query.py::__xor__"
+        ],
+        "uses_prior": "django/db/models/sql/where.py::relabel_aliases"
+      }
+    ]
+  },
+  {
+    "id": "djr-two-hop-check-constraint-name-digest",
+    "category": "callee_then_caller_trace",
+    "set": "dev",
+    "question": "The base schema editor's index-name generator derives an eight-character digest from the table and column names. Which field-alteration method reaches that digest through the generator specifically when a changed database check constraint must be added? Return path::name.",
+    "expected_json": {"answer": "django/db/backends/base/schema.py::_alter_field"},
+    "rejected_alternates": [
+      "django/db/backends/base/schema.py::_create_index_name",
+      "django/db/backends/base/schema.py::_create_primary_key_sql",
+      "django/db/backends/postgresql/schema.py::_alter_field",
+      "django/db/backends/base/schema.py::_constraint_names"
+    ],
+    "evidence": [
+      {"path": "django/db/backends/base/schema.py", "contains": "    def _create_index_name(self, table_name, column_names, suffix=\"\"):"},
+      {"path": "django/db/backends/base/schema.py", "contains": "            names_digest(table_name, *column_names, length=8),"},
+      {"path": "django/db/backends/base/schema.py", "contains": "        if old_db_check != new_db_check and new_db_check:"},
+      {"path": "django/db/backends/base/schema.py", "contains": "            constraint_name = self._create_index_name("},
+      {"path": "django/db/backends/base/schema.py", "contains": "    def _alter_field("}
+    ],
+    "author_notes": "The authored route first discovers the generator, observes its digest callee, then traces callers of that callee to depth two and disambiguates same-named backend overrides by path and source condition.",
+    "tool_path": [
+      {
+        "tool": "search_concept",
+        "arguments": {"query": "index constraint name digest table columns suffix", "limit": 10},
+        "expect": ["django/db/backends/base/schema.py::_create_index_name"]
+      },
+      {
+        "tool": "inspect_symbol",
+        "arguments": {"name": "_create_index_name", "path": "django/db/backends/base/schema.py"},
+        "expect": ["names_digest"],
+        "uses_prior": "django/db/backends/base/schema.py::_create_index_name"
+      },
+      {
+        "tool": "trace_dependencies",
+        "arguments": {"name": "names_digest", "direction": "callers", "depth": 2, "limit": 50},
+        "expect": ["django/db/backends/base/schema.py::_alter_field"],
+        "uses_prior": "names_digest"
+      }
+    ]
+  }
+]

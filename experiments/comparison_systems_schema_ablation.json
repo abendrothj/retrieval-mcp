@@ -1,0 +1,101 @@
+{
+  "version": "comparison-systems-v2",
+  "systems": [
+    {
+      "id": "retrieval-full",
+      "mcp_enabled": true,
+      "upstreams": [{
+        "id": "retrieval",
+        "command": ["{server}", "--root", "{root}", "--profile", "D", "--semantic-command", "{semantic_command_json}", "--timeout-seconds", "120"],
+        "environment": {},
+        "visible_tools": ["search_exact", "read_source", "inspect_symbol", "find_symbol", "find_callers", "trace_dependencies", "search_concept"],
+        "expected_upstream_tools": ["search_exact", "read_source", "inspect_symbol", "find_symbol", "find_callers", "trace_dependencies", "search_concept"]
+      }],
+      "environment": {"RETRIEVAL_SEMANTIC_CACHE_DIR": "{state}/semantic-cache"},
+      "prompt_policy": "Stopping rule. Every row this server returns is a verified source fact: it names a real definition with its file, and `counts`, `has_more` and the relation labels state how complete the listing is. When the rows you already hold contain every fact the question asks for, answer from them. Do not read a definition's source to confirm a row that already named it, do not repeat a lookup you have already made, and do not reconfirm one tool's rows with another tool. Retrieve again only when a required fact is missing, ambiguous, contradicted, or truncated - `has_more` true, or a count larger than the rows shown. If multiple visible symbols plausibly satisfy a requested fact, disambiguate between those candidates before answering. Do not expand merely to reconfirm a single unambiguous candidate. When you do read source, read the narrowest range that carries the missing fact.",
+      "prepare_commands": [["python3", "{experiments}/warm_semantic.py", "--root", "{root}", "--cache", "{state}/semantic-cache", "--server", "{server}", "--semantic-command", "{semantic_command_json}", "--timeout", "600"]],
+      "check_commands": [],
+      "version_command": null
+    },
+    {
+      "id": "retrieval-no-inspect",
+      "mcp_enabled": true,
+      "upstreams": [{
+        "id": "retrieval",
+        "command": ["{server}", "--root", "{root}", "--profile", "D", "--semantic-command", "{semantic_command_json}", "--timeout-seconds", "120"],
+        "environment": {},
+        "visible_tools": ["search_exact", "read_source", "find_symbol", "find_callers", "trace_dependencies", "search_concept"],
+        "expected_upstream_tools": ["search_exact", "read_source", "inspect_symbol", "find_symbol", "find_callers", "trace_dependencies", "search_concept"]
+      }],
+      "environment": {"RETRIEVAL_SEMANTIC_CACHE_DIR": "{state}/semantic-cache"},
+      "prompt_policy": "Stopping rule. Every row this server returns is a verified source fact: it names a real definition with its file, and `counts`, `has_more` and the relation labels state how complete the listing is. When the rows you already hold contain every fact the question asks for, answer from them. Do not read a definition's source to confirm a row that already named it, do not repeat a lookup you have already made, and do not reconfirm one tool's rows with another tool. Retrieve again only when a required fact is missing, ambiguous, contradicted, or truncated - `has_more` true, or a count larger than the rows shown. If multiple visible symbols plausibly satisfy a requested fact, disambiguate between those candidates before answering. Do not expand merely to reconfirm a single unambiguous candidate. When you do read source, read the narrowest range that carries the missing fact.",
+      "prepare_commands": [["python3", "{experiments}/warm_semantic.py", "--root", "{root}", "--cache", "{state}/semantic-cache", "--server", "{server}", "--semantic-command", "{semantic_command_json}", "--timeout", "600"]],
+      "check_commands": [],
+      "version_command": null
+    },
+    {
+      "id": "retrieval-no-find-symbol",
+      "mcp_enabled": true,
+      "upstreams": [{
+        "id": "retrieval",
+        "command": ["{server}", "--root", "{root}", "--profile", "D", "--semantic-command", "{semantic_command_json}", "--timeout-seconds", "120"],
+        "environment": {},
+        "visible_tools": ["search_exact", "read_source", "inspect_symbol", "find_callers", "trace_dependencies", "search_concept"],
+        "expected_upstream_tools": ["search_exact", "read_source", "inspect_symbol", "find_symbol", "find_callers", "trace_dependencies", "search_concept"]
+      }],
+      "environment": {"RETRIEVAL_SEMANTIC_CACHE_DIR": "{state}/semantic-cache"},
+      "prompt_policy": "Stopping rule. Every row this server returns is a verified source fact: it names a real definition with its file, and `counts`, `has_more` and the relation labels state how complete the listing is. When the rows you already hold contain every fact the question asks for, answer from them. Do not read a definition's source to confirm a row that already named it, do not repeat a lookup you have already made, and do not reconfirm one tool's rows with another tool. Retrieve again only when a required fact is missing, ambiguous, contradicted, or truncated - `has_more` true, or a count larger than the rows shown. If multiple visible symbols plausibly satisfy a requested fact, disambiguate between those candidates before answering. Do not expand merely to reconfirm a single unambiguous candidate. When you do read source, read the narrowest range that carries the missing fact.",
+      "prepare_commands": [["python3", "{experiments}/warm_semantic.py", "--root", "{root}", "--cache", "{state}/semantic-cache", "--server", "{server}", "--semantic-command", "{semantic_command_json}", "--timeout", "600"]],
+      "check_commands": [],
+      "version_command": null
+    },
+    {
+      "id": "retrieval-no-find-callers",
+      "mcp_enabled": true,
+      "upstreams": [{
+        "id": "retrieval",
+        "command": ["{server}", "--root", "{root}", "--profile", "D", "--semantic-command", "{semantic_command_json}", "--timeout-seconds", "120"],
+        "environment": {},
+        "visible_tools": ["search_exact", "read_source", "inspect_symbol", "find_symbol", "trace_dependencies", "search_concept"],
+        "expected_upstream_tools": ["search_exact", "read_source", "inspect_symbol", "find_symbol", "find_callers", "trace_dependencies", "search_concept"]
+      }],
+      "environment": {"RETRIEVAL_SEMANTIC_CACHE_DIR": "{state}/semantic-cache"},
+      "prompt_policy": "Stopping rule. Every row this server returns is a verified source fact: it names a real definition with its file, and `counts`, `has_more` and the relation labels state how complete the listing is. When the rows you already hold contain every fact the question asks for, answer from them. Do not read a definition's source to confirm a row that already named it, do not repeat a lookup you have already made, and do not reconfirm one tool's rows with another tool. Retrieve again only when a required fact is missing, ambiguous, contradicted, or truncated - `has_more` true, or a count larger than the rows shown. If multiple visible symbols plausibly satisfy a requested fact, disambiguate between those candidates before answering. Do not expand merely to reconfirm a single unambiguous candidate. When you do read source, read the narrowest range that carries the missing fact.",
+      "prepare_commands": [["python3", "{experiments}/warm_semantic.py", "--root", "{root}", "--cache", "{state}/semantic-cache", "--server", "{server}", "--semantic-command", "{semantic_command_json}", "--timeout", "600"]],
+      "check_commands": [],
+      "version_command": null
+    },
+    {
+      "id": "retrieval-no-trace",
+      "mcp_enabled": true,
+      "upstreams": [{
+        "id": "retrieval",
+        "command": ["{server}", "--root", "{root}", "--profile", "D", "--semantic-command", "{semantic_command_json}", "--timeout-seconds", "120"],
+        "environment": {},
+        "visible_tools": ["search_exact", "read_source", "inspect_symbol", "find_symbol", "find_callers", "search_concept"],
+        "expected_upstream_tools": ["search_exact", "read_source", "inspect_symbol", "find_symbol", "find_callers", "trace_dependencies", "search_concept"]
+      }],
+      "environment": {"RETRIEVAL_SEMANTIC_CACHE_DIR": "{state}/semantic-cache"},
+      "prompt_policy": "Stopping rule. Every row this server returns is a verified source fact: it names a real definition with its file, and `counts`, `has_more` and the relation labels state how complete the listing is. When the rows you already hold contain every fact the question asks for, answer from them. Do not read a definition's source to confirm a row that already named it, do not repeat a lookup you have already made, and do not reconfirm one tool's rows with another tool. Retrieve again only when a required fact is missing, ambiguous, contradicted, or truncated - `has_more` true, or a count larger than the rows shown. If multiple visible symbols plausibly satisfy a requested fact, disambiguate between those candidates before answering. Do not expand merely to reconfirm a single unambiguous candidate. When you do read source, read the narrowest range that carries the missing fact.",
+      "prepare_commands": [["python3", "{experiments}/warm_semantic.py", "--root", "{root}", "--cache", "{state}/semantic-cache", "--server", "{server}", "--semantic-command", "{semantic_command_json}", "--timeout", "600"]],
+      "check_commands": [],
+      "version_command": null
+    },
+    {
+      "id": "retrieval-no-structure",
+      "mcp_enabled": true,
+      "upstreams": [{
+        "id": "retrieval",
+        "command": ["{server}", "--root", "{root}", "--profile", "D", "--semantic-command", "{semantic_command_json}", "--timeout-seconds", "120"],
+        "environment": {},
+        "visible_tools": ["search_exact", "read_source", "search_concept"],
+        "expected_upstream_tools": ["search_exact", "read_source", "inspect_symbol", "find_symbol", "find_callers", "trace_dependencies", "search_concept"]
+      }],
+      "environment": {"RETRIEVAL_SEMANTIC_CACHE_DIR": "{state}/semantic-cache"},
+      "prompt_policy": "Stopping rule. Every row this server returns is a verified source fact: it names a real definition with its file, and `counts`, `has_more` and the relation labels state how complete the listing is. When the rows you already hold contain every fact the question asks for, answer from them. Do not read a definition's source to confirm a row that already named it, do not repeat a lookup you have already made, and do not reconfirm one tool's rows with another tool. Retrieve again only when a required fact is missing, ambiguous, contradicted, or truncated - `has_more` true, or a count larger than the rows shown. If multiple visible symbols plausibly satisfy a requested fact, disambiguate between those candidates before answering. Do not expand merely to reconfirm a single unambiguous candidate. When you do read source, read the narrowest range that carries the missing fact.",
+      "prepare_commands": [["python3", "{experiments}/warm_semantic.py", "--root", "{root}", "--cache", "{state}/semantic-cache", "--server", "{server}", "--semantic-command", "{semantic_command_json}", "--timeout", "600"]],
+      "check_commands": [],
+      "version_command": null
+    }
+  ]
+}

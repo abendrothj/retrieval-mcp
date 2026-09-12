@@ -21,8 +21,14 @@ READ_TOOLS = {"read", "read_source", "get_code_snippet", "zvec_grep_rg"}
 
 
 def events(trial):
-    """(stream, client) for whichever agent client produced this trial."""
-    for name, client in (("opencode-events.jsonl", "opencode"), ("codex-events.jsonl", "codex")):
+    """(stream, client) for whichever agent client produced this trial.
+
+    The Claude client has no side-channel event file: its stream-json output *is* the transcript,
+    which every client writes. It is therefore tried last, and only when a stream-json `system`
+    init or `result` envelope identifies it, so a Codex transcript is never misread as Claude.
+    """
+    for name, client in (("opencode-events.jsonl", "opencode"), ("codex-events.jsonl", "codex"),
+                         ("transcript.jsonl", "claude")):
         path = trial / name
         if not path.is_file():
             continue
@@ -33,6 +39,10 @@ def events(trial):
                     out.append(json.loads(line))
                 except ValueError:
                     continue
+        if client == "claude" and not any(
+                event.get("type") == "assistant" and isinstance(event.get("message"), dict)
+                for event in out):
+            return [], None
         return out, client
     return [], None
 
@@ -107,6 +117,27 @@ def calls_from(stream, client):
                     "body": body if isinstance(body, str) else json.dumps(body),
                     "read": name in READ_TOOLS, "latency_ms": None,
                 })
+    elif client == "claude":
+        # Claude names a tool only on the `tool_use` block; the payload arrives later as a
+        # `tool_result` on a user message, matched back by `tool_use_id`.
+        pending = {}
+        for event in stream:
+            message = event.get("message") or {}
+            content = message.get("content")
+            if not isinstance(content, list):
+                continue
+            for block in content:
+                if block.get("type") == "tool_use":
+                    name = block.get("name") or ""
+                    pending[block.get("id")] = name.rsplit("__", 1)[-1] if "__" in name else name
+                elif block.get("type") == "tool_result":
+                    name = pending.pop(block.get("tool_use_id"), "mcp")
+                    body = block.get("content")
+                    records.append({
+                        "name": name,
+                        "body": body if isinstance(body, str) else json.dumps(body or ""),
+                        "read": name in READ_TOOLS, "latency_ms": None,
+                    })
     return records
 
 
@@ -136,6 +167,40 @@ def steps_from(stream, client):
                           "reasoning": int(counts.get("reasoning_output_tokens") or 0),
                           "cache_read": int(counts.get("cached_input_tokens") or 0),
                           "cost": 0.0})
+    elif client == "claude":
+        # One usage object is repeated across every block of the same API response, so steps are
+        # deduplicated by message id. Deduplicated per-message usage sums to the final result
+        # usage, which is why the total is taken from the steps rather than the result envelope.
+        seen = set()
+        for event in stream:
+            if event.get("type") != "assistant":
+                continue
+            message = event.get("message") or {}
+            identity = message.get("id")
+            if identity in seen:
+                continue
+            seen.add(identity)
+            counts = message.get("usage") or {}
+            cache_read = int(counts.get("cache_read_input_tokens") or 0)
+            steps.append({
+                # Context actually carried this turn: fresh prompt, newly cached prefix, and the
+                # prefix replayed from cache. Claude bills these separately; the study counts what
+                # the model had to be sent.
+                "input": int(counts.get("input_tokens") or 0)
+                + int(counts.get("cache_creation_input_tokens") or 0) + cache_read,
+                "output": int(counts.get("output_tokens") or 0),
+                "reasoning": int((counts.get("output_tokens_details") or {}).get("thinking_tokens") or 0),
+                "cache_read": cache_read,
+                "cost": 0.0,
+            })
+        for event in stream:
+            if event.get("type") == "result" and steps:
+                steps[-1]["cost"] = float(event.get("total_cost_usd") or 0.0)
+                thinking = int((
+                    (event.get("usage") or {}).get("output_tokens_details") or {}
+                ).get("thinking_tokens") or 0)
+                if thinking and not any(step["reasoning"] for step in steps):
+                    steps[-1]["reasoning"] = thinking
     return steps
 
 
