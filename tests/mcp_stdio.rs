@@ -289,6 +289,33 @@ async fn an_explicit_tool_list_gates_exactly_what_it_names() {
     client.stop().await;
 }
 
+#[tokio::test]
+async fn the_unrestricted_default_exposes_only_the_tools_that_repaid_their_schema() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("sample.rs"), "fn target() {}\nfn caller() { target() }\n").unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"));
+    command.args(["--root", root.path().to_str().unwrap()]);
+    let mut client = Client::spawn(command).await;
+    let listed = client.request("tools/list", json!({})).await;
+    let names: Vec<&str> = listed["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|tool| tool["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        names,
+        ["search_exact", "read_source", "find_callers", "search_concept"],
+        "the default surface is measured, not maximal"
+    );
+    // The un-defaulted tools are not deleted: naming them still works.
+    let refused = client.tool("trace_dependencies", json!({"name":"target"})).await;
+    assert_eq!(refused["isError"], true);
+    let callers = client.tool("find_callers", json!({"name":"target"})).await;
+    assert_eq!(callers["structuredContent"]["results"][0]["caller"], "caller");
+    client.stop().await;
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn semantic_subprocess_contract_over_stdio() {

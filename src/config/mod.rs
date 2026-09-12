@@ -13,6 +13,23 @@ pub const TOOLS: [&str; 7] = [
     "search_concept",
 ];
 
+/// What a session exposes when the operator restricts nothing.
+///
+/// This is not every tool: it is the set that survived a measured pruning rule, which admits a
+/// tool only when it has a task class a bounded search-and-read crawl cannot dissolve *and* saves
+/// more context than the schema it re-sends on every turn. `find_callers` cleared that by a wide
+/// margin on exhaustive caller questions; `inspect_symbol` and `find_symbol` were each given their
+/// own claimed class over three repetitions and returned negative ledgers with no unique solves;
+/// `trace_dependencies` was never called at all across three separate experiments, including on
+/// questions authored for it, while carrying the largest schema of any tool. Those three remain
+/// available through `--tools` and `--profile`, so nothing is removed - only un-defaulted.
+pub const DEFAULT_SURFACE: [&str; 4] = [
+    "search_exact",
+    "read_source",
+    "find_callers",
+    "search_concept",
+];
+
 /// The availability levels of the original routing study, kept so its recorded commands still
 /// run. They are presets over `--tools`, not a separate mechanism.
 pub const PROFILES: [(&str, &[&str]); 4] = [
@@ -83,8 +100,8 @@ impl Config {
         let mut args = std::env::args().skip(1);
         let mut config = Self {
             root: PathBuf::new(),
-            tools: TOOLS.iter().map(|tool| (*tool).to_owned()).collect(),
-            label: "D".into(),
+            tools: DEFAULT_SURFACE.iter().map(|tool| (*tool).to_owned()).collect(),
+            label: "default".into(),
             semantic_command: None,
             timeout: Duration::from_secs(30),
             run_id: None,
@@ -96,7 +113,7 @@ impl Config {
         while let Some(flag) = args.next() {
             if flag == "--help" || flag == "-h" {
                 println!(
-                    "retrieval-mcp --root PATH [--tools name,name,...] [--profile A|B|C|D]\n  [--ranker lexical|semantic|hybrid] [--run-id ID] [--semantic-command '[\"program\",\"arg\"]']\n  [--timeout-seconds 30] [--log-file /absolute/path/events.jsonl]\nTools: search_exact, read_source, inspect_symbol, find_symbol, find_callers,\n  trace_dependencies, search_concept. All are exposed unless restricted.\nProfiles are presets over --tools from the original availability study: A exact+read,\n  B adds structure, C adds concept search, D all seven.\nJSON invocation logs go to stderr and optionally append to --log-file; stdout is reserved for MCP."
+                    "retrieval-mcp --root PATH [--tools name,name,...] [--profile A|B|C|D]\n  [--ranker lexical|semantic|hybrid] [--run-id ID] [--semantic-command '[\"program\",\"arg\"]']\n  [--timeout-seconds 30] [--log-file /absolute/path/events.jsonl]\nTools: search_exact, read_source, inspect_symbol, find_symbol, find_callers,\n  trace_dependencies, search_concept.\nWithout --tools or --profile the default surface is search_exact, read_source,\n  find_callers and search_concept: the tools that measurably repaid their schema cost.\n  The other three stay available by naming them, or with --profile D.\nProfiles are presets over --tools from the original availability study: A exact+read,\n  B adds structure, C adds concept search, D all seven.\nJSON invocation logs go to stderr and optionally append to --log-file; stdout is reserved for MCP."
                 );
                 return Ok(None);
             }

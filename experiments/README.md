@@ -622,12 +622,23 @@ quality; the correct count moved by one question, which n=10 cannot support. And
 *not* the best arm — lexical plus `find_callers` beats it on every cost axis at the same correct
 count, so the other three structural tools still do not pay, even on a suite about relations.
 
-Over-listing also showed its cost. On `djn-field-cache-writer-callers` both structural arms scored
-0.40 against the lexical arm's 1.00: `find_callers` returned thirteen candidate rows spanning two
-descriptor classes, and both arms reported the class methods while dropping the callers in
-`base.py` and `compiler.py` that sat in the same rows. The grader was checked before that was
-written down — a class-qualified spelling of the complete answer scores 1.0 — so this is selection
-under a noisy result set, not notation.
+One question looked like a cost of over-listing and was written up that way; it was the wrong
+diagnosis and the correction is the more useful result. On `djn-field-cache-writer-callers` both
+structural arms scored 0.40 against the lexical arm's 1.00, which was attributed to `find_callers`
+returning thirteen candidate rows across two descriptor classes. Auditing the tool sequences shows
+**neither failing arm called `find_callers` on that question at all** — both stopped after two
+source reads and enumerated what those two files happened to show. Pooling every exhaustive caller
+trial in this pilot and the tool trial, 42 in total, splits cleanly:
+
+| | trials | trials with an omission | mean calls | mean credit |
+|---|---:|---:|---:|---:|
+| used `find_callers` | 26 | **0** | 2.9 | 0.97 |
+| did not | 16 | **5** | 7.5 | 0.86 |
+
+Every omission in the pooled set came from skipping the tool, not from reading its output badly,
+and `answered_without_evidence` flagged all five. So the indicated fix is not a grouped or
+checksummed response shape — that hypothesis is retired — it is that an exhaustive question
+answered from partial file coverage is a closure failure, which the safety column already catches.
 
 **Three defects in the gold verifier, found while building the suite.** Candidate golds were
 cross-checked against the structural index and disagreed on five of ten helpers; the index was
@@ -695,12 +706,35 @@ is the third experiment in a row in which this tool was offered and not used, an
 largest schema of any tool at 1,158 tokens per turn. It comes off the default surface provisionally;
 `--tools` still exposes it.
 
-The other two are left explicitly undecided, because the honest reading of n=10 at one repetition is
-that a one-question quality difference is not a result. `find_symbol` has the only positive ledger
-and it is +3.4 k, inside noise, while its own class was already saturated for the baseline — no
-necessity class demonstrated. `inspect_symbol` cost six turns and 98.8 k net tokens, yet the only
-quality movement favouring it sits precisely in the class claimed for it. That is a narrow,
-answerable question: repeat the matrix with three repetitions over the two claimed classes.
+The other two were left explicitly undecided, because the honest reading of n=10 at one repetition
+is that a one-question quality difference is not a result. The follow-up was narrow and it was run.
+
+### The replication, and the frozen surface
+
+Three repetitions, three arms, only the seven questions in the two claimed classes, 63 trials:
+
+| arm | correct / 21 | credit | calls | input tokens | payload |
+|---|---:|---:|---:|---:|---:|
+| baseline | **21** | 1.000 | 44 | 412 k | 69 k |
+| + `inspect_symbol` | 21 | 1.000 | 42 | 472 k | 84 k |
+| + `find_symbol` | **18** | 0.929 | 40 | 407 k | 56 k |
+
+| tool | calls made | turns saved | schema cost | net | unique solves | regressions |
+|---|---:|---:|---:|---:|---:|---:|
+| `inspect_symbol` | 1 / 21 | −3 | 42,950 | **−67,782** | 0 | 0 |
+| `find_symbol` | 14 / 21 | +2 | 40,430 | **−24,781** | 0 | 1, in all three repetitions |
+
+The baseline answers both claimed classes perfectly, so the earlier signal favouring these tools
+(baseline 7/10 at one repetition) was noise. `inspect_symbol` was called once in 21 trials and
+enabled nothing. `find_symbol` was genuinely used, fourteen times, and still lost: a negative
+ledger and a repeatable regression on a question the baseline got right every time. Neither
+produced a unique solve on the class authored specifically for it.
+
+So the surface is frozen, and for the first time the study changes the product rather than
+describing it. With no `--tools` and no `--profile`, the server now exposes
+`search_exact`, `read_source`, `find_callers`, `search_concept` — `config::DEFAULT_SURFACE`, pinned
+by a stdio test. The other three are un-defaulted, not removed: naming them in `--tools` works, and
+`--profile D` is unchanged so every command recorded in this study still replays exactly.
 
 ## Native-system comparison
 
