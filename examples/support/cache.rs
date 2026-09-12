@@ -250,8 +250,12 @@ fn decode(bytes: &[u8], entries: usize, dimensions: usize) -> Result<BTreeMap<St
         vectors.insert(
             key.to_owned(),
             values
-                .chunks_exact(8)
-                .map(|v| f64::from_le_bytes(v.try_into().expect("eight bytes")))
+                // `as_chunks::<8>` yields `[u8; 8]` directly, so the width becomes a type-level
+                // fact and the per-element fallible conversion this used to do disappears.
+                .as_chunks::<8>()
+                .0
+                .iter()
+                .map(|v| f64::from_le_bytes(*v))
                 .collect(),
         );
     }
