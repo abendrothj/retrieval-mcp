@@ -23,7 +23,7 @@ artifacts, caveats, and the commands that produced it.
 | 10 | Do the other three? | [No](#every-remaining-tool-on-trial), and [replication confirmed it](#the-replication-and-the-frozen-surface) — `trace_dependencies` was never called even on questions authored for it |
 | 11 | Does the frozen system beat the alternatives? | [Yes on context, tie on quality](#the-held-out-comparison): 29/30 each against zvec, −24% input tokens, −34% persistent context |
 | 12 | Do post-freeze index changes earn their place? | [One of three did](#three-index-changes-one-survivor): doc comments in the chunk nearly doubled offline MRR; markdown chunks and macro-argument calls were reverted on their own evidence |
-| 13 | Does the v0.1.2 ranking gain reach the agent? | [No, and it still beats zvec](#layer-2-four-arms-120-trials-claude-sonnet-4-6): offline v0.1.2 goes from behind zvec to ahead (MRR 0.126 → 0.234 vs 0.165), but end to end on 120 trials it ties v0.1.1 while both beat zvec-grep 27–28/30 against 25 at 36% fewer total tokens |
+| 13 | Does the v0.1.2 ranking gain reach the agent? | [No, and it still beats zvec](#layer-2-four-arms-120-trials-claude-sonnet-4-6): offline v0.1.2 goes from behind zvec to ahead (MRR 0.126 → 0.234 vs 0.165), but end to end on 120 trials it ties v0.1.1 while both beat zvec-grep 28–29/30 against 25 at 36% fewer total tokens |
 
 **The result in one line.** On a sealed 30-question held-out set, this server matched zvec-grep at
 29/30 on the same 78 tool calls while spending 24% fewer input tokens and carrying 34% less
@@ -57,7 +57,7 @@ genuinely do not encode — the enclosing definition of a call site — did one 
 `find_callers`, return a positive ledger; the other three failed their own claimed classes under
 replication and left the default surface.
 
-Running alongside all of it: sixteen defects in the measuring apparatus, several of which had already
+Running alongside all of it: seventeen defects in the measuring apparatus, several of which had already
 produced convincing results. A stopping rule that looked like a free 22% saving, a treatment loss
 that looked like a premature stop, an arm whose payload metrics read zero, a 0.40 that looked like a
 noisy tool, and — in the held-out run itself — this server's only loss, which had actually named both
@@ -68,10 +68,10 @@ What survived is what was left after each hypothesis and each tool was made to e
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Sixteen defects in it have produced or nearly
+The harness is the second experimental subject. Seventeen defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
 some penalised it, one was found inside its own single held-out loss, and the last would have made
-every brace-language caller question unauthorable. Each is pinned by a test. This table is the
+every brace-language caller question unauthorable, while the last scored three arms to zero on questions they had answered exactly right. Each is pinned by a test. This table is the
 authoritative list; prose below refers to it rather than to ordinals.
 
 | Defect | Would have shown |
@@ -91,6 +91,7 @@ authoritative list; prose below refers to it rather than to ordinals.
 | `enclosing()` credited the class when a decorator or wrapped signature intervened | The same, one scope too high |
 | `true_callers()` counted a call written inside a comment | An exhaustive gold demanding a caller that is documentation |
 | Grader scored a keyed object naming the gold identities as zero | This server's only held-out loss, which had named both correct symbols |
+| `credit()` scored a bare list naming exactly the gold identities as zero against a single-key gold object | Three arms failing both coreutils caller questions, reading as a structural-retrieval weakness where the grader was judging the container |
 | `enclosing()` implemented only its Python branch, and its first brace-language replacement named frames from call syntax | On Rust and TypeScript corpora `true_callers()` returned nothing, so every correct caller gold failed validation as unverifiable; the first fix then attributed call sites to `Ok`, `Err` and, worst, to a real function defined elsewhere — a caller set that looks plausible and is fiction |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
@@ -903,7 +904,7 @@ it then prints the exact validate/prepare/run/score commands. It calls no model.
 
 ### The habit that made the numbers trustworthy
 
-The sixteen entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
+The seventeen entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
 flattered this server, some penalised it, and the last was found inside its own single held-out loss.
 None was found by auditing on a schedule. Every one came from the same rule, which is the methodological
 claim this project would actually defend:
@@ -1046,8 +1047,8 @@ source, and the zvec install comes from the cached 0.2.2 tree because this run h
 
 | | native | zvec-grep | v0.1.1 | **v0.1.2** |
 |---|---:|---:|---:|---:|
-| Correct / 30 | 27 | 25 | **28** | 27 |
-| Graded credit | 0.92 | 0.85 | **0.93** | 0.92 |
+| Correct / 30 | 29 | 25 | **29** | 28 |
+| Graded credit | 0.98 | 0.87 | **0.99** | 0.98 |
 | Input tokens, total | 1.286 M | 1.215 M | 783 k | **779 k** |
 | Input tokens, median trial | 34.5 k | **21.2 k** | 24.1 k | 23.0 k |
 | Tool calls, median | 4 | 2 | 2 | 2 |
@@ -1055,14 +1056,27 @@ source, and the zvec install comes from the cached 0.2.2 tree because this run h
 | Persistent context, tok·turns median | 3,996 | 3,154 | 3,133 | **2,726** |
 | Answered without evidence | 1 | 2 | **0** | **0** |
 
-**Against zvec-grep the pre-registered target is met on every criterion.** Quality 27 against 25 with
-paired discordance 3:1, input tokens 36% lower in total, first sufficient evidence in 1.37 calls
-against 2.48, and zero unsupported answers against two. One honest qualification: zvec's *median*
-trial is the cheapest of the four at 21.2 k tokens — its total is carried by a heavy tail, so the
-context advantage is about failure modes, not about the typical question.
+Those are the repaired grades. The first scoring put every arm at zero on both coreutils caller
+questions, which is exactly the shape of result the project's habit says to audit before
+interpreting — and the audit found the grader, not the arms. Against a single-key gold object
+(`{"callers": [...]}`) a reply naming exactly those identities as a bare list scored **0.0**, while
+the same identities in prose scored 1.0: the container was being graded, the mirror image of the
+sixteenth ledger entry. `quality_pass.credit` now treats a single-key gold and the bare value of
+that key as the same assertion, multi-key golds stay strict, extras are still penalised, and
+`validate_suite.py` compiles no suite whose gold identities fail in a different container.
+`regrade.py` applied it to all 120 trials at once: 7 moved — native 27 → 29, v0.1.1 28 → 29,
+v0.1.2 27 → 28, zvec unchanged at 25 because its answer to that question named the wrong functions.
+Every token, call and context column is untouched by the repair.
+
+**Against zvec-grep the pre-registered target is met on every criterion.** Quality 28 against 25
+with paired discordance 4:1 (v0.1.1 is 29 and 4:0), input tokens 36% lower in total, first
+sufficient evidence in 1.37 calls against 2.48, and zero unsupported answers against two. One honest
+qualification: zvec's *median* trial is the cheapest of the four at 21.2 k tokens — its total is
+carried by a heavy tail, so the context advantage is about failure modes, not about the typical
+question.
 
 **Against v0.1.1 the pre-registered target is not met, and that is the result.** v0.1.2 loses one
-question (27 against 28) and reaches first evidence in 1.37 calls against 1.20; it carries 13% less
+question (28 against 29) and reaches first evidence in 1.37 calls against 1.20; it carries 13% less
 persistent context and spends 5% fewer tokens at the median, both inside the run-to-run floor. The
 offline ranking gain — MRR 0.126 → 0.234, recall@1 2 → 6 — did **not** convert into an agent-level
 advantage. The most economical explanation is the one this project already measured: the model

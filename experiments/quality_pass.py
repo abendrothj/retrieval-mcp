@@ -198,7 +198,16 @@ def credit(got, gold, index):
         extra = max(0, len(got) - len(gold))
         return max(0.0, (matched - extra) / len(gold))
     if isinstance(gold, dict):
-        if not isinstance(got, dict) or set(got) != set(gold):
+        # The mirror of the case above, and the same defect: a gold that wraps one assertion in a
+        # key ({"callers": [...]}) asserts exactly what the bare value asserts, so a reply naming
+        # the same identities under no key, or under a differently spelled one, is the same answer.
+        # Scoring it zero grades the container, not the retrieval. Multi-key golds are excluded:
+        # there the key names which fact is being asserted, so dropping it does lose information.
+        if not isinstance(got, dict):
+            return credit(got, next(iter(gold.values())), index) if len(gold) == 1 else 0.0
+        if set(got) != set(gold):
+            if len(gold) == 1 and len(got) == 1:
+                return credit(next(iter(got.values())), next(iter(gold.values())), index)
             return 0.0
         return sum(credit(got[k], gold[k], index) for k in gold) / len(gold)
     return float(same(got, gold, index)) if gold is not None else float(got is None)

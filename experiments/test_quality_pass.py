@@ -188,3 +188,36 @@ class KeyedAnswerTests(unittest.TestCase):
         self.assertEqual(credit({"first": "pkg/a.py::alpha"}, self.GOLD, index), 0.5)
         self.assertEqual(
             credit({"first": "pkg/a.py::wrong"}, self.GOLD, index), 0.0)
+
+
+class KeyedGoldTests(unittest.TestCase):
+    """The mirror: a gold that wraps one assertion in a key, answered without that key.
+
+    Two arms named exactly the two gold callers of `send_n_bytes` as a bare list and scored zero,
+    because the gold spelled the same set as {"callers": [...]}. The container was being graded.
+    """
+
+    INDEX = {"alpha": {"pkg/a.py"}, "beta": {"pkg/b.py"}, "gamma": {"pkg/c.py"}}
+    GOLD = {"callers": ["pkg/a.py::alpha", "pkg/b.py::beta"]}
+
+    def test_a_bare_list_scores_like_the_single_key_gold_it_spells(self):
+        self.assertEqual(credit(self.GOLD, self.GOLD, self.INDEX), 1.0)
+        self.assertEqual(
+            credit(["pkg/a.py::alpha", "pkg/b.py::beta"], self.GOLD, self.INDEX), 1.0)
+        self.assertEqual(credit({"found": ["pkg/a.py::alpha", "pkg/b.py::beta"]},
+                                self.GOLD, self.INDEX), 1.0)
+
+    def test_partial_and_wrong_answers_still_lose(self):
+        self.assertEqual(credit(["pkg/a.py::alpha"], self.GOLD, self.INDEX), 0.5)
+        self.assertEqual(credit(["pkg/c.py::gamma"], self.GOLD, self.INDEX), 0.0)
+        # An extra identity still costs, so unwrapping the key cannot buy over-listing.
+        self.assertEqual(
+            credit(["pkg/a.py::alpha", "pkg/b.py::beta", "pkg/c.py::gamma"],
+                   self.GOLD, self.INDEX), round(1 / 2, 6) * 1.0)
+
+    def test_a_multi_key_gold_stays_strict(self):
+        """Here the key names which fact is asserted, so a bare list does lose information."""
+        gold = {"symbol": "pkg/a.py::alpha", "direct_call": False}
+        self.assertEqual(credit(["pkg/a.py::alpha"], gold, self.INDEX), 0.0)
+        self.assertEqual(credit({"symbol": "pkg/a.py::alpha", "direct_call": False},
+                                gold, self.INDEX), 1.0)

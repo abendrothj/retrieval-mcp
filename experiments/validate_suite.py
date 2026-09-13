@@ -203,6 +203,16 @@ def check_question(task, index, corpus):
         report("grader", "the canonical gold answer does not score 1")
     if identities and quality_pass.credit(prose(identities), gold, index) != 1.0:
         report("grader", "prose naming every gold identity does not score 1")
+    # A model answers the question it was asked, not the shape the gold happens to use. Two arms
+    # once named exactly the gold callers as a bare list against a {"callers": [...]} gold and
+    # scored zero, so the suite now proves the identities survive a different container.
+    if isinstance(gold, list) and identities:
+        if quality_pass.credit({"answer": list(gold)}, gold, index) != 1.0:
+            report("grader", "the gold identities keyed into an object do not score 1")
+    if isinstance(gold, dict) and len(gold) == 1 and identities:
+        bare = next(iter(gold.values()))
+        if quality_pass.credit(bare, gold, index) != 1.0:
+            report("grader", "the gold identities without this gold's single key do not score 1")
     if quality_pass.credit(WRONG, gold, index) != 0.0:
         report("grader", "a wrong symbol scores above 0")
     if len(identities) > 1:
