@@ -74,6 +74,10 @@ pub struct ConceptResult {
     pub backend: String,
     pub index_note: String,
     pub source_verification: String,
+    /// How many files the ranking index covers, for index-backed rankers. Zero means the corpus
+    /// itself is empty - ignore rules, root choice - so an empty page proves nothing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indexed_files: Option<usize>,
 }
 
 pub trait SemanticBackend: Send + Sync {
@@ -208,7 +212,7 @@ fn validate_response(
         });
     }
     let next_offset = response.has_more.then_some(offset + results.len());
-    Ok(ConceptResult { results, has_more: response.has_more, next_offset, backend: response.backend, index_note: response.index_note,
+    Ok(ConceptResult { results, has_more: response.has_more, next_offset, backend: response.backend, index_note: response.index_note, indexed_files: None,
         source_verification: "Rows name the enclosing indexed definition and are re-verified against current source; excerpts are returned only when requested. Backend ranking/index freshness is not verified; scores are backend-specific, not confidence probabilities.".into() })
 }
 

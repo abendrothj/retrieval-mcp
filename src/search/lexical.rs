@@ -38,6 +38,20 @@ pub struct Page<T> {
     pub next_offset: Option<usize>,
 }
 
+/// A page of exact-search hits plus the one fact that keeps an empty page honest: how many
+/// files the query actually scanned. Zero over a nonempty repository means ignore rules or the
+/// scope pruned the corpus, not that the text is absent.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct ExactPage {
+    pub results: Vec<ExactHit>,
+    pub has_more: bool,
+    pub next_offset: Option<usize>,
+    /// Files scanned by this query, from ripgrep's summary; absent when the summary was
+    /// unavailable (for example a capped output stream).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub files_searched: Option<usize>,
+}
+
 pub fn pagination(limit: Option<usize>, offset: Option<usize>) -> Result<(usize, usize)> {
     let limit = limit.unwrap_or(20);
     let offset = offset.unwrap_or(0);
@@ -59,11 +73,26 @@ pub trait LexicalBackend: Send + Sync {
         &'a self,
         workspace: &'a Workspace,
         args: ExactArgs,
-    ) -> BackendFuture<'a, Page<ExactHit>>;
+    ) -> BackendFuture<'a, ExactPage>;
+}
+
+/// Escape ripgrep glob metacharacters so a repository path is matched literally.
+fn glob_escape(path: &str) -> String {
+    let mut escaped = String::with_capacity(path.len());
+    for c in path.chars() {
+        if matches!(c, '*' | '?' | '[' | ']' | '{' | '}' | '!' | '\\') {
+            escaped.push('\\');
+        }
+        escaped.push(c);
+    }
+    escaped
 }
 
 pub struct Ripgrep {
     pub timeout: Duration,
+    /// Search files that ignore files exclude. Set from `--no-ignore`; `.git`, `target` and
+    /// hidden files stay excluded either way.
+    pub no_ignore: bool,
 }
 
 impl LexicalBackend for Ripgrep {
@@ -71,11 +100,25 @@ impl LexicalBackend for Ripgrep {
         &'a self,
         workspace: &'a Workspace,
         args: ExactArgs,
-    ) -> BackendFuture<'a, Page<ExactHit>> {
+    ) -> BackendFuture<'a, ExactPage> {
         Box::pin(async move {
             validate_query(&args.query)?;
             let (limit, offset) = pagination(args.limit, args.offset)?;
-            let path = workspace.resolve(args.path.as_deref().unwrap_or("."))?;
+            // The scope is applied as a glob under the repository root, not as a walk root, so a
+            // scoped query sees exactly the corpus an unscoped query and the structural index
+            // see: naming a path cannot reach past ignore rules (a nested repository, say) that
+            // the walk from the root would prune. One corpus, however the question is phrased.
+            let scope = {
+                let resolved = workspace.resolve(args.path.as_deref().unwrap_or("."))?;
+                let relative = workspace.relative(&resolved)?;
+                if relative.is_empty() {
+                    None
+                } else if resolved.is_dir() {
+                    Some(format!("{}/**", glob_escape(&relative)))
+                } else {
+                    Some(glob_escape(&relative))
+                }
+            };
             let mut command = Command::new("rg");
             command.current_dir(workspace.root()).args([
                 "--no-config",
@@ -89,13 +132,19 @@ impl LexicalBackend for Ripgrep {
                 "--glob",
                 "!target/**",
             ]);
+            if self.no_ignore {
+                command.arg("--no-ignore");
+            }
+            if let Some(glob) = &scope {
+                command.arg("--glob").arg(glob);
+            }
             if !args.regex.unwrap_or(false) {
                 command.arg("--fixed-strings");
             }
             if !args.case_sensitive.unwrap_or(true) {
                 command.arg("--ignore-case");
             }
-            command.arg("--").arg(&args.query).arg(path);
+            command.arg("--").arg(&args.query).arg(".");
             // A bounded capture keeps v1 simple. A streaming parser can replace this for large result sets.
             let (status, output) =
                 super::process::run(&mut command, None, self.timeout, 4 * 1024 * 1024).await?;
@@ -120,8 +169,9 @@ impl LexicalBackend for Ripgrep {
                 let data = &event["data"];
                 let path = data["path"]["text"]
                     .as_str()
-                    .context("non-UTF-8 paths are unsupported")?;
-                let relative = workspace.relative(std::path::Path::new(path))?;
+                    .context("non-UTF-8 paths are unsupported")?
+                    .replace('\\', "/");
+                let relative = path.strip_prefix("./").unwrap_or(&path).to_owned();
                 workspace.resolve(&relative)?;
                 let text = data["lines"]["text"]
                     .as_str()
@@ -146,10 +196,20 @@ impl LexicalBackend for Ripgrep {
             }
             let has_more = hits.len() > limit;
             hits.truncate(limit);
-            Ok(Page {
+            // Ripgrep ends the stream with one summary event; its `searches` count is the number
+            // of files scanned, which is what makes an empty page interpretable.
+            let files_searched = output
+                .rsplit(|b| *b == b'\n')
+                .find(|line| !line.is_empty())
+                .and_then(|line| serde_json::from_slice::<Value>(line).ok())
+                .filter(|event| event["type"] == "summary")
+                .and_then(|event| event["data"]["stats"]["searches"].as_u64())
+                .map(|count| count as usize);
+            Ok(ExactPage {
                 results: hits,
                 has_more,
                 next_offset: has_more.then_some(offset + limit),
+                files_searched,
             })
         })
     }
@@ -169,6 +229,7 @@ mod tests {
         let workspace = Workspace::new(root.path()).unwrap();
         let backend = Ripgrep {
             timeout: Duration::from_secs(2),
+            no_ignore: false,
         };
         let args = |offset| ExactArgs {
             query: "--needle".into(),
@@ -181,11 +242,46 @@ mod tests {
         let first = backend.search(&workspace, args(0)).await.unwrap();
         assert_eq!(first.results[0].line, 1);
         assert_eq!(first.next_offset, Some(1));
+        assert_eq!(first.files_searched, Some(1), "only a.rs survives ignore and hidden rules");
         let second = backend.search(&workspace, args(1)).await.unwrap();
         assert_eq!(second.results[0].line, 2);
         assert!(!second.has_more);
         let mut invalid = args(0);
         invalid.path = Some("../outside".into());
         assert!(backend.search(&workspace, invalid).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn scoped_search_shares_the_corpus_and_no_ignore_reopens_it() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join("sub")).unwrap();
+        std::fs::write(root.path().join(".ignore"), "sub/\n").unwrap();
+        std::fs::write(root.path().join("sub/hit.rs"), "--needle\n").unwrap();
+        let workspace = Workspace::new(root.path()).unwrap();
+        let args = || ExactArgs {
+            query: "--needle".into(),
+            path: Some("sub".into()),
+            regex: None,
+            case_sensitive: None,
+            limit: None,
+            offset: None,
+        };
+        // Naming the ignored directory must not reach past the ignore rules the unscoped walk
+        // honors, and the empty page must say the corpus was empty rather than imply absence.
+        let honoring = Ripgrep {
+            timeout: Duration::from_secs(2),
+            no_ignore: false,
+        };
+        let pruned = honoring.search(&workspace, args()).await.unwrap();
+        assert!(pruned.results.is_empty());
+        assert_eq!(pruned.files_searched, Some(0));
+        let overriding = Ripgrep {
+            timeout: Duration::from_secs(2),
+            no_ignore: true,
+        };
+        let found = overriding.search(&workspace, args()).await.unwrap();
+        assert_eq!(found.results.len(), 1);
+        assert_eq!(found.results[0].path, "sub/hit.rs");
+        assert_eq!(found.files_searched, Some(1));
     }
 }

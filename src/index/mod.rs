@@ -401,6 +401,8 @@ pub trait StructuralBackend: Send + Sync {
     ) -> Result<Vec<RankedRegion>>;
     /// The innermost indexed definition containing the given line, if any.
     fn locate(&self, path: &str, line: usize) -> Option<SymbolLocation>;
+    /// The snapshot's coverage, so callers can report corpus size alongside derived results.
+    fn coverage(&self) -> &Coverage;
 }
 
 pub struct StructuralIndex {
@@ -414,7 +416,7 @@ pub struct StructuralIndex {
 }
 
 impl StructuralIndex {
-    pub async fn build(workspace: Workspace, timeout: Duration) -> Result<Self> {
+    pub async fn build(workspace: Workspace, timeout: Duration, no_ignore: bool) -> Result<Self> {
         let mut command = tokio::process::Command::new("rg");
         command.current_dir(workspace.root()).args([
             "--no-config",
@@ -427,7 +429,16 @@ impl StructuralIndex {
             "--glob",
             "!target/**",
         ]);
-        let (status, bytes) = process::run(&mut command, None, timeout, 2 * 1024 * 1024).await?;
+        if no_ignore {
+            command.arg("--no-ignore");
+        }
+        // 16 MiB of paths is roughly 300,000 files: about 20x what saturates Budget::FILES, so
+        // budget_truncated handles every repository the index could meaningfully cover, and the
+        // hard error is reserved for listings whose truncation would silently falsify
+        // eligible_files.
+        let (status, bytes) = process::run(&mut command, None, timeout, 16 * 1024 * 1024)
+            .await
+            .context("repository file listing is too large or too slow; narrow --root")?;
         ensure!(
             status == 0 || status == 1,
             "cannot list repository files with ripgrep"
@@ -452,7 +463,12 @@ impl StructuralIndex {
             coverage: Coverage {
                 snapshot_id: timestamp.to_string(),
                 indexed_at_ms: timestamp,
-                languages: vec!["Rust".into(), "Python".into(), "TypeScript".into()],
+                languages: vec![
+                    "Rust".into(),
+                    "Python".into(),
+                    "TypeScript".into(),
+                    "Markdown (concept sections only)".into(),
+                ],
                 indexed_files: 0,
                 eligible_files: 0,
                 unsupported_files: 0,
@@ -462,17 +478,15 @@ impl StructuralIndex {
                 complete: false,
                 budget_truncated: false,
                 freshness: "Full snapshot built on first structural call; restart the server after edits to rebuild.".into(),
-                limitations: "Syntax only: no type checking, macro expansion, dynamic dispatch, alias/re-export or package resolution. Name matches are candidates, including when unique. Hidden/ignored files are excluded. Verify uncertain results with read_source.".into(),
+                limitations: "Syntax only: no type checking, macro expansion, dynamic dispatch, alias/re-export or package resolution. Name matches are candidates, including when unique. Hidden files and .git are excluded; ignore files are honored unless the server runs with --no-ignore. Verify uncertain results with read_source.".into(),
             },
         };
         let started = Instant::now();
         let mut total_bytes = 0;
         let mut total_records = 0;
         for file in files {
-            if !matches!(
-                Path::new(&file).extension().and_then(|s| s.to_str()),
-                Some("rs" | "py" | "ts" | "tsx")
-            ) {
+            let extension = Path::new(&file).extension().and_then(|s| s.to_str());
+            if !matches!(extension, Some("rs" | "py" | "ts" | "tsx" | "md" | "markdown")) {
                 index.coverage.unsupported_files += 1;
                 continue;
             }
@@ -497,6 +511,13 @@ impl StructuralIndex {
                 }
             };
             total_bytes += source.len();
+            if matches!(extension, Some("md" | "markdown")) {
+                // Markdown carries the vocabulary questions are asked in. It feeds the concept
+                // index only and contributes no structural facts.
+                total_records += index.add_markdown_sections(&file, &source);
+                index.coverage.indexed_files += 1;
+                continue;
+            }
             let remaining = timeout.saturating_sub(started.elapsed());
             match parse_file(&file, &source, remaining) {
                 Ok(parsed) => {
@@ -510,7 +531,25 @@ impl StructuralIndex {
                         // Containers would re-index every member they hold; keep leaf definitions.
                         if !matches!(symbol.kind.as_str(), "mod_item" | "impl_item") {
                             let end = symbol.end_line.min(lines.len());
-                            let body = lines[symbol.line - 1..end].join("\n");
+                            // Documentation sits above a definition, not inside it, and carries
+                            // the vocabulary concept queries use. Include the contiguous comment
+                            // and attribute block, bounded, in the chunk text; the reported
+                            // region stays the definition itself.
+                            let mut first = symbol.line - 1;
+                            while first > 0 && symbol.line - 1 - first < 30 {
+                                let above = lines[first - 1].trim_start();
+                                if above.starts_with("//")
+                                    || above.starts_with("/*")
+                                    || above.starts_with('*')
+                                    || above.starts_with('#')
+                                    || above.starts_with("\"\"\"")
+                                {
+                                    first -= 1;
+                                } else {
+                                    break;
+                                }
+                            }
+                            let body = lines[first..end].join("\n");
                             index.concepts.add(
                                 RankedRegion {
                                     path: symbol.path.clone(),
@@ -585,6 +624,41 @@ impl StructuralIndex {
                 .skipped_examples
                 .push(format!("{file}: {reason}"));
         }
+    }
+
+    /// Chunk a markdown file by heading and add each section to the concept index, returning
+    /// the number of sections added. A `#` inside a fenced code block starts a spurious section;
+    /// the cost is a split chunk, never a wrong claim, and a fence-aware pass can replace this.
+    fn add_markdown_sections(&mut self, path: &str, source: &str) -> usize {
+        let lines: Vec<&str> = source.lines().collect();
+        let mut starts: Vec<usize> = lines
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| line.starts_with('#'))
+            .map(|(position, _)| position)
+            .collect();
+        if starts.first().copied() != Some(0) {
+            starts.insert(0, 0);
+        }
+        let mut sections = 0;
+        for (nth, &begin) in starts.iter().enumerate() {
+            let end = starts.get(nth + 1).copied().unwrap_or(lines.len());
+            let text = lines[begin..end].join("\n");
+            if text.trim().is_empty() {
+                continue;
+            }
+            self.concepts.add(
+                RankedRegion {
+                    path: path.into(),
+                    start_line: begin + 1,
+                    end_line: end.max(begin + 1),
+                    score: 0.0,
+                },
+                &format!("{path} {text}"),
+            );
+            sections += 1;
+        }
+        sections
     }
 
     /// Symbol spans for one already-read file, for callers that chunk source by definition.
@@ -997,24 +1071,47 @@ impl StructuralBackend for StructuralIndex {
                 .map_or(0, calls_named),
         })
     }
+
+    fn coverage(&self) -> &Coverage {
+        &self.coverage
+    }
 }
 
 impl StructuralIndex {
     /// Indexed names sharing tokens or a substring with an unrecognised request, best first.
+    ///
+    /// A token carried by a large share of names - "the", "test", "a" - identifies nothing, so
+    /// it neither qualifies a candidate nor adds to its score; rare shared tokens score by
+    /// rarity. Frequencies are recomputed per call: this only runs on unknown-symbol requests,
+    /// where one linear pass costs less than taxing every index build with a precomputed table.
     fn nearest_names(&self, name: &str) -> Vec<String> {
         let wanted: BTreeSet<_> = concept_tokens(name).into_iter().collect();
         let lowered = name.to_lowercase();
+        let total = self.symbols.len().max(1);
+        let mut frequency: BTreeMap<String, usize> = BTreeMap::new();
+        for candidate in self.symbols.keys() {
+            for token in BTreeSet::from_iter(concept_tokens(candidate)) {
+                *frequency.entry(token).or_default() += 1;
+            }
+        }
+        // Discriminating: near-unique, or carried by at most one name in twenty.
+        let discriminating =
+            |token: &str| frequency.get(token).is_none_or(|df| *df <= 2 || df * 20 <= total);
         let mut scored: Vec<_> = self
             .symbols
             .keys()
             .filter_map(|candidate| {
                 let tokens: BTreeSet<_> = concept_tokens(candidate).into_iter().collect();
-                let shared = wanted.intersection(&tokens).count();
+                let shared: usize = wanted
+                    .intersection(&tokens)
+                    .filter(|token| discriminating(token))
+                    .map(|token| total / frequency.get(token.as_str()).copied().unwrap_or(1))
+                    .sum();
                 let lowered_candidate = candidate.to_lowercase();
                 let contained =
                     lowered_candidate.contains(&lowered) || lowered.contains(&lowered_candidate);
                 (shared > 0 || contained)
-                    .then(|| (shared * 2 + usize::from(contained), candidate.clone()))
+                    .then(|| (shared + if contained { total } else { 0 }, candidate.clone()))
             })
             .collect();
         scored.sort_by(|left, right| right.0.cmp(&left.0).then(left.1.cmp(&right.1)));
@@ -1255,6 +1352,27 @@ fn parse_file(path: &str, source: &str, timeout: Duration) -> Result<ParsedFile>
                 node_text(callee, source),
             ));
         }
+        // Macro arguments parse as token trees, not expressions, so `target(...)` inside
+        // `assert!` or `assert_eq!` never yields a call_expression. An identifier directly
+        // inside a token tree and immediately followed by a parenthesized token tree is
+        // recorded as a call candidate instead of being lost at the macro boundary.
+        if node.kind() == "identifier"
+            && node.parent().is_some_and(|parent| parent.kind() == "token_tree")
+            && node.next_sibling().is_some_and(|sibling| {
+                sibling.kind() == "token_tree" && node_text(sibling, source).starts_with('(')
+            })
+        {
+            call_names.insert(node.id());
+            parsed.references.push(reference(
+                path,
+                source,
+                &lines,
+                *node,
+                *node,
+                "call",
+                node_text(*node, source),
+            ));
+        }
         if is_import(node.kind())
             || (node.kind() == "mod_item" && node.child_by_field_name("body").is_none())
         {
@@ -1411,6 +1529,116 @@ mod tests {
         assert!(starved.coverage.limitations.contains("not evidence of absence"));
         assert!(starved.coverage.limitations.contains("0 of 2 eligible files"));
     }
+
+    /// The file walk honors ignore rules by default and `--no-ignore` reopens them, so the
+    /// index and search_exact keep describing the same corpus in both modes.
+    #[tokio::test]
+    async fn build_honors_ignore_rules_unless_told_otherwise() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".ignore"), "skip.rs\n").unwrap();
+        std::fs::write(dir.path().join("kept.rs"), "fn kept() {}\n").unwrap();
+        std::fs::write(dir.path().join("skip.rs"), "fn skipped() {}\n").unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let honoring = StructuralIndex::build(ws.clone(), Duration::from_secs(5), false)
+            .await
+            .unwrap();
+        assert_eq!(honoring.coverage.indexed_files, 1);
+        let reopened = StructuralIndex::build(ws, Duration::from_secs(5), true)
+            .await
+            .unwrap();
+        assert_eq!(reopened.coverage.indexed_files, 2);
+    }
+    /// "frobnicate_the_widget" shares only "the" with most sentence-style test names; that must
+    /// not qualify them. The one name sharing the rare token "widget" is the only suggestion.
+    #[test]
+    fn nearest_names_ignore_ubiquitous_tokens() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("a.rs"),
+            "fn check_the_widget_state() {}\nfn resolve_the_range_to_the_innermost_definition() {}\nfn parse_the_file_list() {}\nfn build_the_index_snapshot() {}\n",
+        )
+        .unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index =
+            StructuralIndex::from_files(&ws, vec!["a.rs".into()], Duration::from_secs(5)).unwrap();
+        assert_eq!(
+            index.nearest_names("frobnicate_the_widget"),
+            vec!["check_the_widget_state".to_string()]
+        );
+        assert!(index.nearest_names("about_the_thing").is_empty());
+    }
+
+    /// A call written inside a macro argument list must still surface as a caller candidate.
+    #[test]
+    fn calls_inside_macros_are_recorded() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("m.rs"),
+            "fn target() -> bool { true }\nfn caller() { assert!(target()); assert_eq!(Widget::build(1), 2); }\n",
+        )
+        .unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index =
+            StructuralIndex::from_files(&ws, vec!["m.rs".into()], Duration::from_secs(5)).unwrap();
+        let call = |name: &str| {
+            index
+                .references
+                .iter()
+                .find(|r| r.name == name && r.kind == "call")
+        };
+        assert_eq!(call("target").unwrap().caller.as_deref(), Some("caller"));
+        assert_eq!(call("build").unwrap().caller.as_deref(), Some("caller"));
+        assert!(call("Widget").is_none(), "a path segment is not the callee");
+    }
+
+    /// The vocabulary of a question usually lives in the doc comment, not the body; the chunk
+    /// must include it while the reported region stays the definition.
+    #[test]
+    fn concept_chunks_include_documentation_above_the_definition() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("fuse.rs"),
+            "/// Reciprocal rank fusion of a dense and a lexical ranking.\nfn fuse_rankings() { let k = 60.0; }\nfn unrelated() { let x = 1; }\n",
+        )
+        .unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index = StructuralIndex::from_files(&ws, vec!["fuse.rs".into()], Duration::from_secs(5))
+            .unwrap();
+        let hits = index
+            .search_concept(&ws, "reciprocal rank fusion", None, 3)
+            .unwrap();
+        assert_eq!(hits[0].path, "fuse.rs");
+        assert_eq!(hits[0].start_line, 2, "region is the definition, not the comment");
+    }
+
+    /// Markdown sections are concept-searchable and counted as indexed, without becoming
+    /// structural facts.
+    #[test]
+    fn markdown_sections_are_concept_searchable() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("README.md"),
+            "Intro prose.\n\n# Install\nBuild with cargo.\n\n# Design\nBounded honest retrieval for agents.\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("code.rs"), "fn nothing() {}\n").unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index = StructuralIndex::from_files(
+            &ws,
+            vec!["README.md".into(), "code.rs".into()],
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        assert_eq!(index.coverage.indexed_files, 2);
+        assert_eq!(index.coverage.unsupported_files, 0);
+        assert!(index.symbols.keys().all(|name| name == "nothing"), "no markdown symbols");
+        let hits = index
+            .search_concept(&ws, "bounded honest retrieval design", None, 3)
+            .unwrap();
+        assert_eq!(hits[0].path, "README.md");
+        assert_eq!(hits[0].start_line, 6, "the Design section, not the whole file");
+    }
+
     #[test]
     fn rust_and_python_definitions_calls_and_ambiguity() {
         let dir = tempfile::tempdir().unwrap();

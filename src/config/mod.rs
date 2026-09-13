@@ -81,6 +81,11 @@ pub struct Config {
     pub run_id: Option<String>,
     pub log_file: Option<PathBuf>,
     pub ranker: Ranker,
+    /// Search and index gitignored/ignored files too. Off by default: ignore files usually
+    /// exclude generated code and secrets, and every measured run kept them excluded. The flag
+    /// exists for repositories whose ignore rules hide the code under study (for example a
+    /// nested repository ignored by its parent). Hidden files and `.git` stay excluded.
+    pub no_ignore: bool,
 }
 
 impl Config {
@@ -107,15 +112,20 @@ impl Config {
             run_id: None,
             log_file: None,
             ranker: Ranker::default(),
+            no_ignore: false,
         };
         // One switch decides the tool set; two would leave the log label ambiguous.
         let mut chosen = false;
         while let Some(flag) = args.next() {
             if flag == "--help" || flag == "-h" {
                 println!(
-                    "retrieval-mcp --root PATH [--tools name,name,...] [--profile A|B|C|D]\n  [--ranker lexical|semantic|hybrid] [--run-id ID] [--semantic-command '[\"program\",\"arg\"]']\n  [--timeout-seconds 30] [--log-file /absolute/path/events.jsonl]\nTools: search_exact, read_source, inspect_symbol, find_symbol, find_callers,\n  trace_dependencies, search_concept.\nWithout --tools or --profile the default surface is search_exact, read_source,\n  find_callers and search_concept: the tools that measurably repaid their schema cost.\n  The other three stay available by naming them, or with --profile D.\nProfiles are presets over --tools from the original availability study: A exact+read,\n  B adds structure, C adds concept search, D all seven.\nJSON invocation logs go to stderr and optionally append to --log-file; stdout is reserved for MCP."
+                    "retrieval-mcp --root PATH [--tools name,name,...] [--profile A|B|C|D]\n  [--ranker lexical|semantic|hybrid] [--run-id ID] [--semantic-command '[\"program\",\"arg\"]']\n  [--timeout-seconds 30] [--log-file /absolute/path/events.jsonl] [--no-ignore]\n--no-ignore searches and indexes files that ignore files exclude; .git and hidden files stay out.\nTools: search_exact, read_source, inspect_symbol, find_symbol, find_callers,\n  trace_dependencies, search_concept.\nWithout --tools or --profile the default surface is search_exact, read_source,\n  find_callers and search_concept: the tools that measurably repaid their schema cost.\n  The other three stay available by naming them, or with --profile D.\nProfiles are presets over --tools from the original availability study: A exact+read,\n  B adds structure, C adds concept search, D all seven.\nJSON invocation logs go to stderr and optionally append to --log-file; stdout is reserved for MCP."
                 );
                 return Ok(None);
+            }
+            if flag == "--no-ignore" {
+                config.no_ignore = true;
+                continue;
             }
             let value = args
                 .next()

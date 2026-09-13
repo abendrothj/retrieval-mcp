@@ -124,7 +124,11 @@ impl Workspace {
         );
         let text = self.text(&args.path)?;
         let all: Vec<_> = text.lines().collect();
-        ensure!(start <= all.len().max(1), "start_line is past end of file");
+        ensure!(
+            start <= all.len().max(1),
+            "start_line {start} is past end of file; it has {} lines",
+            all.len()
+        );
         let mut bytes = 0;
         let mut lines = Vec::new();
         for (i, line) in all.iter().enumerate().take(end).skip(start - 1) {
@@ -178,6 +182,14 @@ mod tests {
         assert_eq!(result.next_line, Some(3));
         assert!(ws.resolve("../secret").is_err());
         assert!(ws.resolve("/etc/passwd").is_err());
+        let past_end = ws
+            .read(ReadArgs {
+                path: "code.rs".into(),
+                start_line: Some(9),
+                end_line: None,
+            })
+            .unwrap_err();
+        assert!(past_end.to_string().contains("it has 3 lines"), "{past_end}");
         assert!(
             ws.read(ReadArgs {
                 path: "code.rs".into(),
