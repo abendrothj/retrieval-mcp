@@ -1273,6 +1273,37 @@ The rule this project keeps re-learning, in its sharpest form yet: a single thre
 not a finding, even when a plausible mechanism is sitting right next to it.
 
 
+### The caller bucket had a ceiling defect
+
+Every arm of every run scored exactly 0.667 on `cu-callers-02` - six runs, thirty trials, the same
+value - which is the signature of a suite defect rather than a model failure. It was. The question
+asked for "every function in this corpus" that configures the size parser through its whitelist
+method; the corpus has five such call sites, three in production and two inside the parser's own
+`#[cfg(test)]` module, and the gold lists three, following the harness convention that a caller set
+excludes the helper's own defining module. The convention is fine; the question never stated it, so
+every arm answered with four entries and lost a third of the credit for being right about the
+corpus. The wording now states the scope the gold uses, and the repair is recorded in the question's
+own `author_notes`. Archived trials answered the old wording and are **not** re-graded against the
+new one - they answered a different question - so they are excluded from any caller-bucket number
+that uses it.
+
+Recomputed without that question, the bucket says there is no caller-quality problem left to solve
+on this server:
+
+| run | arm | as scored | excluding the defective question |
+|---|---|---:|---:|
+| Layer 6 | pre-guard | 15/18 | **15/15** |
+| Layer 6 | post-guard | 15/18 | **15/15** |
+| Layer 4 | baseline | 15/18 | **15/15** |
+| Layer 2 | retrieval-mcp v0.1.1 | 5/6 | **5/5** |
+| Layer 2 | native control | 5/6 | 4/5 |
+| Layer 2 | zvec-grep | 3/6 | 3/5 |
+
+The bucket still discriminates - it is the one place the competitor and the native control lose -
+but it no longer discriminates *against this server*, which is why the next caller-quality feature
+should not be invented until a suite exists that can see one fail.
+
+
 ## Native-system comparison
 
 `comparison_runner.py` holds OpenCode and DeepSeek V4 Flash constant across six arms: a native
