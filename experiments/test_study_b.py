@@ -110,7 +110,7 @@ class AttributionTests(CorpusTests):
         self.assertEqual(study_b.attribution(self.root / "pkg/forms.py", line), "clean")
 
     def test_a_row_beginning_on_the_doc_comment_credits_the_definition_below_it(self):
-        # v0.2.0 puts the doc comment inside the chunk; reading backwards from it would credit the
+        # v0.1.2 puts the doc comment inside the chunk; reading backwards from it would credit the
         # previous definition, which is how a chunk improvement would look like a ranking loss.
         line = self.line("pkg/forms.py", "# Normalise the raw input and validate it in one step.")
         self.assertEqual(study_b.attribution(self.root / "pkg/forms.py", line), "clean")

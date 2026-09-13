@@ -23,7 +23,7 @@ artifacts, caveats, and the commands that produced it.
 | 10 | Do the other three? | [No](#every-remaining-tool-on-trial), and [replication confirmed it](#the-replication-and-the-frozen-surface) — `trace_dependencies` was never called even on questions authored for it |
 | 11 | Does the frozen system beat the alternatives? | [Yes on context, tie on quality](#the-held-out-comparison): 29/30 each against zvec, −24% input tokens, −34% persistent context |
 | 12 | Do post-freeze index changes earn their place? | [One of three did](#three-index-changes-one-survivor): doc comments in the chunk nearly doubled offline MRR; markdown chunks and macro-argument calls were reverted on their own evidence |
-| 13 | Does the v0.2.0 ranking gain reach the agent? | [No, and it still beats zvec](#layer-2-four-arms-120-trials-claude-sonnet-4-6): offline v0.2.0 goes from behind zvec to ahead (MRR 0.126 → 0.234 vs 0.165), but end to end on 120 trials it ties v0.1.1 while both beat zvec-grep 27–28/30 against 25 at 36% fewer total tokens |
+| 13 | Does the v0.1.2 ranking gain reach the agent? | [No, and it still beats zvec](#layer-2-four-arms-120-trials-claude-sonnet-4-6): offline v0.1.2 goes from behind zvec to ahead (MRR 0.126 → 0.234 vs 0.165), but end to end on 120 trials it ties v0.1.1 while both beat zvec-grep 27–28/30 against 25 at 36% fewer total tokens |
 
 **The result in one line.** On a sealed 30-question held-out set, this server matched zvec-grep at
 29/30 on the same 78 tool calls while spending 24% fewer input tokens and carrying 34% less
@@ -961,7 +961,7 @@ fingerprints and per-question ranks are in `runs/concept-chunk-ab-20260912/`. Th
 about 30 seconds of CPU and no model calls, which is the whole point: two of three changes that
 looked obviously good were negative, and nothing in a code review would have said so.
 
-## The v0.2.0 performance study
+## The v0.1.2 performance study
 
 The doc-comment chunk was measured on the corpora and questions that were already lying around,
 which is enough to accept or reject a change and not enough to claim an advantage. This study asks
@@ -972,6 +972,12 @@ reopened.
 Everything is declared before anything runs. `runs/perf-v020-20260912/preregistration.json` holds
 the arms, the corpus fingerprints, the binary hashes, the buckets, the success target and the
 decision rules, written before the first arm was run.
+
+The development build under test is unreleased: the last tag is `v0.1.1`, and the doc-comment build
+is numbered 0.1.2 in `Cargo.toml`. Its artifacts were written before that number was settled, so the
+run directory, the arm id and the pinned binary are spelled `perf-v020-20260912`, `retrieval-v020`
+and `bin/retrieval-mcp-v0.2.0`. Those names are left exactly as the manifests recorded them, hashes
+included; renaming a measured artifact to match a later decision is how a record stops being one.
 
 **Three fresh corpora**, cut by `cut_corpora.py` from the upstream checkouts, each scope disjoint
 from every spent suite: `cu-text` (173 Rust files: coreutils text utilities and uucore features,
@@ -989,7 +995,7 @@ would have flattered the very change under test; each question's `author_notes` 
 
 **The success target, fixed in advance**: quality at or above zvec-grep, input tokens at least 20%
 below it, fewer calls to first sufficient evidence, and no arm-wide or per-bucket increase in
-`answered_without_evidence` or `wrong_without_evidence`. v0.2.0 must additionally not be worse than
+`answered_without_evidence` or `wrong_without_evidence`. v0.1.2 must additionally not be worse than
 v0.1.1 on any primary measure. If it is not better end to end, that is the published result.
 
 ### Layer 1: offline ranking, no model calls
@@ -1008,13 +1014,13 @@ Thirty questions, raw question text, `limit` 10:
 | Arm | MRR | recall@1 | recall@3 | recall@5 | recall@10 |
 |---|---:|---:|---:|---:|---:|
 | retrieval-mcp v0.1.1 | 0.126 | 2 | 6 | 6 | 8 |
-| **retrieval-mcp v0.2.0** | **0.234** | **6** | **7** | **8** | 10 |
+| **retrieval-mcp v0.1.2** | **0.234** | **6** | **7** | **8** | 10 |
 | zvec-grep 0.2.2 | 0.165 | 3 | 6 | 7 | 10 |
 
-The coreutils result generalises: v0.2.0 beats v0.1.1 on `cu-text` (MRR 0.337 against 0.100) and on
+The coreutils result generalises: v0.1.2 beats v0.1.1 on `cu-text` (MRR 0.337 against 0.100) and on
 `vs-editor` (0.114 against 0.029), and is identical on `dj-forms`, exactly as the mechanism predicts
 — Python docstrings already sat inside the definition. The comparison that matters is the third row:
-**v0.1.1 was behind zvec-grep on this suite and v0.2.0 is ahead of it**, by 42% on MRR and twice as
+**v0.1.1 was behind zvec-grep on this suite and v0.1.2 is ahead of it**, by 42% on MRR and twice as
 often at rank 1, while tying at recall@10. On economics the two are not comparable in kind:
 retrieval-mcp answers warm in 1.3–2.6 ms with no index build, zvec-grep needs a 4.0–7.6 s index and
 395–443 ms per warm query, and returns leaner rows (1.7–2.2 KB against 3.2–3.9 KB).
@@ -1038,7 +1044,7 @@ source, and the zvec install comes from the cached 0.2.2 tree because this run h
 
 30 questions × 4 arms × 1 repetition, 30-call ceiling, $6.38 of model spend:
 
-| | native | zvec-grep | v0.1.1 | **v0.2.0** |
+| | native | zvec-grep | v0.1.1 | **v0.1.2** |
 |---|---:|---:|---:|---:|
 | Correct / 30 | 27 | 25 | **28** | 27 |
 | Graded credit | 0.92 | 0.85 | **0.93** | 0.92 |
@@ -1055,7 +1061,7 @@ against 2.48, and zero unsupported answers against two. One honest qualification
 trial is the cheapest of the four at 21.2 k tokens — its total is carried by a heavy tail, so the
 context advantage is about failure modes, not about the typical question.
 
-**Against v0.1.1 the pre-registered target is not met, and that is the result.** v0.2.0 loses one
+**Against v0.1.1 the pre-registered target is not met, and that is the result.** v0.1.2 loses one
 question (27 against 28) and reaches first evidence in 1.37 calls against 1.20; it carries 13% less
 persistent context and spends 5% fewer tokens at the median, both inside the run-to-run floor. The
 offline ranking gain — MRR 0.126 → 0.234, recall@1 2 → 6 — did **not** convert into an agent-level
@@ -1065,7 +1071,7 @@ raw question text is partly redundant with work the model was already doing. `te
 is the sharpest version of that: every arm scored zero on it offline, and every arm answered all six
 of those questions in the agent loop.
 
-The single v0.2.0 loss was audited before it was interpreted, per the habit. Every gold identity was
+The single v0.1.2 loss was audited before it was interpreted, per the habit. Every gold identity was
 retrieved — `unretrieved_identities` is empty — and the model named the third caller as
 `EnterOperation::_goodIndentForLine` where the corpus defines `TabOperation::_goodIndentForLine`.
 That is `wrong_level`, the container-versus-member error the `inspect_symbol` A/B could not fix

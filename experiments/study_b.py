@@ -53,7 +53,7 @@ KINDS = ("mcp", "zvec")
 # makes it wordier. Its hit header is the machine-readable part: `#1 matchedBy=fts+vector a/b.rs:12-40`.
 ZVEC_HIT = re.compile(r"^#(\d+)\s+(?:matchedBy=\S+\s+)?(.+?):(\d+)-(\d+)$")
 ZVEC_EMBEDDING = "local/potion-code-16m-v2"
-# A chunk may begin on the doc comment, attribute or decorator that introduces a definition - v0.2.0
+# A chunk may begin on the doc comment, attribute or decorator that introduces a definition - v0.1.2
 # put doc comments inside concept chunks on purpose - so these prefixes never terminate the forward
 # scan for the code a row is pointing at.
 INTRODUCER = ("//", "/*", "*", "#", "@")
