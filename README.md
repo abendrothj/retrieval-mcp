@@ -20,32 +20,35 @@ client on demand — you never launch this yourself, and it exits with the sessi
   "mcpServers": {
     "retrieval": {
       "command": "retrieval-mcp",
-      "args": ["--root", "/absolute/path/to/your/repo", "--timeout-seconds", "120"]
+      "args": ["--root", "."]
     }
   }
 }
 ```
 
-`--root` is fixed at startup and is the only repository the session can read, so a server entry is
-per-project. [Connect Claude Code](#connect-claude-code) and [Connect Codex](#connect-codex) give the
-one-liners that write this entry for you. Nothing is written to your repository, no index is built
-ahead of time, and the first structural call builds an in-memory snapshot that dies with the process.
+`--root` is the only repository the session can read and is fixed at startup, so a server entry is
+per-project. It may be relative — it is resolved once against the working directory the client
+launches the server in, which for Claude Code and Codex is the project you opened — or absolute if
+you would rather not depend on that. [Connect Claude Code](#connect-claude-code) and
+[Connect Codex](#connect-codex) are one-liners that write this entry for you. Nothing is written to
+your repository, no index is built ahead of time, and the first structural call builds an in-memory
+snapshot that dies with the process.
 
 ## Quickstart
 
 ```sh
-cargo build --locked --release --bin retrieval-mcp
-
-# Make the call your agent will make, and see exactly what it gets back:
+# Run it against any checkout, from that checkout, with the binary cargo install put on PATH.
+# This is the call your agent will make, and exactly what it gets back:
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"find_callers","arguments":{"name":"build"}}}' \
-  | ./target/release/retrieval-mcp --root "$PWD" 2>/dev/null | tail -1
+  | retrieval-mcp --root . 2>/dev/null | tail -1
 ```
 
 That is the payload an agent receives: every call site of `build` with the definition enclosing it
-and a complete count, from one call, against the current files on disk. It is a smoke check from a
-clone — a wired-up client never needs it.
+and a complete count, from one call, against the current files on disk. It is a smoke check — a
+wired-up client never needs it. From a clone rather than an install, `cargo build --locked --release
+--bin retrieval-mcp` first and call `./target/release/retrieval-mcp` instead.
 
 ## What it is
 
@@ -182,40 +185,45 @@ cargo clippy --locked --all-targets -- -D warnings
 
 The server waits for an MCP client on stdin; it is not an interactive terminal application. Stdout carries MCP messages only. Logs go to stderr; `--log-file` additionally appends invocation events to a file whose parent directory must already exist. The file is never truncated. New log files use mode 0600 on Unix.
 
-Four tools are exposed by default — `search_exact`, `read_source`, `find_callers`, `search_concept` — and the default ranker is **lexical**, so a plain `--root` invocation is fully offline. That default is the measured one, not the maximal one: see [Restricting the tool set](#restricting-the-tool-set) for the other three and the profile presets. `--ranker semantic` or `--ranker hybrid` requires `--semantic-command`; without it, `search_concept` returns an explicit configuration error rather than silently degrading to a different ranking. `--root` is mandatory and fixed for the session; clients cannot change it through a tool argument. Ignore files are honored by default; `--no-ignore` searches and indexes ignored files too, for repositories whose ignore rules hide the code under study (a nested repository ignored by its parent, say). `.git`, `target` and hidden files stay excluded either way.
+Four tools are exposed by default — `search_exact`, `read_source`, `find_callers`, `search_concept` — and the default ranker is **lexical**, so a plain `--root` invocation is fully offline. That default is the measured one, not the maximal one: see [Restricting the tool set](#restricting-the-tool-set) for the other three and the profile presets. `--ranker semantic` or `--ranker hybrid` requires `--semantic-command`; without it, `search_concept` returns an explicit configuration error rather than silently degrading to a different ranking. `--root` is mandatory and fixed for the session; clients cannot change it through a tool argument. It may be given relative (`--root .`) and is canonicalised once at startup against the process's working directory, so what the session can read never depends on anything a later tool call says. Ignore files are honored by default; `--no-ignore` searches and indexes ignored files too, for repositories whose ignore rules hide the code under study (a nested repository ignored by its parent, say). `.git`, `target` and hidden files stay excluded either way.
 
-The SDK is [`rmcp` 3.2.0](https://github.com/modelcontextprotocol/rust-sdk), the official Tokio-based Rust SDK, selected after checking the published crates.io release and upstream documentation. The SDK handles protocol negotiation and stdio; `Cargo.lock` pins the working dependency set. The integration test negotiates MCP `2025-11-25` and exercises real JSON-RPC subprocess calls.
+The SDK is [`rmcp` 3.3.0](https://github.com/modelcontextprotocol/rust-sdk), the official Tokio-based Rust SDK, selected after checking the published crates.io release and upstream documentation. The SDK handles protocol negotiation and stdio; `Cargo.lock` pins the working dependency set. The integration test negotiates MCP `2025-11-25` and exercises real JSON-RPC subprocess calls.
 
 ## Connect Claude Code
 
-Build first, then run this command in the repository you want to query. Replace absolute paths:
+Run this in the repository you want to query, after `cargo install retrieval-mcp`:
 
 ```sh
-claude mcp add --transport stdio --scope local retrieval -- \
-  /absolute/path/to/retrieval-mcp/target/release/retrieval-mcp \
-  --root /absolute/path/to/repo \
-  --timeout-seconds 120 --log-file /absolute/path/to/retrieval-events.jsonl
+claude mcp add --transport stdio --scope local retrieval -- retrieval-mcp --root .
 ```
 
-Use `/mcp` in Claude Code to check the connection. Add `--ranker semantic --semantic-command '["…/examples/ollama_backend"]'` to put embeddings behind `search_concept`, or `--tools search_exact,read_source` for the grep-and-read baseline. Claude options belong before the server name; server arguments follow `--`. See [Claude Code's MCP documentation](https://code.claude.com/docs/en/mcp).
+Use `/mcp` in Claude Code to check the connection. `--root .` resolves against the directory Claude
+launches the server in, which is the project you opened; pass an absolute path instead if you would
+rather not depend on that, and `/absolute/path/to/retrieval-mcp/target/release/retrieval-mcp` in
+place of the bare name if you built from a clone. Useful additions: `--timeout-seconds 120` on a
+large repository, `--log-file /absolute/path/to/retrieval-events.jsonl` to record invocation events,
+`--ranker semantic --semantic-command '["…/examples/ollama_backend"]'` to put embeddings behind
+`search_concept`, `--tools search_exact,read_source` for the grep-and-read baseline. Claude options
+belong before the server name; server arguments follow `--`. See
+[Claude Code's MCP documentation](https://code.claude.com/docs/en/mcp).
 
 ## Connect Codex
 
 ```sh
-codex mcp add retrieval -- \
-  /absolute/path/to/retrieval-mcp/target/release/retrieval-mcp \
-  --root /absolute/path/to/repo \
-  --timeout-seconds 120 --log-file /absolute/path/to/retrieval-events.jsonl
+codex mcp add retrieval -- retrieval-mcp --root .
 ```
 
-Alternatively, add this to your Codex configuration, replacing the paths:
+Alternatively, add this to your Codex configuration:
 
 ```toml
 [mcp_servers.retrieval]
-command = "/absolute/path/to/retrieval-mcp/target/release/retrieval-mcp"
-args = ["--root", "/absolute/path/to/repo", "--timeout-seconds", "120", "--log-file", "/absolute/path/to/retrieval-events.jsonl"]
+command = "retrieval-mcp"
+args = ["--root", "."]
 tool_timeout_sec = 150
 ```
+
+The same substitutions apply: an absolute `--root` if you do not want to depend on the launch
+directory, and an absolute path to the binary if you built from a clone.
 
 Use `codex mcp list` to inspect configuration, then start a new session. The examples follow the [official Codex MCP documentation](https://developers.openai.com/codex/mcp). Client setup is documented; the project tests the wire protocol without modifying your agent configuration or running paid model sessions.
 
