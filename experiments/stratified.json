@@ -3,7 +3,7 @@
   "name": "retrieval-server-stratified-v1",
   "corpus_files": {
     "Cargo.toml": "0aeedf3a49b173ec46257e9804ca0aa860654bc24876ee591805863db8083494",
-    "Cargo.lock": "0fbc9f5f648b3d98285eac1af1a5b9180f334ec19d03d2114620592a7deee733",
+    "Cargo.lock": "bc4462086072cd81fdf170828902fa660bf661d4f3dadd2edeceded4b7cf597f",
     "src/lib.rs": "3491d7f875642a69c473c5609a14c4671f9754ff0ef9e29b6ebacb6c2257d153",
     "src/main.rs": "91420329e044b8c2316bf278a44147318df47a55b0eae6cb0a4857ab6beba1b2",
     "src/config/mod.rs": "a5984a1a3d66bfba23bb1b835eedf7e9562a007a1069c9f3264112af44b70c73",
