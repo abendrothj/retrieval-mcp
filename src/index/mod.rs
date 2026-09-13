@@ -463,12 +463,7 @@ impl StructuralIndex {
             coverage: Coverage {
                 snapshot_id: timestamp.to_string(),
                 indexed_at_ms: timestamp,
-                languages: vec![
-                    "Rust".into(),
-                    "Python".into(),
-                    "TypeScript".into(),
-                    "Markdown (concept sections only)".into(),
-                ],
+                languages: vec!["Rust".into(), "Python".into(), "TypeScript".into()],
                 indexed_files: 0,
                 eligible_files: 0,
                 unsupported_files: 0,
@@ -486,7 +481,7 @@ impl StructuralIndex {
         let mut total_records = 0;
         for file in files {
             let extension = Path::new(&file).extension().and_then(|s| s.to_str());
-            if !matches!(extension, Some("rs" | "py" | "ts" | "tsx" | "md" | "markdown")) {
+            if !matches!(extension, Some("rs" | "py" | "ts" | "tsx")) {
                 index.coverage.unsupported_files += 1;
                 continue;
             }
@@ -511,13 +506,6 @@ impl StructuralIndex {
                 }
             };
             total_bytes += source.len();
-            if matches!(extension, Some("md" | "markdown")) {
-                // Markdown carries the vocabulary questions are asked in. It feeds the concept
-                // index only and contributes no structural facts.
-                total_records += index.add_markdown_sections(&file, &source);
-                index.coverage.indexed_files += 1;
-                continue;
-            }
             let remaining = timeout.saturating_sub(started.elapsed());
             match parse_file(&file, &source, remaining) {
                 Ok(parsed) => {
@@ -624,41 +612,6 @@ impl StructuralIndex {
                 .skipped_examples
                 .push(format!("{file}: {reason}"));
         }
-    }
-
-    /// Chunk a markdown file by heading and add each section to the concept index, returning
-    /// the number of sections added. A `#` inside a fenced code block starts a spurious section;
-    /// the cost is a split chunk, never a wrong claim, and a fence-aware pass can replace this.
-    fn add_markdown_sections(&mut self, path: &str, source: &str) -> usize {
-        let lines: Vec<&str> = source.lines().collect();
-        let mut starts: Vec<usize> = lines
-            .iter()
-            .enumerate()
-            .filter(|(_, line)| line.starts_with('#'))
-            .map(|(position, _)| position)
-            .collect();
-        if starts.first().copied() != Some(0) {
-            starts.insert(0, 0);
-        }
-        let mut sections = 0;
-        for (nth, &begin) in starts.iter().enumerate() {
-            let end = starts.get(nth + 1).copied().unwrap_or(lines.len());
-            let text = lines[begin..end].join("\n");
-            if text.trim().is_empty() {
-                continue;
-            }
-            self.concepts.add(
-                RankedRegion {
-                    path: path.into(),
-                    start_line: begin + 1,
-                    end_line: end.max(begin + 1),
-                    score: 0.0,
-                },
-                &format!("{path} {text}"),
-            );
-            sections += 1;
-        }
-        sections
     }
 
     /// Symbol spans for one already-read file, for callers that chunk source by definition.
@@ -1352,27 +1305,6 @@ fn parse_file(path: &str, source: &str, timeout: Duration) -> Result<ParsedFile>
                 node_text(callee, source),
             ));
         }
-        // Macro arguments parse as token trees, not expressions, so `target(...)` inside
-        // `assert!` or `assert_eq!` never yields a call_expression. An identifier directly
-        // inside a token tree and immediately followed by a parenthesized token tree is
-        // recorded as a call candidate instead of being lost at the macro boundary.
-        if node.kind() == "identifier"
-            && node.parent().is_some_and(|parent| parent.kind() == "token_tree")
-            && node.next_sibling().is_some_and(|sibling| {
-                sibling.kind() == "token_tree" && node_text(sibling, source).starts_with('(')
-            })
-        {
-            call_names.insert(node.id());
-            parsed.references.push(reference(
-                path,
-                source,
-                &lines,
-                *node,
-                *node,
-                "call",
-                node_text(*node, source),
-            ));
-        }
         if is_import(node.kind())
             || (node.kind() == "mod_item" && node.child_by_field_name("body").is_none())
         {
@@ -1568,29 +1500,6 @@ mod tests {
         assert!(index.nearest_names("about_the_thing").is_empty());
     }
 
-    /// A call written inside a macro argument list must still surface as a caller candidate.
-    #[test]
-    fn calls_inside_macros_are_recorded() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join("m.rs"),
-            "fn target() -> bool { true }\nfn caller() { assert!(target()); assert_eq!(Widget::build(1), 2); }\n",
-        )
-        .unwrap();
-        let ws = Workspace::new(dir.path()).unwrap();
-        let index =
-            StructuralIndex::from_files(&ws, vec!["m.rs".into()], Duration::from_secs(5)).unwrap();
-        let call = |name: &str| {
-            index
-                .references
-                .iter()
-                .find(|r| r.name == name && r.kind == "call")
-        };
-        assert_eq!(call("target").unwrap().caller.as_deref(), Some("caller"));
-        assert_eq!(call("build").unwrap().caller.as_deref(), Some("caller"));
-        assert!(call("Widget").is_none(), "a path segment is not the callee");
-    }
-
     /// The vocabulary of a question usually lives in the doc comment, not the body; the chunk
     /// must include it while the reported region stays the definition.
     #[test]
@@ -1609,34 +1518,6 @@ mod tests {
             .unwrap();
         assert_eq!(hits[0].path, "fuse.rs");
         assert_eq!(hits[0].start_line, 2, "region is the definition, not the comment");
-    }
-
-    /// Markdown sections are concept-searchable and counted as indexed, without becoming
-    /// structural facts.
-    #[test]
-    fn markdown_sections_are_concept_searchable() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join("README.md"),
-            "Intro prose.\n\n# Install\nBuild with cargo.\n\n# Design\nBounded honest retrieval for agents.\n",
-        )
-        .unwrap();
-        std::fs::write(dir.path().join("code.rs"), "fn nothing() {}\n").unwrap();
-        let ws = Workspace::new(dir.path()).unwrap();
-        let index = StructuralIndex::from_files(
-            &ws,
-            vec!["README.md".into(), "code.rs".into()],
-            Duration::from_secs(5),
-        )
-        .unwrap();
-        assert_eq!(index.coverage.indexed_files, 2);
-        assert_eq!(index.coverage.unsupported_files, 0);
-        assert!(index.symbols.keys().all(|name| name == "nothing"), "no markdown symbols");
-        let hits = index
-            .search_concept(&ws, "bounded honest retrieval design", None, 3)
-            .unwrap();
-        assert_eq!(hits[0].path, "README.md");
-        assert_eq!(hits[0].start_line, 6, "the Design section, not the whole file");
     }
 
     #[test]

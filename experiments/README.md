@@ -22,6 +22,7 @@ artifacts, caveats, and the commands that produced it.
 | 9 | Does any structural tool earn its schema? | [`find_callers` does](#necessity-not-reachability-a-gate-a-suite-and-the-first-tool-that-pays): net +234.8 k tokens on exhaustive caller questions |
 | 10 | Do the other three? | [No](#every-remaining-tool-on-trial), and [replication confirmed it](#the-replication-and-the-frozen-surface) — `trace_dependencies` was never called even on questions authored for it |
 | 11 | Does the frozen system beat the alternatives? | [Yes on context, tie on quality](#the-held-out-comparison): 29/30 each against zvec, −24% input tokens, −34% persistent context |
+| 12 | Do post-freeze index changes earn their place? | [One of three did](#three-index-changes-one-survivor): doc comments in the chunk nearly doubled offline MRR; markdown chunks and macro-argument calls were reverted on their own evidence |
 
 **The result in one line.** On a sealed 30-question held-out set, this server matched zvec-grep at
 29/30 on the same 78 tool calls while spending 24% fewer input tokens and carrying 34% less
@@ -910,6 +911,52 @@ A stopping rule that looked like a free 22% saving, a treatment loss that looked
 stop, an arm whose payload metrics read zero, two tools that agreed on nine helpers and disagreed on
 five, a 0.40 that looked like over-listing: each was a measurement bug, and each would have become a
 published architectural finding under the opposite habit.
+
+## Three index changes, one survivor
+
+After the surface was frozen, driving the server against an awkward repository suggested three
+index changes: put the comment block above a definition into its concept chunk, chunk markdown
+files by heading into the same index, and record calls written inside Rust macro arguments
+(`assert!(target())`), which parse as token trees and had been invisible. All three are cheap,
+plausible, and were implemented before anything was measured. Two of them were wrong.
+
+`study_a.py` settles the first two offline: identical corpora, symbol-level gold, lexical ranker,
+raw question text, no model calls. Three binaries — `v0.1.1`, the three-change build, and a
+candidate with markdown and macro calls removed — over six question sets:
+
+| Suite | n | recall@5 before | recall@5 after | MRR before | MRR after |
+|---|---:|---:|---:|---:|---:|
+| coreutils authored | 18 | 7 | **10** | 0.246 | **0.474** |
+| VS Code mechanical | 200 | 52 | **108** | 0.137 | **0.456** |
+| VS Code authored | 15 | 3 | 3 | 0.167 | 0.173 |
+| Django held-out | 29 | 17 | 17 | 0.510 | 0.510 |
+| Django development | 29 | 13 | 13 | 0.343 | 0.343 |
+| Django hard | 30 | 11 | 11 | 0.317 | 0.317 |
+
+The gain is entirely the doc-comment chunk, and its shape is exactly what the project's first
+finding predicts: a description question is a vocabulary problem, and the vocabulary sits in the
+comment, not the body. Django does not move because Python docstrings already sit *inside* the
+definition and were always in the chunk; the mechanical suite is derived from doc comments, so it
+is partly circular and the authored coreutils suite is the honest number.
+
+Markdown chunking could not be measured on any suite, because **not one of the eleven measured
+corpora contains a single markdown file** — a fact worth knowing before believing any claim about
+it. The upstream coreutils checkout does: 662 Rust files and 76 markdown files, with the same 18
+graded questions. There, markdown chunks took 14 of 180 result slots and pushed a gold out of the
+top ten — `diag-char-span-callers` rank 7 → absent, `diag-floor-same-name` 2 → 3, MRR 0.474 →
+0.457, recall@10 12 → 11. No question improved. Prose about code outranks the code.
+
+Macro-argument calls are a genuine recall gain and still a loss. Over 40 sampled symbols on the
+coreutils corpus the rule added 361 caller rows, of which **347 were assertions inside test
+functions** and 14 were production call sites. Both graded Rust caller questions exclude test code
+by their own wording, so on the only questions that grade this relation the change adds nothing but
+bytes: `find_callers("char_span")` went from 2 rows and 5,956 bytes to 5 rows and 8,734 bytes, and
+`find_callers` is the one structural tool with a positive token ledger to protect.
+
+So the doc-comment chunk stayed and the other two were reverted. Artifacts, binary hashes, corpus
+fingerprints and per-question ranks are in `runs/concept-chunk-ab-20260912/`. The measurement costs
+about 30 seconds of CPU and no model calls, which is the whole point: two of three changes that
+looked obviously good were negative, and nothing in a code review would have said so.
 
 ## Native-system comparison
 

@@ -244,7 +244,7 @@ impl RetrievalServer {
         } else {
             crate::search::semantic::rows(&self.workspace, lexical, wanted, offset,
                                           include_excerpt, "bm25/symbol-chunks",
-                                          "Lexical BM25 over indexed definitions and markdown sections; no embedding model or service.")?
+                                          "Lexical BM25 over indexed definitions; no embedding model or service.")?
         };
         if ranker.needs_index() {
             // An index-backed empty page is only interpretable next to the corpus size: zero
