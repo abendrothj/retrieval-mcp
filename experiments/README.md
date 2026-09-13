@@ -36,6 +36,10 @@ persistent context, with no unsupported answers by any arm.
 retrieval, bounded source verification, one relational primitive, and a stopping rule — everything
 else was removed after it failed to pay for itself.
 
+**The last thing learned, in one line.** *Correct evidence reduces recovery turns.* The largest
+efficiency win measured after the freeze came from a row that had been telling the truth about a
+call site — not from compressing a payload, enriching a result, or adding retrieval machinery.
+
 ## How it converged
 
 The project began as a ranker question — dense against BM25 — and the first offline bake-off said
@@ -68,6 +72,14 @@ correct symbols. The habit that caught them is the one methodological claim wort
 surprising result triggers an evaluator audit before an architectural interpretation.**
 
 What survived is what was left after each hypothesis and each tool was made to earn its place.
+
+The post-freeze work added one principle to that. Four optimisations were proposed on plausible
+accounting — markdown in the concept index, macro-argument callers, a schema diet, an
+enclosing-container line — and all four were measured and rejected. The one change that paid was a
+defect: caller rows had been naming local bindings as callers, and the agent had been reading source
+to recover from it. Correcting the row cut source reads 74%, calls 30% and total context 39.5% at
+identical correctness. **Correct evidence reduces recovery turns**, and that is a cheaper lever than
+any of the four features it was found underneath.
 
 ## Harness defect ledger
 
