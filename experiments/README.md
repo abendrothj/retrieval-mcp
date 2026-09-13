@@ -24,6 +24,7 @@ artifacts, caveats, and the commands that produced it.
 | 11 | Does the frozen system beat the alternatives? | [Yes on context, tie on quality](#the-held-out-comparison): 29/30 each against zvec, −24% input tokens, −34% persistent context |
 | 12 | Do post-freeze index changes earn their place? | [One of three did](#three-index-changes-one-survivor): doc comments in the chunk nearly doubled offline MRR; markdown chunks and macro-argument calls were reverted on their own evidence |
 | 13 | Does the v0.1.2 ranking gain reach the agent? | [No, and it still beats zvec](#layer-2-four-arms-120-trials-claude-sonnet-4-6): offline v0.1.2 goes from behind zvec to ahead (MRR 0.126 → 0.234 vs 0.165), but end to end on 120 trials it ties v0.1.1 while both beat zvec-grep 28–29/30 against 25 at 36% fewer total tokens |
+| 14 | Is the 9 KB of advertised output schema a token tax? | [No — the client never forwards it](#layer-3-the-schema-diet-and-the-saving-that-was-not-there): a pre-registered ≥15% context cut came out at −0.1%, and the same measurement showed this server's model-facing surface is 1,450 tokens *smaller* than zvec's, not larger |
 
 **The result in one line.** On a sealed 30-question held-out set, this server matched zvec-grep at
 29/30 on the same 78 tool calls while spending 24% fewer input tokens and carrying 34% less
@@ -57,7 +58,7 @@ genuinely do not encode — the enclosing definition of a call site — did one 
 `find_callers`, return a positive ledger; the other three failed their own claimed classes under
 replication and left the default surface.
 
-Running alongside all of it: seventeen defects in the measuring apparatus, several of which had already
+Running alongside all of it: seventeenseventeen defects in the measuring apparatus, several of which had already
 produced convincing results. A stopping rule that looked like a free 22% saving, a treatment loss
 that looked like a premature stop, an arm whose payload metrics read zero, a 0.40 that looked like a
 noisy tool, and — in the held-out run itself — this server's only loss, which had actually named both
@@ -68,7 +69,7 @@ What survived is what was left after each hypothesis and each tool was made to e
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Seventeen defects in it have produced or nearly
+The harness is the second experimental subject. SeventeenSeventeen defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
 some penalised it, one was found inside its own single held-out loss, and the last would have made
 every brace-language caller question unauthorable, while the last scored three arms to zero on questions they had answered exactly right. Each is pinned by a test. This table is the
@@ -904,7 +905,7 @@ it then prints the exact validate/prepare/run/score commands. It calls no model.
 
 ### The habit that made the numbers trustworthy
 
-The seventeen entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
+The seventeenseventeen entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
 flattered this server, some penalised it, and the last was found inside its own single held-out loss.
 None was found by auditing on a schedule. Every one came from the same rule, which is the methodological
 claim this project would actually defend:
@@ -1095,6 +1096,68 @@ Two of the 120 trials failed on infrastructure — an unreachable API after ten 
 zero tokens spent, and one 600 s client timeout — and were re-run with identical settings; the
 originals are quarantined under `run-vs-editor/failed-trials/` and the substitution is recorded in
 `run-vs-editor/repair.json`.
+
+### Layer 3: the schema diet, and the saving that was not there
+
+The advertised four-tool surface serialises to 14,831 bytes, of which **9,029 are generated output
+schemas** — 6,614 for `find_callers` alone, a tool called in 6 of 30 trials. Re-sent every turn,
+that arithmetic said roughly 2,240 tokens per turn, around 29% of median input tokens, for something
+that is not retrieved evidence and so has no expansion-turn penalty to trade against. It was the
+first proposed optimisation in this project whose accounting looked overwhelming before
+implementation, and it was pre-registered narrowly: *removing nonessential output-schema detail
+reduces end-to-end input context without reducing answer quality, tool-use reliability, or evidence
+grounding*, with a ≥15% context reduction required to ship and every quality and safety column
+required not to move.
+
+Three representations were measured offline first, since jumping from 9 KB to nothing without
+checking what the framework allows would have confounded the test:
+
+| Representation | tools bytes | output-schema bytes | ≈ tokens |
+|---|---:|---:|---:|
+| A: full generated schemas | 14,831 | 9,029 | 3,708 |
+| B: `{"type": "object"}` | 5,874 | 72 | 1,468 |
+| C: omitted entirely | 5,730 | 8 | 1,432 |
+
+B costs 144 bytes more than C across four tools and keeps the truthful statement that the tool
+returns an object, so B is the treatment. All three still return structured content, verified with a
+live call against each binary. The two arms differ by one expression in `tools::definition` and
+nothing else — same descriptions, input schemas, instructions, results, closure policy, corpus bytes
+and ceilings — and the systems file asserts it: the only fields that differ between the arms are
+`id` and `server`.
+
+30 questions × 2 arms × 1 repetition:
+
+| | baseline | diet | Δ |
+|---|---:|---:|---:|
+| Correct / 30 | 28 | 29 | +1 |
+| Graded credit | 0.978 | 0.989 | +0.011 |
+| Input tokens, median | 23,300 | 23,282 | **−0.1%** |
+| Input tokens, total | 808,781 | 837,493 | **+3.6%** |
+| Calls, median / mean | 2 / 2.43 | 2 / 2.63 | +8% mean |
+| Calls to first evidence | 1.37 | 1.43 | +4% |
+| Answered / wrong without evidence | 0 / 0 | 0 / 0 | — |
+
+**The target is missed completely, and the reason is the interesting part.** Per-trial
+`cache_creation` — the tokens of the cached prompt prefix, which is where tool definitions live — is
+4,374 tokens median for the baseline and 4,253 for the treatment, means 5,130 and 5,145. Unchanged,
+where the byte arithmetic predicted about 2,240 fewer. **Claude Code does not forward `outputSchema`
+to the model.** Those 9,029 bytes are client-side metadata; the surface the model actually sees is
+the descriptions and input schemas, 5,802 bytes, byte-identical in both arms.
+
+That falsifies the bottleneck reading that motivated the experiment, and the correction runs the
+other way: measured model-facing prefixes in the Layer 2 run are **6,053 tokens median for
+zvec-grep, 4,600 for this server and 4,374 for the native control**. This server's advertised
+surface is about 1,450 tokens *smaller* than the competitor's, not larger. Counting `tools/list`
+bytes measured what the client keeps to itself.
+
+So the diet does not ship: it costs nothing measurable and buys nothing measurable, and a change
+with no measured benefit does not enter the default binary. A client that does forward output
+schemas would see a different number; none was measured here.
+
+Where the context actually goes, per trial: a 4.6 k cached prefix plus **18.8 k of cache reads
+across turns**. Turns, not advertised surface — the project's oldest quantitative finding, arrived
+at from the opposite direction for the third time. The remaining lever against zvec is the one this
+server already leads on: first sufficient evidence in 1.37 calls against 2.48.
 
 What survives: **on three corpora and a suite none of the systems had seen, both versions of this
 server beat zvec-grep 0.2.2 on quality, total context and speed to first evidence, and the
