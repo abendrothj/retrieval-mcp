@@ -23,7 +23,7 @@ artifacts, caveats, and the commands that produced it.
 | 10 | Do the other three? | [No](#every-remaining-tool-on-trial), and [replication confirmed it](#the-replication-and-the-frozen-surface) — `trace_dependencies` was never called even on questions authored for it |
 | 11 | Does the frozen system beat the alternatives? | [Yes on context, tie on quality](#the-held-out-comparison): 29/30 each against zvec, −24% input tokens, −34% persistent context |
 | 12 | Do post-freeze index changes earn their place? | [One of three did](#three-index-changes-one-survivor): doc comments in the chunk nearly doubled offline MRR; markdown chunks and macro-argument calls were reverted on their own evidence |
-| 13 | Does the v0.2.0 ranking gain generalise against zvec? | [Offline, yes](#layer-1-offline-ranking-no-model-calls): on 30 questions over three fresh corpora v0.1.1 sits behind zvec-grep (MRR 0.126 vs 0.165) and v0.2.0 ahead (0.234); the agent-level test is prepared and gated |
+| 13 | Does the v0.2.0 ranking gain reach the agent? | [No, and it still beats zvec](#layer-2-four-arms-120-trials-claude-sonnet-4-6): offline v0.2.0 goes from behind zvec to ahead (MRR 0.126 → 0.234 vs 0.165), but end to end on 120 trials it ties v0.1.1 while both beat zvec-grep 27–28/30 against 25 at 36% fewer total tokens |
 
 **The result in one line.** On a sealed 30-question held-out set, this server matched zvec-grep at
 29/30 on the same 78 tool calls while spending 24% fewer input tokens and carrying 34% less
@@ -1025,20 +1025,62 @@ project's first finding restated — the expensive work is query formation, and 
 it — and it is why this layer is a screen, not the claim. Pooled bucket n is 3–6, so only the three
 buckets with n = 6 support any statement at all.
 
-### Layer 2: four arms, awaiting approval
+### Layer 2: four arms, 120 trials, `claude-sonnet-4-6`
 
 `comparison_systems_perf_v020.json` declares `native-control`, `zvec-grep`, `retrieval-v011` and
 `retrieval-v020`. The two retrieval arms are byte-identical except for the pinned binary — same four
 visible tools, same closure stopping rule copied verbatim from the held-out systems file, no semantic
 backend on either, so the only difference in the treatment is the doc-comment chunk. `comparison_runner.py`
-now takes a per-system `server` binary and records its sha256 in the prepared manifest, which is what
-makes a two-version comparison possible at all. `end_to_end.py` reports every primary and safety
-measure per bucket as well as per arm.
+takes a per-system `server` binary and records its sha256 in the prepared manifest, which is what
+makes a two-version comparison possible at all; `end_to_end.py` reports every primary and safety
+measure per bucket as well as per arm. Every arm's corpus copy fingerprints identically to its
+source, and the zvec install comes from the cached 0.2.2 tree because this run had no registry access.
 
-All three workspaces are prepared and verified: every arm's corpus copy fingerprints identically to
-its source, and the zvec install comes from the cached 0.2.2 tree because this run has no registry
-access. Nothing beyond this point runs without explicit approval: 4 arms × 30 questions is 120 model
-trials, and the project's rule is that charges begin only at an explicit gate.
+30 questions × 4 arms × 1 repetition, 30-call ceiling, $6.38 of model spend:
+
+| | native | zvec-grep | v0.1.1 | **v0.2.0** |
+|---|---:|---:|---:|---:|
+| Correct / 30 | 27 | 25 | **28** | 27 |
+| Graded credit | 0.92 | 0.85 | **0.93** | 0.92 |
+| Input tokens, total | 1.286 M | 1.215 M | 783 k | **779 k** |
+| Input tokens, median trial | 34.5 k | **21.2 k** | 24.1 k | 23.0 k |
+| Tool calls, median | 4 | 2 | 2 | 2 |
+| Calls to first sufficient evidence | 1.63 | 2.48 | **1.20** | 1.37 |
+| Persistent context, tok·turns median | 3,996 | 3,154 | 3,133 | **2,726** |
+| Answered without evidence | 1 | 2 | **0** | **0** |
+
+**Against zvec-grep the pre-registered target is met on every criterion.** Quality 27 against 25 with
+paired discordance 3:1, input tokens 36% lower in total, first sufficient evidence in 1.37 calls
+against 2.48, and zero unsupported answers against two. One honest qualification: zvec's *median*
+trial is the cheapest of the four at 21.2 k tokens — its total is carried by a heavy tail, so the
+context advantage is about failure modes, not about the typical question.
+
+**Against v0.1.1 the pre-registered target is not met, and that is the result.** v0.2.0 loses one
+question (27 against 28) and reaches first evidence in 1.37 calls against 1.20; it carries 13% less
+persistent context and spends 5% fewer tokens at the median, both inside the run-to-run floor. The
+offline ranking gain — MRR 0.126 → 0.234, recall@1 2 → 6 — did **not** convert into an agent-level
+advantage. The most economical explanation is the one this project already measured: the model
+rewrites the question into code vocabulary before it searches, and a ranker improvement measured on
+raw question text is partly redundant with work the model was already doing. `terminology_mismatch`
+is the sharpest version of that: every arm scored zero on it offline, and every arm answered all six
+of those questions in the agent loop.
+
+The single v0.2.0 loss was audited before it was interpreted, per the habit. Every gold identity was
+retrieved — `unretrieved_identities` is empty — and the model named the third caller as
+`EnterOperation::_goodIndentForLine` where the corpus defines `TabOperation::_goodIndentForLine`.
+That is `wrong_level`, the container-versus-member error the `inspect_symbol` A/B could not fix
+either, scored at 2/3 credit. It is not a retrieval failure and not a grader defect.
+
+Two of the 120 trials failed on infrastructure — an unreachable API after ten client retries with
+zero tokens spent, and one 600 s client timeout — and were re-run with identical settings; the
+originals are quarantined under `run-vs-editor/failed-trials/` and the substitution is recorded in
+`run-vs-editor/repair.json`.
+
+What survives: **on three corpora and a suite none of the systems had seen, both versions of this
+server beat zvec-grep 0.2.2 on quality, total context and speed to first evidence, and the
+doc-comment change is a ranking improvement that an agent loop does not need.** Artifacts in
+`runs/perf-v020-20260912/`.
+
 
 ## Native-system comparison
 
