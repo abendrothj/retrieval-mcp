@@ -286,7 +286,14 @@ def trial_metrics(trial, task):
     }
 
 
-def summarize(rows):
+def measures(rows):
+    """Every primary measure over whatever set of trials it is given.
+
+    Overall and per-bucket numbers come from this one function, so a bucket median is a median and
+    a bucket mean is a mean, computed by the same code path as the arm-wide value. A second
+    implementation for buckets is exactly how a harness starts reporting two different statistics
+    under one name.
+    """
     def stat(key, getter=None):
         values = [getter(row) if getter else row[key] for row in rows]
         values = [value for value in values if value is not None]
@@ -333,6 +340,25 @@ def summarize(rows):
     }
 
 
+def summarize(rows):
+    """Arm-wide measures, plus the same measures split by question category.
+
+    The buckets are the shapes the suite deliberately mixes, and an arm can win overall while
+    losing the vague-conceptual half of the set. `by_category` is additive: every key above it
+    keeps its name and its meaning, so archived reports stay comparable.
+    """
+    buckets = defaultdict(list)
+    for row in rows:
+        buckets[row.get("category") or "uncategorized"].append(row)
+    return {
+        **measures(rows),
+        "by_category": {
+            # `questions` is distinct task ids; `trials` inside the bucket counts repetitions.
+            category: {"questions": len({row["task_id"] for row in bucket}), **measures(bucket)}
+            for category, bucket in sorted(buckets.items())},
+    }
+
+
 def report(args):
     run = args.run.resolve(strict=True)
     tasks = {task["id"]: task for task in json.loads(args.questions.read_text(encoding="utf-8"))}
@@ -352,6 +378,9 @@ def report(args):
             "trial": trial.name,
             "system": state["system"],
             "task_id": state["task_id"],
+            # The bucket this trial belongs to, taken from the question set rather than the run
+            # state, so a re-score of an archived run buckets it too.
+            "category": task.get("category") or "uncategorized",
             "repetition": state["repetition"],
             "status": state["status"],
             "correct": bool(state.get("correct")),

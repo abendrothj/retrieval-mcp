@@ -114,6 +114,30 @@ def systems(path):
     ]}))
 
 
+def versioned_systems(path, pinned_binary):
+    """Two MCP arms whose only difference is the server binary each one pins."""
+    def arm(identifier, server=None):
+        entry = {
+            "id": identifier, "mcp_enabled": True,
+            "upstreams": [{
+                "id": "one",
+                "command": ["{server}", "--fake-server", "native_search", "{listen}"],
+                "environment": {},
+                "visible_tools": ["native_search"],
+                "expected_upstream_tools": ["native_search", "native_search_admin"],
+            }],
+            "environment": {}, "prompt_policy": "Shared policy.",
+            "prepare_commands": [[sys.executable, "-c", "import sys; print(sys.argv[1])", "{server}"]],
+            "check_commands": [], "version_command": None,
+        }
+        if server is not None:
+            entry["server"] = str(server)
+        return entry
+    path.write_text(json.dumps({"version": "comparison-systems-v2", "systems": [
+        arm("default-server"), arm("pinned-server", pinned_binary),
+    ]}))
+
+
 class ComparisonTests(unittest.TestCase):
     def test_balanced_plan_uses_question_hash_and_policy_in_the_prompt(self):
         tasks = [{"id": "q", "question": "Question?", "expected_json": {"answer": "ok"}}]
@@ -274,6 +298,83 @@ class ComparisonTests(unittest.TestCase):
         quoted = 'Source:\n```rust\nfn run() {}\n```\n```json\n{"answer": "src/a.rs::run"}\n```'
         self.assertEqual(quality_pass.answer_json(quoted), "src/a.rs::run")
         self.assertIsNone(quality_pass.answer_json('{"result": "src/a.rs::run"}'))
+
+    def test_each_arm_prepares_against_the_server_binary_it_pins(self):
+        """Two versions of one server are only comparable if each arm gets its own binary."""
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            source = base / "source"; source.mkdir()
+            (source / "evidence.txt").write_text("fixture evidence\n")
+            pinned = base / "retrieval-mcp-v0.1.1"
+            pinned.write_bytes(b"#!/bin/sh\nexit 0\n")
+            resolved = pinned.resolve()
+            systems_path = base / "systems.json"; versioned_systems(systems_path, pinned)
+            workspace = base / "workspace"
+            default = Path(sys.executable).resolve()
+            prepared = comparison_runner.prepare(SimpleNamespace(
+                source_root=source, workspace=workspace, systems=systems_path,
+                server=Path(sys.executable), semantic_command=["fixture"], prepare_timeout=30))
+            records = {record["id"]: record for record in prepared["systems"]}
+            # The pinned arm overrides {server} everywhere: upstream, prepare command, and manifest.
+            override = records["pinned-server"]
+            self.assertEqual(override["server"], str(resolved))
+            self.assertEqual(override["server_sha256"], comparison_runner.digest(pinned))
+            self.assertEqual(override["upstreams"][0]["command_executable"], str(resolved))
+            self.assertEqual(override["commands"][0]["command"][-1], str(resolved))
+            # Without the field the run-wide --server still decides, exactly as before.
+            unpinned = records["default-server"]
+            self.assertEqual(unpinned["server"], str(default))
+            self.assertEqual(unpinned["server_sha256"], comparison_runner.digest(default))
+            self.assertEqual(unpinned["upstreams"][0]["command_executable"], str(default))
+            self.assertEqual(unpinned["commands"][0]["command"][-1], str(default))
+            self.assertEqual(comparison_runner.validate_prepared(
+                workspace, systems_path, Path(sys.executable), ["fixture"])["version"],
+                "comparison-prepared-v2")
+            pinned.write_bytes(b"#!/bin/sh\nexit 1\n")
+            with self.assertRaisesRegex(ValueError, "server binary changed after preparation"):
+                comparison_runner.validate_prepared(
+                    workspace, systems_path, Path(sys.executable), ["fixture"])
+
+    def test_a_pinned_server_path_may_be_relative_to_the_repository(self):
+        system = {"id": "pinned", "server": "experiments/comparison_runner.py"}
+        self.assertEqual(comparison_runner.system_server(system, Path(sys.executable)), HERE.parent / "comparison_runner.py")
+        self.assertEqual(comparison_runner.system_server({"id": "plain"}, Path(sys.executable)),
+                         Path(sys.executable))
+        with self.assertRaises(FileNotFoundError):
+            comparison_runner.system_server({"id": "gone", "server": "runs/no-such-binary"}, Path(sys.executable))
+
+    def test_the_perf_v020_systems_file_differs_only_by_binary_between_retrieval_arms(self):
+        document = comparison_runner.load_systems(HERE.parent / "comparison_systems_perf_v020.json")
+        arms = {system["id"]: system for system in document["systems"]}
+        self.assertEqual(list(arms), ["native-control", "zvec-grep", "retrieval-v011", "retrieval-v020"])
+        first, second = arms["retrieval-v011"], arms["retrieval-v020"]
+        self.assertEqual(comparison_runner.visible_tools(first), comparison_runner.visible_tools(second))
+        self.assertEqual(first["prompt_policy"], second["prompt_policy"])
+        self.assertEqual({key: value for key, value in first.items() if key not in ("id", "server")},
+                         {key: value for key, value in second.items() if key not in ("id", "server")})
+        self.assertNotEqual(first["server"], second["server"])
+        held_out = comparison_runner.load_systems(HERE.parent / "comparison_systems_heldout.json")
+        retrieval = next(s for s in held_out["systems"] if s["id"] == "retrieval-mcp")
+        self.assertEqual(first["prompt_policy"], retrieval["prompt_policy"])
+        # No registry access during preparation: the zvec arm must copy a cached install, never install one.
+        commands = arms["zvec-grep"]["prepare_commands"]
+        self.assertFalse(any(part == "npm" for command in commands for part in command))
+        self.assertIn("shutil.copytree", commands[0][2])
+
+    def test_a_native_control_may_not_pin_a_server_binary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "systems.json"
+            systems(path)
+            document = json.loads(path.read_text())
+            document["systems"][0]["server"] = "target/release/retrieval-mcp"
+            path.write_text(json.dumps(document))
+            with self.assertRaisesRegex(ValueError, "must not pin a server binary"):
+                comparison_runner.load_systems(path)
+            document["systems"][0].pop("server")
+            document["systems"][1]["binary"] = "target/release/retrieval-mcp"
+            path.write_text(json.dumps(document))
+            with self.assertRaisesRegex(ValueError, "unexpected fields"):
+                comparison_runner.load_systems(path)
 
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--fake-server"]:

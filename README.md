@@ -117,7 +117,7 @@ Quality is a tie: the paired discordance is one to two question-repetitions. Tot
 
 **Most of that suite's hard questions were broken, not hard.** Auditing the 7 questions no arm ever solved found no tool-surface gap and at most one retrieval failure: two golds are factually wrong against a ripgrep enumeration of the corpus — in one case a trial listed all 11 true callers and scored 0 against a gold naming 3, one of which calls nothing — three fail on answer shape or an ambiguous name, and one question admits two defensible answers. Repairing the golds and the grader lifts the arms to 19/18/17 of 30 (this server, zvec, native) with paired discordance of 3:1 and 2:1 in this server's favour, still far too small to claim on 15 questions, and 4 of 15 questions now discriminate at all. Suites are therefore compiled before use: `validate_suite.py` verifies every gold against the corpus and every grader expectation against synthetic answers, and exits nonzero otherwise.
 
-**The harness is the second experimental subject.** Fifteen defects in it have produced or nearly produced believable false findings — a grader that scored notation instead of retrieval, a vector cache written inside the corpus under test, swallowed MCP tool errors, an output-file check that ran after the model spend, a resolver blind to TypeScript, a set grader that rejected prose, indexers that missed multi-modifier methods and Python classes, three separate call-site attribution flaws, a context scorer that read zero for Claude arms, and a grader that scored a keyed answer zero while crediting the same symbols in prose. They run in both directions: some flattered this server, some penalised it, and the last was found inside its own held-out loss. The full list, with what each would have shown, is the [defect ledger](experiments/README.md#harness-defect-ledger); each is pinned by a test.
+**The harness is the second experimental subject.** Sixteen defects in it have produced or nearly produced believable false findings — a grader that scored notation instead of retrieval, a vector cache written inside the corpus under test, swallowed MCP tool errors, an output-file check that ran after the model spend, a resolver blind to TypeScript, a set grader that rejected prose, indexers that missed multi-modifier methods and Python classes, four separate call-site attribution flaws, a context scorer that read zero for Claude arms, and a grader that scored a keyed answer zero while crediting the same symbols in prose. They run in both directions: some flattered this server, some penalised it, one was found inside its own held-out loss, and the newest would have made every Rust and TypeScript caller question unauthorable. The full list, with what each would have shown, is the [defect ledger](experiments/README.md#harness-defect-ledger); each is pinned by a test.
 
 **The newest suite does not discriminate yet.** A 60-question Django 5.1.4 suite — 30 development, 30 held-out, compiled clean by `validate_suite.py` — was piloted on its development half with `gpt-5.6-luna`. Under the repaired grader all three arms answer every completed trial correctly, so the questions separate nothing, and this server spends 40% more input tokens and 2.75× the bytes after first hit than plain grep-and-read to reach the same answers. The held-out half stays unrun until the development half is made hard enough to discriminate.
 
@@ -293,9 +293,9 @@ Corpora, run artifacts, transcripts, and model answers are deliberately absent. 
 ## Testing
 
 ```sh
-cargo test --locked --all-targets            # 22 library, 7 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 20 library, 7 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 152 tests
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 198 tests
 ```
 
 All of these run offline and call no model. The Python suite exercises the harness itself: real MCP

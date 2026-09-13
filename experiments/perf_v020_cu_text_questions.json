@@ -1,0 +1,200 @@
+[
+ {
+  "id": "cu-vague-01",
+  "category": "vague_conceptual",
+  "set": "dev",
+  "question": "A user filters a text stream so that runs of identical adjacent lines collapse into one, and restricts the comparison to the first N characters of each line. They observe that the limit means something different depending on their environment: under a UTF-8 locale it stops after N characters, but under the C or POSIX locale, and also whenever a line is not valid UTF-8, the same limit stops after N raw bytes instead. Which function computes where the compared portion of a line stops?",
+  "expected_json": {"answer": "src/uu/uniq/src/uniq.rs::key_end_index"},
+  "rejected_alternates": [
+   "src/uu/uniq/src/uniq.rs::key_bounds",
+   "src/uu/uniq/src/uniq.rs::char_prefix_len",
+   "src/uu/uniq/src/uniq.rs::skip_fields_offset",
+   "src/uu/uniq/src/uniq.rs::keys_are_equal"
+  ],
+  "evidence": [
+   {"path": "src/uu/uniq/src/uniq.rs", "contains": "fn key_end_index(&self, line: &[u8], key_start: usize) -> usize {"},
+   {"path": "src/uu/uniq/src/uniq.rs", "contains": "if self.is_c_locale {"},
+   {"path": "src/uu/uniq/src/uniq.rs", "contains": "} else if let Ok(valid) = std::str::from_utf8(remainder) {"}
+  ],
+  "author_notes": "Evidence lives in the body of the answer, not in any doc comment: the function has no `///` documentation at all (the only prose near it is two bare `//` line comments inside the match), so this question cannot be answered by retrieving a doc string, and the phrasing is derived from the branch structure (`self.is_c_locale` -> byte count, `std::str::from_utf8(remainder)` Ok -> character count via the char-prefix helper, Err -> byte count) rather than from any sentence in the file. Only this function is defensible: it is the single place where the `-w`/--check-chars limit is turned into an end index and where the bytes-versus-characters decision is actually taken. key_bounds is wrong because it only combines a start offset with whatever end index this function returns and takes no locale decision itself. char_prefix_len is wrong because it merely converts an already-chosen character count into a byte offset; it is called only in the UTF-8 branch and never decides which unit applies. skip_fields_offset is wrong because it computes the start of the key (the -f/--skip-fields side), not its end. keys_are_equal is wrong because it compares two already-delimited key slices and knows nothing about how the slice bounds were chosen."
+ },
+ {
+  "id": "cu-vague-02",
+  "category": "vague_conceptual",
+  "set": "dev",
+  "question": "A user orders a file on one chosen key field. Two lines whose key fields compare equal still come out in a definite order, because the program then compares the two whole lines byte for byte as a tiebreaker. That final whole-line tiebreak is deliberately suppressed in three situations: when the user asked for a stable ordering, when duplicates are to be discarded, and when the ordering was randomized; in those cases the pair is simply reported as equal. Which function takes that decision?",
+  "expected_json": {"answer": "src/uu/sort/src/sort.rs::compare_by"},
+  "rejected_alternates": [
+   "src/uu/sort/src/sort.rs::sort_by",
+   "src/uu/sort/src/custom_str_cmp.rs::custom_str_cmp",
+   "src/uu/sort/src/numeric_str_cmp.rs::numeric_str_cmp",
+   "src/uucore/src/lib/features/version_cmp.rs::version_cmp"
+  ],
+  "evidence": [
+   {"path": "src/uu/sort/src/sort.rs", "contains": "fn compare_by<'a>("},
+   {"path": "src/uu/sort/src/sort.rs", "contains": "let cmp = if global_settings.mode == SortMode::Random\n        || global_settings.stable\n        || global_settings.unique\n    {\n        Ordering::Equal\n    } else {\n        a.line.cmp(b.line)\n    };"}
+  ],
+  "author_notes": "The answering function carries no `///` documentation; the behaviour is read off the final statement of its body, where the three suppressing conditions are an explicit disjunction over SortMode::Random, `stable` and `unique`, and the fallback is `a.line.cmp(b.line)`. The question is phrased from that control flow (three named situations, whole-line byte comparison otherwise) and deliberately avoids the file's own inline wording, so a retrieval system cannot win it by matching a documentation sentence. Only this function is defensible: it is the sole place where every key selector has been exhausted and the whole-line comparison is chosen or withheld. sort_by is wrong because it only picks between the stable and unstable sorting algorithms and delegates every comparison here. custom_str_cmp, numeric_str_cmp and version_cmp are each wrong in the same way: they implement one per-key comparison mode and are invoked from inside the selector loop, so none of them ever sees the case where all selectors returned Equal, and none can observe the stable/unique/random settings that gate the tiebreak."
+ },
+ {
+  "id": "cu-term-01",
+  "category": "terminology_mismatch",
+  "set": "dev",
+  "question": "A batch-ordering tool is fed prerequisite pairs that close back on themselves, so at some point no remaining item is free of prerequisites. Instead of aborting, the tool complains about the offending closed chain on standard error, lists the items making it up, then throws away one of the prerequisite relations so that the ordering can carry on. Which function throws that relation away?",
+  "expected_json": {"answer": "src/uu/tsort/src/tsort.rs::find_and_break_cycle"},
+  "rejected_alternates": [
+   "src/uu/tsort/src/tsort.rs::detect_cycle",
+   "src/uu/tsort/src/tsort.rs::remove_edge",
+   "src/uu/tsort/src/tsort.rs::find_next_node",
+   "src/uu/tsort/src/tsort.rs::run_tsort",
+   "src/uu/tsort/src/tsort.rs::dfs"
+  ],
+  "evidence": [
+   {"path": "src/uu/tsort/src/tsort.rs", "contains": "fn find_and_break_cycle(&mut self, frontier: &mut VecDeque<Sym>) {"},
+   {"path": "src/uu/tsort/src/tsort.rs", "contains": "show!(TsortError::Loop(self.name()));"},
+   {"path": "src/uu/tsort/src/tsort.rs", "contains": "self.remove_edge(u, v);"}
+  ],
+  "author_notes": "Vocabulary is deliberately the user's, not the code's: the question says batch-ordering tool, prerequisite pairs, closed chain and prerequisite relation, where the code says graph, predecessor_count, cycle/loop and edge. Only this function is defensible: it is the single function that both reports the loop (`show!(TsortError::Loop(...))` plus one LoopNode per member) and removes a relation (`self.remove_edge(u, v)`), then re-queues the node if it has become free. detect_cycle is wrong because it only returns the list of members and removes nothing. remove_edge is wrong because it is the mechanical primitive that deletes a given pair; it is equally used by nothing else here and takes no decision about which relation to drop or whether to report anything. find_next_node is wrong because it is the pop loop that calls the answer when the frontier runs dry; it neither reports nor removes. run_tsort is wrong because it is the outer emit loop implementing Knuth's algorithm T and never touches the failure path directly. dfs is wrong because it is the traversal primitive used to locate a loop, one level below detection."
+ },
+ {
+  "id": "cu-term-02",
+  "category": "terminology_mismatch",
+  "set": "dev",
+  "question": "A shared name-printing layer can be asked to make file names safe to write straight to a terminal. In that mode a byte that would otherwise steer the terminal itself - move the cursor, ring the bell, reset the display - is not spelled out in a readable escaped form; it is simply swapped for a plain question mark. Which method performs that swap?",
+  "expected_json": {"answer": "src/uucore/src/lib/features/quoting_style/escaped_char.rs::hide_control"},
+  "rejected_alternates": [
+   "src/uucore/src/lib/features/quoting_style/escaped_char.rs::new_octal",
+   "src/uucore/src/lib/features/quoting_style/c_quoter.rs::push_char",
+   "src/uucore/src/lib/features/quoting_style/literal_quoter.rs::push_char",
+   "src/uucore/src/lib/features/quoting_style/shell_quoter.rs::push_char"
+  ],
+  "evidence": [
+   {"path": "src/uucore/src/lib/features/quoting_style/escaped_char.rs", "contains": "pub fn hide_control(self) -> Self {"},
+   {"path": "src/uucore/src/lib/features/quoting_style/escaped_char.rs", "contains": "state: EscapeState::Char('?'),"}
+  ],
+  "author_notes": "The question's vocabulary (steer the terminal, move the cursor, ring the bell, swap for a question mark) is chosen against the code's own vocabulary (control character, EscapeState, hide, quoting style), so lexical overlap with the answer is minimal by construction. Only this method is defensible: it is the single place in the corpus that rewrites an already-classified character into the literal '?', and it applies precisely when the classified state is a plain control character. new_octal is wrong because it is the opposite treatment - it renders a byte as a readable octal escape, which is what the question excludes. The three push_char methods are wrong because each is a caller that decides whether to apply the answer while assembling a quoted name; none performs the substitution itself, and naming a quoter also fails to identify a single definition since three files define that method name."
+ },
+ {
+  "id": "cu-api-01",
+  "category": "api_semantics",
+  "set": "dev",
+  "question": "The shared fixed-size buffer type that retains only the most recent items documents an unusual contract for its append operation: appending normally yields nothing, but once the buffer is full an append yields the oldest element that had to be evicted to make room, and if the buffer was built with a size limit of zero every append yields straight back the very value it was handed. Which method has that documented contract?",
+  "expected_json": {"answer": "src/uucore/src/lib/features/ringbuffer.rs::push_back"},
+  "rejected_alternates": [
+   "src/uucore/src/lib/features/ringbuffer.rs::from_iter",
+   "src/uucore/src/lib/features/ringbuffer.rs::new"
+  ],
+  "evidence": [
+   {"path": "src/uucore/src/lib/features/ringbuffer.rs", "contains": "/// In the special case where the size limit is zero, each call to"},
+   {"path": "src/uucore/src/lib/features/ringbuffer.rs", "contains": "pub fn push_back(&mut self, value: T) -> Option<T> {"},
+   {"path": "src/uucore/src/lib/features/ringbuffer.rs", "contains": "if self.data.capacity() == 0 {\n            return Some(value);\n        }"}
+  ],
+  "author_notes": "This is the api_semantics bucket, where the documented guarantee is the subject, so the doc comment is legitimately the source: the contract asked about is stated in the method's own documentation and confirmed by the body (capacity zero returns Some(value); a full buffer returns pop_front(); otherwise None). Only this method is defensible: it is the only operation on the type that returns anything at all, and the zero-limit clause is specific to it. from_iter is wrong because it returns a filled buffer and discards whatever the appends evicted, so it cannot express the contract asked about. new is wrong because it only records the size limit; it is the function that makes a zero-limit buffer possible but says nothing about what an append returns."
+ },
+ {
+  "id": "cu-generic-01",
+  "category": "generic_name",
+  "set": "dev",
+  "question": "In the utility that prints the trailing part of a file and can keep watching it, each input operand is converted into a canonical absolute path so the same file can still be recognised after it is renamed or replaced. Standard input is handled by canonicalising the process's own file-descriptor entry instead, except on Apple platforms, where that lookup is known to fail and nothing is produced at all. Which method does this?",
+  "expected_json": {"answer": "src/uu/tail/src/paths.rs::resolve"},
+  "rejected_alternates": [
+   "src/uu/tail/src/paths.rs::path_is_tailable",
+   "src/uu/tail/src/paths.rs::is_tailable",
+   "src/uu/tail/src/paths.rs::stdin_is_bad_fd"
+  ],
+  "evidence": [
+   {"path": "src/uu/tail/src/paths.rs", "contains": "pub fn resolve(&self) -> Option<PathBuf> {"},
+   {"path": "src/uu/tail/src/paths.rs", "contains": "#[cfg(target_vendor = \"apple\")]"},
+   {"path": "src/uu/tail/src/paths.rs", "contains": "PathBuf::from(text::FD0).canonicalize().ok()"}
+  ],
+  "author_notes": "The answer hides behind one of the most generic names in the language, which is the point of this bucket: the name says nothing about paths, canonicalisation or standard input, so a name-based search has nothing to bite on and the discriminating detail is in the body. Only this method is defensible: it is the sole place that maps an input operand onto a canonical PathBuf, that substitutes the process's own descriptor entry for standard input, and that returns None on Apple platforms under the cfg shown in the evidence. path_is_tailable is wrong because it answers a yes/no question about an already-known path and returns a bool, not a path. is_tailable is wrong for the same reason at the operand level; it consumes the answer's result rather than producing it. stdin_is_bad_fd is wrong because it reports whether standard input was closed and never produces a path."
+ },
+ {
+  "id": "cu-cross-01",
+  "category": "cross_file_ownership",
+  "set": "dev",
+  "question": "Both the directory lister and the line sorter offer an ordering in which runs of digits inside a name compare as numbers rather than as text, a leading tilde sorts before everything else including the empty string, and a trailing file extension is stripped before the rest is compared. Neither utility implements that ordering inside its own module - both call into the shared library crate for it. Which function there owns the ordering?",
+  "expected_json": {"answer": "src/uucore/src/lib/features/version_cmp.rs::version_cmp"},
+  "rejected_alternates": [
+   "src/uucore/src/lib/features/version_cmp.rs::version_non_digit_cmp",
+   "src/uucore/src/lib/features/version_cmp.rs::remove_file_ending",
+   "src/uu/ls/src/ls.rs::sort_entries",
+   "src/uu/sort/src/sort.rs::compare_by"
+  ],
+  "evidence": [
+   {"path": "src/uucore/src/lib/features/version_cmp.rs", "contains": "pub fn version_cmp(mut a: &[u8], mut b: &[u8]) -> Ordering {"},
+   {"path": "src/uu/sort/src/sort.rs", "contains": "SortMode::Version => version_cmp(a_str, b_str),"},
+   {"path": "src/uu/ls/src/ls.rs", "contains": "Sort::Version => entries.sort_unstable_by(|a, b| {"}
+  ],
+  "author_notes": "Ownership sits in a third file that neither consumer defines: the two consumer call sites given as evidence delegate to the shared crate, so the answer cannot be found by reading either utility's own comparison code to its end. Only this function is defensible: it is the entry point that owns the whole rule set named in the question - it dispatches the digit-run and non-digit alternation, and it is the function that decides whether to strip extensions at all. version_non_digit_cmp is wrong because it implements only one half of the alternation (the non-digit segments, including the tilde rule) and is never called by the consumers. remove_file_ending is wrong because it only strips a candidate extension, and the decision to keep the unstripped forms when both strip to the same text is taken by the answer, not by it. sort_entries and compare_by are wrong because they are the consumer-side dispatch sites; they select the mode and then delegate, so naming either answers where the ordering is requested, not where it is owned."
+ },
+ {
+  "id": "cu-exact-01",
+  "category": "exact_control",
+  "set": "dev",
+  "question": "Which function decides the suffix that backup files get, taking the value of the -S/--suffix option when it was supplied and otherwise reading the SIMPLE_BACKUP_SUFFIX environment variable, falling back to '~' when neither is usable?",
+  "expected_json": {"answer": "src/uucore/src/lib/features/backup_control.rs::determine_backup_suffix"},
+  "rejected_alternates": [
+   "src/uucore/src/lib/features/backup_control.rs::determine_backup_mode",
+   "src/uucore/src/lib/features/backup_control.rs::get_backup_path"
+  ],
+  "evidence": [
+   {"path": "src/uucore/src/lib/features/backup_control.rs", "contains": "pub fn determine_backup_suffix(matches: &ArgMatches) -> String {"},
+   {"path": "src/uucore/src/lib/features/backup_control.rs", "contains": "env::var(\"SIMPLE_BACKUP_SUFFIX\")"}
+  ],
+  "author_notes": "This is the control question: the exact literal SIMPLE_BACKUP_SUFFIX appears in the corpus in exactly one file and one function body, so any grep-shaped arm should land on the answer immediately, and a failure here is evidence about the arm rather than about the question. Only this function is defensible: it is the only reader of that environment variable, and the precedence described (option, then environment, then the default) is its entire body. determine_backup_mode is wrong because it resolves the backup *mode* from --backup and VERSION_CONTROL, a different variable and a different decision. get_backup_path is wrong because it merely appends an already-determined suffix to a path and never consults the environment."
+ },
+ {
+  "id": "cu-callers-01",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "src/uucore/src/lib/features/pipes.rs::send_n_bytes",
+  "hops": 1,
+  "exhaustive": true,
+  "caller_key": "callers",
+  "question": "The shared pipe layer exposes one zero-copy helper that transfers a bounded number of bytes from one file descriptor to another, splicing through a cached broker pipe and reporting how many bytes it actually moved. Name every function in this corpus that calls that helper directly, exhaustively, each as a qualified symbol of the form path::function.",
+  "expected_json": {"answer": {"callers": [
+   "src/uu/head/src/head.rs::print_n_bytes",
+   "src/uu/tail/src/tail.rs::print_target_section"
+  ]}},
+  "rejected_alternates": [
+   "src/uucore/src/lib/features/buf_copy.rs::copy_fast",
+   "src/uu/head/src/head.rs::head_backwards_file",
+   "src/uu/tail/src/tail.rs::tail_stdin"
+  ],
+  "evidence": [
+   {"path": "src/uucore/src/lib/features/pipes.rs", "contains": "pub fn send_n_bytes(input: impl AsFd, target: impl AsFd, n: u64) -> std::io::Result<u64> {"},
+   {"path": "src/uu/head/src/head.rs", "contains": "uucore::pipes::send_n_bytes(input, &out, n).map_err(wrap_in_stdout_error)"},
+   {"path": "src/uu/tail/src/tail.rs", "contains": "uucore::pipes::send_n_bytes(file, &mut stdout, limit)?;"}
+  ],
+  "author_notes": "The caller set is exactly what an independent ripgrep enumeration of `send_n_bytes(` outside the defining module finds: head.rs:219 inside the Linux variant of print_n_bytes, and tail.rs:582 inside print_target_section. There are no other call sites in production code, benches or tests, and both sites sit directly in a function body rather than in a closure or match arm, so the attribution is stable. The answer is the only defensible one because exhaustiveness is the question: any set missing either name is incomplete, and any set with a third name claims a call site the corpus does not contain. copy_fast is wrong because it calls the unbounded splice helper next door in the same module, not the bounded one asked about. head_backwards_file is wrong because it is the seek-versus-stream chooser in the same file and reaches the pipe layer, if at all, only through other functions. tail_stdin is wrong because it dispatches an input kind and does no transferring itself; it is a plausible near miss precisely because it lives in the same file as a real caller."
+ },
+ {
+  "id": "cu-callers-02",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "src/uucore/src/lib/features/parser/parse_size.rs::with_allow_list",
+  "hops": 1,
+  "exhaustive": true,
+  "caller_key": "callers",
+  "question": "The shared size-argument parser is a builder, and one of its builder methods narrows the parser to a whitelist of unit suffixes, so that a utility can reject the multipliers the generic parser would otherwise accept. Name every function in this corpus that configures a parser through that method, exhaustively, each as a qualified symbol of the form path::function.",
+  "expected_json": {"answer": {"callers": [
+   "src/uu/sort/src/sort.rs::parse_byte_count",
+   "src/uu/truncate/src/truncate.rs::parse_mode_and_size",
+   "src/uucore/src/lib/features/parser/parse_signed_num.rs::parse_count"
+  ]}},
+  "rejected_alternates": [
+   "src/uucore/src/lib/features/parser/parse_size.rs::allow_list_with_all_suffixes",
+   "src/uucore/src/lib/features/parser/parse_size.rs::with_default_unit",
+   "src/uu/head/src/parse.rs::parse_num",
+   "src/uu/ls/src/config.rs::from"
+  ],
+  "evidence": [
+   {"path": "src/uucore/src/lib/features/parser/parse_size.rs", "contains": "pub fn with_allow_list(&mut self, allow_list: &'parser [&str]) -> &mut Self {"},
+   {"path": "src/uu/sort/src/sort.rs", "contains": ".with_allow_list(&["},
+   {"path": "src/uu/truncate/src/truncate.rs", "contains": ".with_allow_list(&allow_list_ref)"},
+   {"path": "src/uucore/src/lib/features/parser/parse_signed_num.rs", "contains": ".with_allow_list(&allow_list)"}
+  ],
+  "author_notes": "An independent ripgrep enumeration of `with_allow_list(` outside the defining file yields exactly three call sites - sort.rs:354 inside parse_byte_count, truncate.rs:469 inside parse_mode_and_size, and parse_signed_num.rs:34 inside parse_count - and every one of them sits directly in a function body, so the attribution does not depend on closure or match-arm handling. The set is the only defensible answer because the question asks for all of them: dropping any name understates the fan-in, and adding one claims a call the corpus does not show. allow_list_with_all_suffixes is wrong because it only builds the list of accepted suffixes; two of the three real callers pass its output into the method, which makes it the most tempting near miss and still not a caller of the method in question. with_default_unit is wrong because it is a sibling builder method, not a caller. parse_num is wrong because head's numeric option parsing reaches the whitelist only indirectly, through the shared helper that is itself one of the three answers. ls's config conversion is wrong for the same reason: it parses a block size through a different entry point that never touches this builder method."
+ }
+]

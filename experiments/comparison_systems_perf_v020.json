@@ -1,0 +1,158 @@
+{
+  "version": "comparison-systems-v2",
+  "systems": [
+    {
+      "id": "native-control",
+      "mcp_enabled": false,
+      "upstreams": [],
+      "environment": {},
+      "prompt_policy": "",
+      "prepare_commands": [],
+      "check_commands": [],
+      "version_command": [
+        "claude",
+        "--version"
+      ]
+    },
+    {
+      "id": "zvec-grep",
+      "mcp_enabled": true,
+      "upstreams": [
+        {
+          "id": "zvec",
+          "command": [
+            "{shared}/zvec/node_modules/.bin/zg",
+            "server",
+            "--stdio",
+            "--listen",
+            "{listen}",
+            "--mcp-toolset",
+            "full"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "zvec_grep_search",
+            "zvec_grep_rg"
+          ],
+          "expected_upstream_tools": [
+            "zvec_grep_search",
+            "zvec_grep_rg",
+            "zvec_grep_index",
+            "zvec_grep_index_drop",
+            "zvec_grep_index_status",
+            "zvec_grep_server_status"
+          ]
+        }
+      ],
+      "environment": {
+        "ZVEC_GREP_HOME": "{state}/home",
+        "ZVEC_GREP_MODE": "server",
+        "ZVEC_GREP_MCP_TOOLSET": "full",
+        "ZVEC_GREP_MODEL_CACHE": "{shared}/zvec-model-cache"
+      },
+      "prompt_policy": "",
+      "prepare_commands": [
+        [
+          "python3",
+          "-c",
+          "import pathlib, shutil, sys\ncache = pathlib.Path(sys.argv[1])\nshared = pathlib.Path(sys.argv[2])\nfor name, probe in ((\"zvec\", \"node_modules/.bin/zg\"), (\"zvec-model-cache\", \"\")):\n    tree = cache / name\n    if not (tree / probe).exists():\n        sys.exit(\"offline zvec 0.2.2 install is missing \" + str(tree / probe) + \": this run has no registry access, so restore the cached tree under \" + str(cache) + \" before preparing\")\n    destination = shared / name\n    if destination.exists():\n        sys.exit(\"refusing to overwrite an existing \" + str(destination))\n    shutil.copytree(tree, destination, symlinks=True)\nprint(\"copied offline zvec 0.2.2 install from \" + str(cache))\n",
+          "{experiments}/../runs/heldout-workspace-20260912/shared",
+          "{shared}"
+        ],
+        [
+          "{shared}/zvec/node_modules/.bin/zg",
+          "index",
+          "{root}",
+          "--embedding",
+          "local/potion-code-16m-v2",
+          "--mode",
+          "direct"
+        ]
+      ],
+      "check_commands": [
+        [
+          "{shared}/zvec/node_modules/.bin/zg",
+          "status",
+          "{root}",
+          "--mode",
+          "direct",
+          "--check-ready"
+        ]
+      ],
+      "version_command": [
+        "{shared}/zvec/node_modules/.bin/zg",
+        "version"
+      ]
+    },
+    {
+      "id": "retrieval-v011",
+      "mcp_enabled": true,
+      "server": "runs/perf-v020-20260912/bin/retrieval-mcp-v0.1.1",
+      "upstreams": [
+        {
+          "id": "retrieval",
+          "command": [
+            "{server}",
+            "--root",
+            "{root}",
+            "--timeout-seconds",
+            "120"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "search_exact",
+            "read_source",
+            "find_callers",
+            "search_concept"
+          ],
+          "expected_upstream_tools": [
+            "search_exact",
+            "read_source",
+            "find_callers",
+            "search_concept"
+          ]
+        }
+      ],
+      "environment": {},
+      "prompt_policy": "Stopping rule. Every row this server returns is a verified source fact: it names a real definition with its file, and `counts`, `has_more` and the relation labels state how complete the listing is. When the rows you already hold contain every fact the question asks for, answer from them. Do not read a definition's source to confirm a row that already named it, do not repeat a lookup you have already made, and do not reconfirm one tool's rows with another tool. Retrieve again only when a required fact is missing, ambiguous, contradicted, or truncated - `has_more` true, or a count larger than the rows shown. If multiple visible symbols plausibly satisfy a requested fact, disambiguate between those candidates before answering. Do not expand merely to reconfirm a single unambiguous candidate. When you do read source, read the narrowest range that carries the missing fact.",
+      "prepare_commands": [],
+      "check_commands": [],
+      "version_command": null
+    },
+    {
+      "id": "retrieval-v020",
+      "mcp_enabled": true,
+      "server": "runs/perf-v020-20260912/bin/retrieval-mcp-v0.2.0",
+      "upstreams": [
+        {
+          "id": "retrieval",
+          "command": [
+            "{server}",
+            "--root",
+            "{root}",
+            "--timeout-seconds",
+            "120"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "search_exact",
+            "read_source",
+            "find_callers",
+            "search_concept"
+          ],
+          "expected_upstream_tools": [
+            "search_exact",
+            "read_source",
+            "find_callers",
+            "search_concept"
+          ]
+        }
+      ],
+      "environment": {},
+      "prompt_policy": "Stopping rule. Every row this server returns is a verified source fact: it names a real definition with its file, and `counts`, `has_more` and the relation labels state how complete the listing is. When the rows you already hold contain every fact the question asks for, answer from them. Do not read a definition's source to confirm a row that already named it, do not repeat a lookup you have already made, and do not reconfirm one tool's rows with another tool. Retrieve again only when a required fact is missing, ambiguous, contradicted, or truncated - `has_more` true, or a count larger than the rows shown. If multiple visible symbols plausibly satisfy a requested fact, disambiguate between those candidates before answering. Do not expand merely to reconfirm a single unambiguous candidate. When you do read source, read the narrowest range that carries the missing fact.",
+      "prepare_commands": [],
+      "check_commands": [],
+      "version_command": null
+    }
+  ]
+}

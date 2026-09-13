@@ -2,8 +2,8 @@
   "schema_version": 1,
   "name": "retrieval-server-stratified-v1",
   "corpus_files": {
-    "Cargo.toml": "18cd91d56f5d1dc759cafb61608383de6f454e08a445c2e0f79b7a6af9f526bb",
-    "Cargo.lock": "8bbe5f4ec12ca065085a5d9916f9ffb595e4c4b61addf5eed29a2dd1732dc2bc",
+    "Cargo.toml": "fa30ba861e8b7c382755e21ed2905d2e148bc54444c536763de1350d94c06e06",
+    "Cargo.lock": "3e93126add73f768b39f52ab589bb882966a61896929343f716acb8053fe731e",
     "src/lib.rs": "3491d7f875642a69c473c5609a14c4671f9754ff0ef9e29b6ebacb6c2257d153",
     "src/main.rs": "91420329e044b8c2316bf278a44147318df47a55b0eae6cb0a4857ab6beba1b2",
     "src/config/mod.rs": "a5984a1a3d66bfba23bb1b835eedf7e9562a007a1069c9f3264112af44b70c73",

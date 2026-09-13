@@ -23,6 +23,7 @@ artifacts, caveats, and the commands that produced it.
 | 10 | Do the other three? | [No](#every-remaining-tool-on-trial), and [replication confirmed it](#the-replication-and-the-frozen-surface) — `trace_dependencies` was never called even on questions authored for it |
 | 11 | Does the frozen system beat the alternatives? | [Yes on context, tie on quality](#the-held-out-comparison): 29/30 each against zvec, −24% input tokens, −34% persistent context |
 | 12 | Do post-freeze index changes earn their place? | [One of three did](#three-index-changes-one-survivor): doc comments in the chunk nearly doubled offline MRR; markdown chunks and macro-argument calls were reverted on their own evidence |
+| 13 | Does the v0.2.0 ranking gain generalise against zvec? | [Offline, yes](#layer-1-offline-ranking-no-model-calls): on 30 questions over three fresh corpora v0.1.1 sits behind zvec-grep (MRR 0.126 vs 0.165) and v0.2.0 ahead (0.234); the agent-level test is prepared and gated |
 
 **The result in one line.** On a sealed 30-question held-out set, this server matched zvec-grep at
 29/30 on the same 78 tool calls while spending 24% fewer input tokens and carrying 34% less
@@ -56,7 +57,7 @@ genuinely do not encode — the enclosing definition of a call site — did one 
 `find_callers`, return a positive ledger; the other three failed their own claimed classes under
 replication and left the default surface.
 
-Running alongside all of it: fifteen defects in the measuring apparatus, several of which had already
+Running alongside all of it: sixteen defects in the measuring apparatus, several of which had already
 produced convincing results. A stopping rule that looked like a free 22% saving, a treatment loss
 that looked like a premature stop, an arm whose payload metrics read zero, a 0.40 that looked like a
 noisy tool, and — in the held-out run itself — this server's only loss, which had actually named both
@@ -67,10 +68,11 @@ What survived is what was left after each hypothesis and each tool was made to e
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Fifteen defects in it have produced or nearly
+The harness is the second experimental subject. Sixteen defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
-some penalised it, and the last was found inside its own single held-out loss. Each is pinned by a
-test. This table is the authoritative list; prose below refers to it rather than to ordinals.
+some penalised it, one was found inside its own single held-out loss, and the last would have made
+every brace-language caller question unauthorable. Each is pinned by a test. This table is the
+authoritative list; prose below refers to it rather than to ordinals.
 
 | Defect | Would have shown |
 |---|---|
@@ -89,6 +91,7 @@ test. This table is the authoritative list; prose below refers to it rather than
 | `enclosing()` credited the class when a decorator or wrapped signature intervened | The same, one scope too high |
 | `true_callers()` counted a call written inside a comment | An exhaustive gold demanding a caller that is documentation |
 | Grader scored a keyed object naming the gold identities as zero | This server's only held-out loss, which had named both correct symbols |
+| `enclosing()` implemented only its Python branch, and its first brace-language replacement named frames from call syntax | On Rust and TypeScript corpora `true_callers()` returned nothing, so every correct caller gold failed validation as unverifiable; the first fix then attributed call sites to `Ok`, `Err` and, worst, to a real function defined elsewhere — a caller set that looks plausible and is fiction |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
 
@@ -900,7 +903,7 @@ it then prints the exact validate/prepare/run/score commands. It calls no model.
 
 ### The habit that made the numbers trustworthy
 
-The fifteen entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
+The sixteen entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
 flattered this server, some penalised it, and the last was found inside its own single held-out loss.
 None was found by auditing on a schedule. Every one came from the same rule, which is the methodological
 claim this project would actually defend:
@@ -957,6 +960,85 @@ So the doc-comment chunk stayed and the other two were reverted. Artifacts, bina
 fingerprints and per-question ranks are in `runs/concept-chunk-ab-20260912/`. The measurement costs
 about 30 seconds of CPU and no model calls, which is the whole point: two of three changes that
 looked obviously good were negative, and nothing in a code review would have said so.
+
+## The v0.2.0 performance study
+
+The doc-comment chunk was measured on the corpora and questions that were already lying around,
+which is enough to accept or reject a change and not enough to claim an advantage. This study asks
+the harder question — does a ranking gain become an agent-level advantage against zvec-grep — on
+material neither the change nor the tuning ever saw. The Django held-out set is spent and is not
+reopened.
+
+Everything is declared before anything runs. `runs/perf-v020-20260912/preregistration.json` holds
+the arms, the corpus fingerprints, the binary hashes, the buckets, the success target and the
+decision rules, written before the first arm was run.
+
+**Three fresh corpora**, cut by `cut_corpora.py` from the upstream checkouts, each scope disjoint
+from every spent suite: `cu-text` (173 Rust files: coreutils text utilities and uucore features,
+with the files the authored coreutils suites already ask about removed), `dj-forms` (88 Python
+files: forms, template, views, http, urls, middleware, conf — disjoint from the held-out scope of
+db/core/utils/dispatch/apps) and `vs-editor` (333 TypeScript files: `src/vs/editor/{common,browser}`,
+disjoint from the platform corpus).
+
+**Thirty authored questions**, ten per corpus, compiled clean by `validate_suite.py`, in seven
+buckets chosen so that four of them are shapes zvec-grep ought to win: `vague_conceptual`,
+`terminology_mismatch`, `api_semantics`, `generic_name`, `cross_file_ownership`,
+`direct_caller_lookup` (exhaustive, gold verified by independent enumeration) and `exact_control`.
+Conceptual questions are written from behaviour rather than paraphrased from a doc comment, which
+would have flattered the very change under test; each question's `author_notes` records that.
+
+**The success target, fixed in advance**: quality at or above zvec-grep, input tokens at least 20%
+below it, fewer calls to first sufficient evidence, and no arm-wide or per-bucket increase in
+`answered_without_evidence` or `wrong_without_evidence`. v0.2.0 must additionally not be worse than
+v0.1.1 on any primary measure. If it is not better end to end, that is the published result.
+
+### Layer 1: offline ranking, no model calls
+
+`study_b.py` is study_a's multi-arm sibling: several arms, one corpus, symbol-level gold, per-bucket
+scoring. Its one methodological requirement is symmetry — an arm is never scored on the `symbol`
+block this server happens to return while the competitor is scored on bare paths. Every returned
+`(path, line)` from every arm, including zvec's, is resolved to its enclosing definition by the same
+hardened attribution function the caller golds are verified with, and identity is scored against it.
+zvec-grep 0.2.2 has no JSON output mode, so its agent-markdown hit headers are parsed and the parser
+is pinned by a test against captured output; its index is built on a copy outside the corpus under
+test, and the corpus is fingerprinted before and after.
+
+Thirty questions, raw question text, `limit` 10:
+
+| Arm | MRR | recall@1 | recall@3 | recall@5 | recall@10 |
+|---|---:|---:|---:|---:|---:|
+| retrieval-mcp v0.1.1 | 0.126 | 2 | 6 | 6 | 8 |
+| **retrieval-mcp v0.2.0** | **0.234** | **6** | **7** | **8** | 10 |
+| zvec-grep 0.2.2 | 0.165 | 3 | 6 | 7 | 10 |
+
+The coreutils result generalises: v0.2.0 beats v0.1.1 on `cu-text` (MRR 0.337 against 0.100) and on
+`vs-editor` (0.114 against 0.029), and is identical on `dj-forms`, exactly as the mechanism predicts
+— Python docstrings already sat inside the definition. The comparison that matters is the third row:
+**v0.1.1 was behind zvec-grep on this suite and v0.2.0 is ahead of it**, by 42% on MRR and twice as
+often at rank 1, while tying at recall@10. On economics the two are not comparable in kind:
+retrieval-mcp answers warm in 1.3–2.6 ms with no index build, zvec-grep needs a 4.0–7.6 s index and
+395–443 ms per warm query, and returns leaner rows (1.7–2.2 KB against 3.2–3.9 KB).
+
+One bucket result is worth more than the table. `terminology_mismatch` scores **zero for every arm**,
+including zvec: on raw question text, no ranker here bridges a deliberate vocabulary gap. That is the
+project's first finding restated — the expensive work is query formation, and only an agent loop does
+it — and it is why this layer is a screen, not the claim. Pooled bucket n is 3–6, so only the three
+buckets with n = 6 support any statement at all.
+
+### Layer 2: four arms, awaiting approval
+
+`comparison_systems_perf_v020.json` declares `native-control`, `zvec-grep`, `retrieval-v011` and
+`retrieval-v020`. The two retrieval arms are byte-identical except for the pinned binary — same four
+visible tools, same closure stopping rule copied verbatim from the held-out systems file, no semantic
+backend on either, so the only difference in the treatment is the doc-comment chunk. `comparison_runner.py`
+now takes a per-system `server` binary and records its sha256 in the prepared manifest, which is what
+makes a two-version comparison possible at all. `end_to_end.py` reports every primary and safety
+measure per bucket as well as per arm.
+
+All three workspaces are prepared and verified: every arm's corpus copy fingerprints identically to
+its source, and the zvec install comes from the cached 0.2.2 tree because this run has no registry
+access. Nothing beyond this point runs without explicit approval: 4 arms × 30 questions is 120 model
+trials, and the project's rule is that charges begin only at an explicit gate.
 
 ## Native-system comparison
 

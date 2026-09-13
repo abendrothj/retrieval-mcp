@@ -1,0 +1,316 @@
+[
+ {
+  "id": "dj-per-request-token-disguise",
+  "category": "vague_conceptual",
+  "set": "dev",
+  "question": "A site is open in two browser tabs. Each tab's form carries a different hidden anti-forgery string, yet the browser holds only one cookie for the site and the server accepts a submission from either tab. Which definition produces that differing per-page string from the one stored secret, by generating fresh random padding and combining it character by character with the secret so the bytes on the wire are never twice the same? Answer with the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "django/middleware/csrf.py::_mask_cipher_secret"
+  },
+  "rejected_alternates": [
+   "django/middleware/csrf.py::_unmask_cipher_token",
+   "django/middleware/csrf.py::_get_new_csrf_string",
+   "django/middleware/csrf.py::get_token",
+   "django/middleware/csrf.py::rotate_token"
+  ],
+  "evidence": [
+   {
+    "path": "django/middleware/csrf.py",
+    "contains": "def _mask_cipher_secret(secret):"
+   },
+   {
+    "path": "django/middleware/csrf.py",
+    "contains": "    return mask + cipher"
+   }
+  ],
+  "author_notes": "Stated entirely as an observation a user could make in a browser: two tabs, two different hidden strings, one cookie. The question shares no token with the identifier (mask, cipher, secret all avoided in the phrasing except 'secret', which is the user-visible concept) and no token with the docstring's wording ('adding a mask and applying it to the secret'), so lexical overlap cannot carry an arm to the answer - only understanding of what masking is for. Because Python docstrings sit inside the definition, this corpus is the control for the v0.2.0 doc-comment change: a chunker that includes the docstring gains nothing here that plain source did not already give it. The inverse helper _unmask_cipher_token, the raw randomness source _get_new_csrf_string, and the public entry point get_token are the three plausible near misses and are rejected: get_token fetches or creates the secret and then delegates the disguising step, it does not perform it."
+ },
+ {
+  "id": "dj-accessible-input-attribute-assembly",
+  "category": "vague_conceptual",
+  "set": "dev",
+  "question": "A screen-reader user tabs into a text box on a form and hears the explanatory sentence the form author attached to that input, because the input is linked to the element that holds that sentence; after a failed submission the same input is additionally announced as being in an error state. Which definition assembles that dictionary of HTML properties for one input just before it is drawn - also stamping the browser-side mandatory flag when the form opts in, marking frozen inputs unusable, and stepping aside when the form author supplied a link of their own? Answer with the qualified symbol as path::Class::method.",
+  "expected_json": {
+   "answer": "django/forms/boundfield.py::BoundField::build_widget_attrs"
+  },
+  "rejected_alternates": [
+   "django/forms/widgets.py::Widget.build_attrs",
+   "django/forms/boundfield.py::BoundField.as_widget",
+   "django/forms/boundfield.py::BoundField.css_classes",
+   "django/forms/widgets.py::Widget.use_required_attribute"
+  ],
+  "evidence": [
+   {
+    "path": "django/forms/boundfield.py",
+    "contains": "    def build_widget_attrs(self, attrs, widget=None):"
+   },
+   {
+    "path": "django/forms/boundfield.py",
+    "contains": "attrs[\"aria-describedby\"] = f\"{self.auto_id}_helptext\""
+   },
+   {
+    "path": "django/forms/boundfield.py",
+    "contains": "            attrs[\"aria-invalid\"] = \"true\""
+   }
+  ],
+  "author_notes": "Accessibility behaviour described the way a user experiences it, with the literal attribute names (aria-describedby, aria-invalid, required, disabled) deliberately paraphrased so that no token in the question appears in the target's source or in any docstring around it; this method carries no docstring at all, which makes it a clean control for the doc-comment change under test. The near misses are real: Widget.build_attrs merges the widget's own static properties with per-render ones and is the answer a name-similarity match would give; BoundField.as_widget is the caller that then hands the result to the widget; Widget.use_required_attribute only answers the mandatory-flag sub-question; BoundField.css_classes assembles CSS classes rather than HTML properties. Verified in source: the help-text link is only added when no custom one is present and the field has help text, an id, is not hidden and is not a fieldset."
+ },
+ {
+  "id": "dj-attribute-mapping-to-tag-fragment",
+  "category": "terminology_mismatch",
+  "set": "dev",
+  "question": "Which helper turns a mapping of markup properties into the single piece of text that gets spliced inside an opening tag - each entry preceded by one space and written as name=\"..\", entries whose datum is a plain on/off flag written as a bare name with nothing after them and omitted entirely when off, entries carrying no datum at all dropped, output ordered rather than left in insertion order, and an empty mapping yielding nothing? Answer with the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "django/forms/utils.py::flatatt"
+  },
+  "rejected_alternates": [
+   "django/forms/widgets.py::Widget.build_attrs",
+   "django/forms/boundfield.py::BoundField.build_widget_attrs",
+   "django/forms/utils.py::pretty_name",
+   "django/forms/widgets.py::Widget.render"
+  ],
+  "evidence": [
+   {
+    "path": "django/forms/utils.py",
+    "contains": "def flatatt(attrs):"
+   },
+   {
+    "path": "django/forms/utils.py",
+    "contains": "format_html_join(\"\", ' {}=\"{}\"', sorted(key_value_attrs))"
+   }
+  ],
+  "author_notes": "Deliberate vocabulary swap. The code and its docstring say attributes, dictionary, string, XML-style pairs, boolean; the question says markup properties, mapping, piece of text, on/off flag, datum. The identifier itself (a contraction of flat + attributes) shares no token with any word in the question, so an arm that scores on surface overlap has nothing to lock onto in either the signature or the docstring - which is the point of running a Python corpus as the control for doc-comment chunking. Facts checked in source: leading space per pair, sorted() applied to both the key/value and the boolean groups, None-valued entries skipped, False-valued flags dropped, empty input giving an empty result. Rejected alternates are the three neighbours that also manipulate HTML properties and the widget entry point that eventually emits them."
+ },
+ {
+  "id": "dj-validated-data-onto-orm-object",
+  "category": "terminology_mismatch",
+  "set": "dev",
+  "question": "Which module-level helper copies a validated submission's already-coerced entries onto the attributes of the ORM object it is handed and then returns that object without persisting it, honouring an optional allow-list and an optional deny-list of column names, skipping read-only and auto-numbered columns, leaving a column at its declared fallback when the browser sent nothing for a control that cannot report absence, and holding back upload-carrying columns until all the others are set so that a callable destination path can read them? Answer with the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "django/forms/models.py::construct_instance"
+  },
+  "rejected_alternates": [
+   "django/forms/models.py::model_to_dict",
+   "django/forms/models.py::fields_for_model",
+   "django/forms/models.py::apply_limit_choices_to_to_formfield",
+   "django/forms/forms.py::BaseForm.full_clean"
+  ],
+  "evidence": [
+   {
+    "path": "django/forms/models.py",
+    "contains": "def construct_instance(form, instance, fields=None, exclude=None):"
+   },
+   {
+    "path": "django/forms/models.py",
+    "contains": "Defer saving file-type fields until after the other fields"
+   },
+   {
+    "path": "django/forms/models.py",
+    "contains": "            f.save_form_data(instance, cleaned_data[f.name])"
+   }
+  ],
+  "author_notes": "The code says construct, model instance, cleaned_data, save to the database, fields, exclude, FileField, upload_to; the question says copies, ORM object, validated submission's already-coerced entries, persisting, allow-list, deny-list, upload-carrying columns, callable destination path. Nothing in the question matches the identifier or the docstring lexically, so the measurement is retrieval of meaning rather than string overlap - the property that makes this Python corpus the control arm for the v0.2.0 change that pulled doc comments into concept chunks. Every clause is verified against the body: editable/AutoField/absent-key skips, the fields and exclude guards, the has_default + value_omitted_from_data + empty_values fallback rule, and the two-pass ordering that defers FileField columns. model_to_dict is the exact inverse direction and is the trap a topical match falls into."
+ },
+ {
+  "id": "dj-first-loadable-template-string-guard",
+  "category": "api_semantics",
+  "set": "dev",
+  "question": "Two definitions in this corpus - one a module-level function, one a method - take an iterable of candidate template names and return the first one that can be loaded, raising TemplateDoesNotExist when none can. Only one of the two documents and enforces the argument's plurality: handed a bare str instead of an iterable it raises TypeError and tells the caller to use the single-name loader instead, rather than silently iterating the string character by character. Which one is it? Answer with the fully qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "django/template/loader.py::select_template"
+  },
+  "rejected_alternates": [
+   "django/template/engine.py::Engine.select_template",
+   "django/template/loader.py::get_template",
+   "django/template/engine.py::Engine.get_template",
+   "django/template/loader.py::render_to_string"
+  ],
+  "evidence": [
+   {
+    "path": "django/template/loader.py",
+    "contains": "def select_template(template_name_list, using=None):"
+   },
+   {
+    "path": "django/template/loader.py",
+    "contains": "select_template() takes an iterable of template names but got a "
+   },
+   {
+    "path": "django/template/engine.py",
+    "contains": "    def select_template(self, template_name_list):"
+   }
+  ],
+  "author_notes": "Namesake handled explicitly: the leaf is defined in both django/template/loader.py and django/template/engine.py, so the question states up front that two same-named definitions exist and demands a fully qualified path::name answer - a bare leaf cannot score, and the validator's own namesake rule is satisfied. The discriminator is a documented API guarantee that only one of the pair makes: the module-level function type-checks its argument and raises TypeError naming the single-name loader as the alternative, while Engine.select_template accepts whatever it is given and only guards the empty case with TemplateDoesNotExist('No template names provided'). Both behaviours read directly from the two bodies."
+ },
+ {
+  "id": "dj-dotted-token-to-object",
+  "category": "generic_name",
+  "set": "dev",
+  "question": "A template author writes a dotted token such as person.address.city. The parsed object for that token exposes one public method whose name is one of the most heavily reused verbs in this codebase - the same short name is defined in four different files here. That method returns the final object for the token: it delegates the dotted walk to a private helper when the token is a genuine lookup, uses the stored constant when the token was a quoted or numeric literal, and afterwards applies deferred translation when the token was written in the underscore-parenthesis form. Which method is it? Answer with the fully qualified symbol as path::Class::method.",
+  "expected_json": {
+   "answer": "django/template/base.py::Variable::resolve"
+  },
+  "rejected_alternates": [
+   "django/template/base.py::Variable._resolve_lookup",
+   "django/template/base.py::FilterExpression.resolve",
+   "django/template/base.py::VariableNode.render",
+   "django/urls/base.py::resolve"
+  ],
+  "evidence": [
+   {
+    "path": "django/template/base.py",
+    "contains": "        \"\"\"Resolve this variable against a given context.\"\"\""
+   },
+   {
+    "path": "django/template/base.py",
+    "contains": "class Variable:"
+   },
+   {
+    "path": "django/template/base.py",
+    "contains": "            value = self._resolve_lookup(context)"
+   }
+  ],
+  "author_notes": "The answer hides behind one of the most common names in the corpus: the leaf is defined in django/template/base.py, django/template/defaultfilters.py, django/urls/base.py and django/urls/resolvers.py, and base.py alone defines it twice, on two different classes. The question therefore demands path::Class::method, which is also what the frozen grader needs in order to separate the two same-file definitions by owner. The question never writes the leaf, and it paraphrases the doctest in the class docstring (article.section) with an unrelated example so no literal from the definition appears. The three sharpest traps are all rejected: the private helper that actually walks the dotted parts, the sibling method on FilterExpression that applies the filter chain, and the node class that writes the result into the output stream."
+ },
+ {
+  "id": "dj-shared-html-production-owner",
+  "category": "cross_file_ownership",
+  "set": "dev",
+  "question": "Forms in django/forms/forms.py, formsets in django/forms/formsets.py and single bound fields in django/forms/boundfield.py all turn themselves into HTML through the same inherited method, which none of those three files defines. It takes an optional template name, an optional context dict and an optional renderer, falls back to the object's own template name, its own context builder and its own renderer when a caller supplies none of them, asks the renderer for the finished text, and marks that text safe; the same class then binds it to the object's string conversion and to the HTML-protocol hook. Which definition, in which other file, owns it? Answer with the fully qualified symbol as path::Class::method.",
+  "expected_json": {
+   "answer": "django/forms/utils.py::RenderableMixin::render"
+  },
+  "rejected_alternates": [
+   "django/forms/renderers.py::BaseRenderer.render",
+   "django/forms/widgets.py::Widget.render",
+   "django/template/backends/django.py::Template.render",
+   "django/forms/utils.py::RenderableFormMixin.as_div"
+  ],
+  "evidence": [
+   {
+    "path": "django/forms/utils.py",
+    "contains": "class RenderableMixin:"
+   },
+   {
+    "path": "django/forms/utils.py",
+    "contains": "        return mark_safe(renderer.render(template, context))"
+   },
+   {
+    "path": "django/forms/utils.py",
+    "contains": "    __html__ = render"
+   },
+   {
+    "path": "django/forms/boundfield.py",
+    "contains": "class BoundField(RenderableFieldMixin):"
+   }
+  ],
+  "author_notes": "Ownership question: the described behaviour is observed on Form, BaseFormSet and BoundField, and lives in none of their files - it is inherited from the mixin in django/forms/utils.py, which BoundField reaches through RenderableFieldMixin. The leaf is the single worst namesake in this corpus (sixteen files define it), so the question demands a fully qualified path::Class::method answer and never writes the leaf itself; only the derived forms 'renderer' and 'rendering' appear, which are distinct tokens. The rejected alternates are the three definitions a name match reaches first - the renderer backend's own method, the widget's, and the template backend's - plus a sibling convenience wrapper on the same inheritance chain."
+ },
+ {
+  "id": "dj-tag-keyword-argument-parser-callers",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "question": "django/template/base.py defines a module-level helper that strips keyword arguments off the front of a template tag's remaining bit list - accepting the standard foo=1 spelling, and optionally also the legacy `1 as foo` spelling chained with `and` - deleting the bits it consumes from the caller's list and compiling each right-hand side into a filter expression, returning as soon as it meets a bit it cannot accept. Enumerate every definition elsewhere in this corpus that calls it. Return a JSON list of strings, each one a qualified symbol as path::name.",
+  "expected_json": {
+   "answer": [
+    "django/template/defaulttags.py::do_with",
+    "django/template/library.py::parse_bits",
+    "django/template/loader_tags.py::do_include",
+    "django/templatetags/i18n.py::do_block_translate"
+   ]
+  },
+  "helper": "django/template/base.py::token_kwargs",
+  "hops": 1,
+  "exhaustive": true,
+  "rejected_alternates": [
+   "django/template/defaulttags.py::do_for",
+   "django/template/loader_tags.py::do_extends",
+   "django/template/base.py::Parser.compile_filter",
+   "django/templatetags/i18n.py::do_translate"
+  ],
+  "evidence": [
+   {
+    "path": "django/template/base.py",
+    "contains": "def token_kwargs(bits, parser, support_legacy=False):"
+   },
+   {
+    "path": "django/template/defaulttags.py",
+    "contains": "    extra_context = token_kwargs(remaining_bits, parser, support_legacy=True)"
+   },
+   {
+    "path": "django/template/library.py",
+    "contains": "        kwarg = token_kwargs([bit], parser)"
+   },
+   {
+    "path": "django/template/loader_tags.py",
+    "contains": "            value = token_kwargs(remaining_bits, parser, support_legacy=False)"
+   },
+   {
+    "path": "django/templatetags/i18n.py",
+    "contains": "            value = token_kwargs(remaining_bits, parser, support_legacy=True)"
+   }
+  ],
+  "author_notes": "Exhaustive caller set, enumerated by ripgrep for `token_kwargs\\(` over this corpus only and attributed to the enclosing definition: four compile functions in four different files, two of them in packages other than django/template. Besides those four attributed call sites, ripgrep also matches the definition line itself and a second call in the `count` branch of the same i18n compile function, which collapses onto the caller already listed. All four gold leaves are defined exactly once in the corpus, so prose naming them can be scored, and none of the four appears in the question text. Rejected alternates are the neighbouring compile functions in the same files that parse their own bits by hand instead."
+ },
+ {
+  "id": "dj-dotted-view-import-helper-callers",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "question": "django/urls/utils.py defines a cached helper that returns the callable designated by a dotted import path, returning the argument unchanged when it is already callable, and raising ViewDoesNotExist when the argument is neither a callable nor a dotted string, when the parent module is absent, or when the named attribute is missing or not callable. Enumerate every definition outside that module which calls it. Return a JSON list of strings, each one a qualified symbol as path::name.",
+  "expected_json": {
+   "answer": [
+    "django/middleware/csrf.py::_get_failure_view",
+    "django/urls/resolvers.py::URLResolver::resolve_error_handler"
+   ]
+  },
+  "helper": "django/urls/utils.py::get_callable",
+  "hops": 1,
+  "exhaustive": true,
+  "rejected_alternates": [
+   "django/urls/utils.py::get_mod_func",
+   "django/urls/resolvers.py::URLResolver.resolve",
+   "django/middleware/csrf.py::CsrfViewMiddleware.process_view",
+   "django/urls/base.py::reverse"
+  ],
+  "evidence": [
+   {
+    "path": "django/urls/utils.py",
+    "contains": "def get_callable(lookup_view):"
+   },
+   {
+    "path": "django/middleware/csrf.py",
+    "contains": "    return get_callable(settings.CSRF_FAILURE_VIEW)"
+   },
+   {
+    "path": "django/urls/resolvers.py",
+    "contains": "        return get_callable(callback)"
+   }
+  ],
+  "author_notes": "Exhaustive caller set over this corpus only, enumerated by ripgrep for `get_callable\\(`: exactly two call sites outside the defining module, one in the CSRF middleware resolving the configured failure view and one in URLResolver where the handler404/handler500 names are turned into views. The `from django.urls import get_callable` import line is not a call and is correctly not counted. Both gold leaves are defined once each in the corpus and neither appears in the question text; the helper is described by its documented contract instead of by name. Rejected alternates are its own sibling in the same module, the resolver method a topical match reaches first, and the middleware hook that consumes the failure view further down."
+ },
+ {
+  "id": "dj-directory-index-refusal-literal",
+  "category": "exact_control",
+  "set": "dev",
+  "question": "Exactly one definition in this corpus raises Http404 with the translatable literal message \"Directory indexes are not allowed here.\". Which definition is it? Answer with the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "django/views/static.py::serve"
+  },
+  "rejected_alternates": [
+   "django/views/static.py::directory_index",
+   "django/views/defaults.py::page_not_found",
+   "django/views/static.py::was_modified_since",
+   "django/views/static.py::builtin_template_path"
+  ],
+  "evidence": [
+   {
+    "path": "django/views/static.py",
+    "contains": "raise Http404(_(\"Directory indexes are not allowed here.\"))"
+   },
+   {
+    "path": "django/views/static.py",
+    "contains": "        if show_indexes:"
+   }
+  ],
+  "author_notes": "The grep control: a single exact literal that occurs once in the whole corpus, on one line, inside one function. Any arm with a literal search path should win this outright, and an embedding-only arm that paraphrases will not; that asymmetry is the point of including it. Verified by ripgrep: one match, in django/views/static.py, inside the view that refuses to list a directory unless show_indexes was requested. The answer's leaf is defined exactly once in the corpus and never appears in the question text. Rejected: the neighbouring definition that actually renders the listing, the other two module-level definitions in the same file, and the generic 404 view in django/views/defaults.py that a topical match reaches for."
+ }
+]

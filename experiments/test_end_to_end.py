@@ -1,3 +1,4 @@
+import argparse
 import json
 import tempfile
 import unittest
@@ -95,6 +96,113 @@ class EvidenceSafetyTests(unittest.TestCase):
                                        {"path": "pkg/b.py", "symbol": "beta"}]})
         pairs = end_to_end.gold_identities(self.TASK)
         self.assertEqual(end_to_end.unretrieved(seen, pairs), [])
+
+
+class BucketReportTests(unittest.TestCase):
+    """A run is read bucket by bucket: an arm can win overall and lose a category.
+
+    The whole point of mixing question shapes is that the aggregate hides them, so the split is
+    pinned against hand-computed values, and the arm-wide numbers are pinned again to prove the
+    addition changed nothing above it.
+    """
+
+    QUESTIONS = [
+        {"id": "q-vague-1", "category": "vague_conceptual",
+         "expected_json": {"answer": "pkg/a.py::alpha"}},
+        {"id": "q-vague-2", "category": "vague_conceptual",
+         "expected_json": {"answer": "pkg/b.py::beta"}},
+        {"id": "q-exact-1", "category": "exact_control",
+         "expected_json": {"answer": "pkg/a.py::alpha"}},
+        {"id": "q-exact-2", "category": "exact_control",
+         "expected_json": {"answer": "pkg/a.py::alpha"}},
+        {"id": "q-exact-3", "category": "exact_control",
+         "expected_json": {"answer": "pkg/a.py::alpha"}},
+    ]
+    # task_id, input tokens, resolved, tool payload. q-vague-2 answers while its gold identity
+    # was never on screen, and is also graded wrong: one bucket carries both safety counts.
+    TRIALS = [
+        ("q-vague-1", 1000, True, "pkg/a.py: def alpha()"),
+        ("q-vague-2", 3000, False, "pkg/z.py: def zeta()"),
+        ("q-exact-1", 100, True, "pkg/a.py: def alpha()"),
+        ("q-exact-2", 200, True, "pkg/a.py: def alpha()"),
+        # Skewed on purpose: this bucket's median (200) and mean (400) differ, so a bucket that
+        # quietly reports one statistic under the other name is caught.
+        ("q-exact-3", 900, True, "pkg/a.py: def alpha()"),
+    ]
+
+    def build(self, directory):
+        root = Path(directory)
+        questions = root / "questions.json"
+        questions.write_text(json.dumps(self.QUESTIONS), encoding="utf-8")
+        run = root / "run"
+        run.mkdir()
+        for position, (task_id, tokens, resolved, body) in enumerate(self.TRIALS):
+            trial = run / f"trial-{position:04d}"
+            trial.mkdir()
+            (trial / "run.json").write_text(json.dumps({
+                "system": "arm", "task_id": task_id, "repetition": 1, "status": "completed",
+                "correct": resolved, "resolved_correct": resolved,
+                "resolved_credit": 1.0 if resolved else 0.0, "budget_exhausted": False,
+                "wall_time_ms": 1000.0, "repository_unchanged": True,
+            }), encoding="utf-8")
+            stream = [
+                {"type": "system", "subtype": "init"},
+                {"type": "assistant", "message": {
+                    "id": "m1",
+                    "content": [{"type": "tool_use", "id": "u1",
+                                 "name": "mcp__retrieval__read_source"}],
+                    "usage": {"input_tokens": tokens, "cache_creation_input_tokens": 0,
+                              "cache_read_input_tokens": 0, "output_tokens": 5}}},
+                {"type": "user", "message": {"content": [
+                    {"type": "tool_result", "tool_use_id": "u1", "content": body}]}},
+                {"type": "result", "subtype": "success", "total_cost_usd": 0.0},
+            ]
+            (trial / "transcript.jsonl").write_text(
+                "".join(json.dumps(event) + "\n" for event in stream), encoding="utf-8")
+        return argparse.Namespace(run=run, questions=questions)
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.summary = end_to_end.report(self.build(self.directory.name))["systems"]["arm"]
+
+    def test_the_arm_wide_numbers_are_what_they_were_before_buckets_existed(self):
+        self.assertEqual(self.summary["trials"], 5)
+        self.assertEqual(self.summary["resolved_correct"], 4)
+        self.assertEqual(self.summary["resolved_credit_mean"], 0.8)
+        # median(100, 200, 900, 1000, 3000) = 900, mean = 1040: the aggregate buckets must not move.
+        self.assertEqual(self.summary["input_tokens"], {"median": 900, "mean": 1040.0, "n": 5})
+        self.assertEqual(self.summary["answered_without_evidence"], 1)
+        self.assertEqual(self.summary["wrong_without_evidence"], 1)
+        self.assertEqual(set(self.summary) - set(end_to_end.measures([])), {"by_category"})
+
+    def test_each_bucket_reports_its_own_questions_correctness_and_tokens(self):
+        buckets = self.summary["by_category"]
+        self.assertEqual(sorted(buckets), ["exact_control", "vague_conceptual"])
+        vague, exact = buckets["vague_conceptual"], buckets["exact_control"]
+        self.assertEqual((vague["questions"], vague["trials"]), (2, 2))
+        self.assertEqual((exact["questions"], exact["trials"]), (3, 3))
+        self.assertEqual(vague["resolved_correct"], 1)
+        self.assertEqual(exact["resolved_correct"], 3)
+        self.assertEqual(vague["resolved_credit_mean"], 0.5)
+        self.assertEqual(exact["resolved_credit_mean"], 1.0)
+        # Hand-computed: (1000, 3000) against (100, 200, 900). Pooling the arm gives 900/1040, and
+        # reporting the bucket mean as its median gives 400 where the median is 200.
+        self.assertEqual(vague["input_tokens"], {"median": 2000.0, "mean": 2000.0, "n": 2})
+        self.assertEqual(exact["input_tokens"], {"median": 200, "mean": 400.0, "n": 3})
+
+    def test_the_safety_columns_are_charged_to_the_bucket_that_earned_them(self):
+        """An efficiency change that answers early in one shape must be visible in that shape."""
+        buckets = self.summary["by_category"]
+        self.assertEqual((buckets["vague_conceptual"]["answered_without_evidence"],
+                          buckets["vague_conceptual"]["wrong_without_evidence"]), (1, 1))
+        self.assertEqual((buckets["exact_control"]["answered_without_evidence"],
+                          buckets["exact_control"]["wrong_without_evidence"]), (0, 0))
+
+    def test_a_bucket_reports_every_measure_the_arm_reports(self):
+        """A bucket with fewer columns than the arm silently drops the one being argued about."""
+        for bucket in self.summary["by_category"].values():
+            self.assertEqual(set(bucket) - {"questions"}, set(end_to_end.measures([])))
 
 if __name__ == "__main__":
     unittest.main()

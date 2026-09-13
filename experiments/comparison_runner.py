@@ -20,10 +20,13 @@ import benchmark
 import quality_pass
 
 GRADING = "json-answer-v3"
+REPOSITORY = Path(__file__).resolve().parent.parent
 SYSTEM_FIELDS = {
     "id", "mcp_enabled", "upstreams", "environment", "prompt_policy",
     "prepare_commands", "check_commands", "version_command",
 }
+# A system may pin its own server binary so two versions of one server can be compared in one run.
+OPTIONAL_SYSTEM_FIELDS = {"server"}
 UPSTREAM_FIELDS = {"id", "command", "environment", "visible_tools", "expected_upstream_tools"}
 SETUP = (
     "Answer the repository question using the available codebase tools. "
@@ -110,7 +113,7 @@ def load_systems(path):
         raise ValueError("unsupported comparison systems version")
     ids = []
     for system in document["systems"]:
-        if not isinstance(system, dict) or set(system) != SYSTEM_FIELDS:
+        if not isinstance(system, dict) or set(system) - OPTIONAL_SYSTEM_FIELDS != SYSTEM_FIELDS:
             raise ValueError("system configuration has unexpected fields")
         system_id = system["id"]
         if not isinstance(system_id, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,47}", system_id):
@@ -137,6 +140,11 @@ def load_systems(path):
                 raise ValueError(f"{system_id} MCP configuration must name at least one upstream")
         elif system["upstreams"] or system["prepare_commands"] or system["check_commands"]:
             raise ValueError(f"{system_id} native control must not configure an MCP server")
+        if "server" in system:
+            if not isinstance(system["server"], str) or not system["server"]:
+                raise ValueError(f"{system_id}.server must be a nonempty path to a server binary")
+            if not system["mcp_enabled"]:
+                raise ValueError(f"{system_id} native control must not pin a server binary")
         command = system["version_command"]
         if command is not None and (not isinstance(command, list) or not command
                                     or not all(isinstance(part, str) and part for part in command)):
@@ -144,6 +152,20 @@ def load_systems(path):
     if len(ids) != len(set(ids)) or len(ids) < 2:
         raise ValueError("comparison requires at least two uniquely named systems")
     return document
+
+
+def system_server(system, server):
+    """The binary this system's {server} expands to: its own pin, else the run-wide default."""
+    pinned = system.get("server")
+    if not pinned:
+        return server
+    path = Path(pinned)
+    if not path.is_absolute():
+        path = REPOSITORY / path
+    path = path.resolve(strict=True)
+    if not path.is_file():
+        raise ValueError(f"{system['id']}.server must name a file, not {path}")
+    return path
 
 
 def placeholders(workspace, system, server, semantic_command, attempt=None, listen=None):
@@ -156,7 +178,7 @@ def placeholders(workspace, system, server, semantic_command, attempt=None, list
         "{project}": system["id"],
         "{attempt}": str(attempt) if attempt else "",
         "{listen}": listen or "",
-        "{server}": str(server),
+        "{server}": str(system_server(system, server)),
         "{experiments}": str(Path(__file__).resolve().parent),
         "{semantic_command_json}": json.dumps(semantic_command),
     }
@@ -237,6 +259,7 @@ def prepare(args):
             shutil.copytree(source, root, ignore=shutil.ignore_patterns(*IGNORED_STATE))
             if source_fingerprint(root) != before:
                 raise RuntimeError(f"copied corpus differs for {system['id']}")
+            binary = system_server(system, server)
             mapping = placeholders(workspace, system, server, args.semantic_command)
             env = environment(system, mapping)
             commands = []
@@ -265,12 +288,13 @@ def prepare(args):
                 "root": str(root), "source": source_fingerprint(root),
                 "visible_tools": visible_tools(system), "upstreams": upstreams,
                 "prompt_policy": system["prompt_policy"],
+                "server": str(binary), "server_sha256": digest(binary),
                 "version": version, "commands": commands,
             })
         if source_fingerprint(source) != before:
             raise RuntimeError("source corpus changed during comparison preparation")
         manifest = {
-            "version": "comparison-prepared-v1", "source_root": str(source), "source": before,
+            "version": "comparison-prepared-v2", "source_root": str(source), "source": before,
             "systems_sha256": digest(args.systems.resolve()), "server": str(server),
             "server_sha256": digest(server), "semantic_command": args.semantic_command,
             "systems": records,
@@ -324,7 +348,7 @@ def make_plan(tasks, systems, roots, repetitions, seed):
 
 def validate_prepared(workspace, systems_path, server, semantic_command):
     manifest = json.loads((workspace / "prepared.json").read_text(encoding="utf-8"))
-    if manifest.get("version") != "comparison-prepared-v1":
+    if manifest.get("version") != "comparison-prepared-v2":
         raise ValueError("unsupported prepared comparison workspace")
     if manifest["systems_sha256"] != digest(systems_path):
         raise ValueError("systems configuration changed after preparation")
@@ -334,6 +358,9 @@ def validate_prepared(workspace, systems_path, server, semantic_command):
     for record in manifest["systems"]:
         if source_fingerprint(Path(record["root"])) != expected:
             raise ValueError(f"prepared corpus changed for {record['id']}")
+        # Each arm's own binary must still be the one it was prepared against.
+        if digest(Path(record["server"])) != record["server_sha256"]:
+            raise ValueError(f"server binary changed after preparation for {record['id']}")
     return manifest
 
 

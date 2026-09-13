@@ -1,0 +1,321 @@
+[
+  {
+    "id": "vs-vague-atomic-indent-unit-caret-target",
+    "category": "vague_conceptual",
+    "set": "dev",
+    "question": "In an editor configured so that the run of spaces standing in for one indent behaves as a single unit, pressing the left arrow with the caret inside a line's leading whitespace takes it back to the start of that whole unit rather than one space away, pressing the right arrow takes it forward to the end of the next unit, and a mouse click inside that whitespace lands on the closest unit boundary. One definition computes the character offset the caret should end up at in all three of those cases, selected by a direction argument. Name it as a path-qualified symbol.",
+    "expected_json": {
+      "answer": "src/vs/editor/common/cursor/cursorAtomicMoveOperations.ts::AtomicTabMoveOperations::atomicPosition"
+    },
+    "rejected_alternates": [
+      "src/vs/editor/common/cursor/cursorAtomicMoveOperations.ts::AtomicTabMoveOperations::whitespaceVisibleColumn",
+      "src/vs/editor/common/core/cursorColumns.ts::CursorColumns::nextRenderTabStop",
+      "src/vs/editor/common/core/cursorColumns.ts::CursorColumns::prevRenderTabStop"
+    ],
+    "evidence": [
+      {
+        "path": "src/vs/editor/common/cursor/cursorAtomicMoveOperations.ts",
+        "contains": "public static atomicPosition(lineContent: string, position: number, tabSize: number, direction: Direction): number {"
+      },
+      {
+        "path": "src/vs/editor/common/cursor/cursorAtomicMoveOperations.ts",
+        "contains": "const targetVisibleColumn = CursorColumns.nextRenderTabStop(visibleColumn, tabSize);"
+      },
+      {
+        "path": "src/vs/editor/common/cursor/cursorAtomicMoveOperations.ts",
+        "contains": "\tNearest,"
+      }
+    ],
+    "author_notes": "Gold is the only definition that turns a direction plus an offset into the offset an atomic-tab move should land on; the sibling in the same class only measures the whitespace prefix and is listed as a rejected alternate, as are the two tab-stop arithmetic helpers in cursorColumns.ts that it calls. Phrasing is taken from what a user sees (arrow keys jumping a whole indent, a click snapping to the nearest boundary) and from the signature's `direction` parameter, not from the method's JSDoc: that comment says 'Return the position that should result from a move left, right or to the nearest tab, if atomic tabs are enabled', and reusing its nouns -- position, move, atomic tab -- would hand a doc-comment-indexing system the answer verbatim and flatter the change under test. The question also never uses the word 'tab', which is the code's own term for the unit."
+  },
+  {
+    "id": "vs-vague-preserve-caret-screen-height",
+    "category": "vague_conceptual",
+    "set": "dev",
+    "question": "When something changes how tall a document is above the part the user is reading -- a region folds shut, or lines are inserted higher up -- the line the caret is on should stay at the same height on screen instead of sliding. One definition performs exactly that correction against a snapshot taken earlier: it does nothing at all when both the total content height and the scroll offset are unchanged since the snapshot, and otherwise scrolls by the difference between the top of the caret's line now and the top of the line the caret was on when the snapshot was taken. Name it as a path-qualified symbol.",
+    "expected_json": {
+      "answer": "src/vs/editor/browser/stableEditorScroll.ts::StableEditorScrollState::restoreRelativeVerticalPositionOfCursor"
+    },
+    "rejected_alternates": [
+      "src/vs/editor/browser/stableEditorScroll.ts::StableEditorScrollState::restore",
+      "src/vs/editor/browser/stableEditorScroll.ts::StableEditorScrollState::capture",
+      "src/vs/editor/browser/stableEditorScroll.ts::StableEditorBottomScrollState::restore"
+    ],
+    "evidence": [
+      {
+        "path": "src/vs/editor/browser/stableEditorScroll.ts",
+        "contains": "public restoreRelativeVerticalPositionOfCursor(editor: ICodeEditor): void {"
+      },
+      {
+        "path": "src/vs/editor/browser/stableEditorScroll.ts",
+        "contains": "const offset = editor.getTopForLineNumber(currentCursorPosition.lineNumber) - editor.getTopForLineNumber(this._cursorPosition.lineNumber);"
+      },
+      {
+        "path": "src/vs/editor/browser/stableEditorScroll.ts",
+        "contains": "editor.setScrollTop(editor.getScrollTop() + offset, ScrollType.Immediate);"
+      }
+    ],
+    "author_notes": "Gold is the only definition that restores the caret's relative screen height; the sibling `restore` on the same class anchors the first visible position instead and is the obvious wrong answer, so it is rejected together with `capture` and the bottom-anchored class's `restore`. Nothing in this file carries a doc comment, so the question could not have been paraphrased from one even accidentally: it is written from the user-visible symptom (text not jumping under the caret) plus two facts read off the body -- the early return when content height and scroll top are both unchanged, and the delta between the two `getTopForLineNumber` calls."
+  },
+  {
+    "id": "vs-term-closing-bracket-line-realign",
+    "category": "terminology_mismatch",
+    "set": "dev",
+    "question": "In a language whose configuration declares bracket pairs, typing the last character of a closing bracket on a line that so far contains only whitespace makes the editor pull that line back so it lines up with the line carrying the matching opening bracket. One definition is where that decision is actually made: it rebuilds the line text up to the caret with the just-typed character appended, searches backwards through it for the nearest bracket, abandons the idea if the bracket it finds is an opening one or if anything other than whitespace sits in front of it, and otherwise reports the opening bracket text to align with. A method of the same name elsewhere in this corpus only looks up the language's support object and forwards to it, so answer with the path-qualified symbol of the one that does the work.",
+    "expected_json": {
+      "answer": "src/vs/editor/common/languages/supports/electricCharacter.ts::BracketElectricCharacterSupport::onElectricCharacter"
+    },
+    "rejected_alternates": [
+      "src/vs/editor/common/cursorCommon.ts::CursorConfiguration::onElectricCharacter",
+      "src/vs/editor/common/languages/supports/electricCharacter.ts::BracketElectricCharacterSupport::getElectricCharacters",
+      "src/vs/editor/common/languages/supports/richEditBrackets.ts::BracketsUtils::findPrevBracketInRange"
+    ],
+    "evidence": [
+      {
+        "path": "src/vs/editor/common/languages/supports/electricCharacter.ts",
+        "contains": "const r = BracketsUtils.findPrevBracketInRange(reversedBracketRegex, 1, text, 0, text.length);"
+      },
+      {
+        "path": "src/vs/editor/common/languages/supports/electricCharacter.ts",
+        "contains": "// There is other text on the line before the bracket"
+      },
+      {
+        "path": "src/vs/editor/common/languages/supports/electricCharacter.ts",
+        "contains": "matchOpenBracket: bracketText"
+      },
+      {
+        "path": "src/vs/editor/common/cursorCommon.ts",
+        "contains": "return electricCharacterSupport.onElectricCharacter(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);"
+      }
+    ],
+    "author_notes": "The corpus calls this feature 'electric characters'; the question deliberately never uses that phrase, nor 'electric', 'indent action' or 'auto-indent', and describes the behaviour as a user would report it (typing a closing brace pulls the line back into line with its opener). The gold leaf is defined twice in this corpus -- the implementation here and the thin delegator CursorConfiguration.onElectricCharacter in cursorCommon.ts, which merely resolves the language's support object and forwards -- so the question explicitly asks for a path-qualified symbol and names the delegating shape as not-the-answer; the delegator is also a rejected alternate. The class's own `getElectricCharacters`, which only lists the trigger characters, and the backwards bracket scan it calls are the other two rejects."
+  },
+  {
+    "id": "vs-term-lookalike-character-verdict",
+    "category": "terminology_mismatch",
+    "set": "dev",
+    "question": "An editor can call out characters that read as ordinary Latin letters but are not -- a Cyrillic letter sitting inside an English word, say -- and separately characters that draw as nothing at all. One definition returns the verdict for a single such character, given the character together with the word it sits inside, and it deliberately stays silent when that surrounding word holds no plain ASCII letters at all and does hold a character that is plainly foreign, on the grounds that the word is simply not written in Latin script in the first place. Name it as a path-qualified symbol.",
+    "expected_json": {
+      "answer": "src/vs/editor/common/services/unicodeTextModelHighlighter.ts::CodePointHighlighter::shouldHighlightNonBasicASCII"
+    },
+    "rejected_alternates": [
+      "src/vs/editor/common/services/unicodeTextModelHighlighter.ts::CodePointHighlighter::getCandidateCodePoints",
+      "src/vs/editor/common/services/unicodeTextModelHighlighter.ts::UnicodeTextModelHighlighter::computeUnicodeHighlights",
+      "src/vs/editor/common/services/unicodeTextModelHighlighter.ts::isAllowedInvisibleCharacter"
+    ],
+    "evidence": [
+      {
+        "path": "src/vs/editor/common/services/unicodeTextModelHighlighter.ts",
+        "contains": "public shouldHighlightNonBasicASCII(character: string, wordContext: string | null): SimpleHighlightReason {"
+      },
+      {
+        "path": "src/vs/editor/common/services/unicodeTextModelHighlighter.ts",
+        "contains": "/* Is there an obviously weird looking character? */ hasNonConfusableNonBasicAsciiCharacter"
+      },
+      {
+        "path": "src/vs/editor/common/services/unicodeTextModelHighlighter.ts",
+        "contains": "let hasNonConfusableNonBasicAsciiCharacter = false;"
+      }
+    ],
+    "author_notes": "The code's vocabulary is 'ambiguous', 'confusable', 'invisible' and 'non basic ASCII'; the question uses none of those and says 'reads as ordinary Latin letters but is not' and 'draws as nothing at all' instead. This method carries no doc comment whatsoever, so the distinguishing clause had to be read out of the body: the mixed-script guard that returns None when the word has no basic-ASCII characters and does have a non-confusable non-ASCII one. That clause is what separates the gold from the enclosing scan `computeUnicodeHighlights`, which counts and collects ranges, and from `getCandidateCodePoints`, which only builds the candidate set; both are rejected alternates along with the tiny whitespace exemption helper."
+  },
+  {
+    "id": "vs-api-word-pattern-normalisation-guarantee",
+    "category": "api_semantics",
+    "set": "dev",
+    "question": "Helpers that scan a line for the word under a position accept an optional caller-supplied regular expression, and a regular expression without the global flag would make such a scan loop forever. Which definition provides the guarantee that stops this -- handing back the caller's very own expression when it already carries the global flag, rebuilding it with 'g' plus whichever of ignore-case, multiline and unicode it had when it does not, substituting the module's default expression when the argument is absent or is not a regular expression at all, and zeroing lastIndex on whatever it hands back? Answer with the path-qualified symbol.",
+    "expected_json": {
+      "answer": "src/vs/editor/common/core/wordHelper.ts::ensureValidWordDefinition"
+    },
+    "rejected_alternates": [
+      "src/vs/editor/common/core/wordHelper.ts::getWordAtText",
+      "src/vs/editor/common/core/wordHelper.ts::createWordRegExp",
+      "src/vs/editor/common/core/wordCharacterClassifier.ts::getMapForWordSeparators"
+    ],
+    "evidence": [
+      {
+        "path": "src/vs/editor/common/core/wordHelper.ts",
+        "contains": "export function ensureValidWordDefinition(wordDefinition?: RegExp | null): RegExp {"
+      },
+      {
+        "path": "src/vs/editor/common/core/wordHelper.ts",
+        "contains": "if (!wordDefinition.global) {"
+      },
+      {
+        "path": "src/vs/editor/common/core/wordHelper.ts",
+        "contains": "result = new RegExp(wordDefinition.source, flags);"
+      },
+      {
+        "path": "src/vs/editor/common/core/wordHelper.ts",
+        "contains": "\tresult.lastIndex = 0;"
+      }
+    ],
+    "author_notes": "Every clause of the stated contract is checked against the body rather than against prose: `result` starts as DEFAULT_WORD_REGEXP, the `instanceof RegExp` test covers the absent/wrong-type case, the non-global branch reconstructs the source with 'g' and conditionally 'i', 'm' and 'u', the global branch assigns the argument itself so the caller's object is returned by identity, and `result.lastIndex = 0` runs on both paths before the return. The one-line consumer comment in getWordAtText ('Ensure the regex has the g flag, otherwise this will loop forever') states the motivation, and the question restates the risk in its own words while asking for the contract that the body actually implements. The two other exported helpers in the same file and the word-separator map builder are the rejected alternates."
+  },
+  {
+    "id": "vs-generic-glyph-margin-slot-claim",
+    "category": "generic_name",
+    "set": "dev",
+    "question": "In the narrow strip drawn to the left of the line numbers, more than one kind of marker can want the same slot on the same line, and the strip has to be widened when they collide. One definition records a claim on behalf of a marker: given a slot and a line range it sets one bit per line of that range inside a packed byte array, optionally flags that slot as occupied on every line from then on, and keeps a running maximum of how many slots the strip must be wide. Its own name is an extremely common one that says nothing about any of this. Name it as a path-qualified symbol.",
+    "expected_json": {
+      "answer": "src/vs/editor/common/viewModel/glyphLanesModel.ts::GlyphMarginLanesModel::push"
+    },
+    "rejected_alternates": [
+      "src/vs/editor/common/viewModel/glyphLanesModel.ts::GlyphMarginLanesModel::getLanesAtLine",
+      "src/vs/editor/common/viewModel/glyphLanesModel.ts::GlyphMarginLanesModel::reset",
+      "src/vs/editor/common/viewModel/glyphLanesModel.ts::GlyphMarginLanesModel::countAtLine"
+    ],
+    "evidence": [
+      {
+        "path": "src/vs/editor/common/viewModel/glyphLanesModel.ts",
+        "contains": "public push(lane: GlyphMarginLane, range: Range, persist?: boolean): void {"
+      },
+      {
+        "path": "src/vs/editor/common/viewModel/glyphLanesModel.ts",
+        "contains": "this.lanes[bit >>> 3] |= (1 << (bit % 8));"
+      },
+      {
+        "path": "src/vs/editor/common/viewModel/glyphLanesModel.ts",
+        "contains": "this._requiredLanes = Math.max(this._requiredLanes, this.countAtLine(i));"
+      }
+    ],
+    "author_notes": "The answer hides behind a collection-shaped verb that describes neither the glyph margin nor lanes nor bit packing, which is exactly the shape this bucket is for; the question therefore never uses that verb and instead describes the write (one bit per line in a packed array), the optional sticky flag and the running width maximum. The reader `getLanesAtLine`, the buffer `reset` and the private counter `countAtLine` are the plausible neighbours and are rejected. The method has no doc comment, so this question cannot be answered from prose attached to it."
+  },
+  {
+    "id": "vs-cross-line-markup-owner",
+    "category": "cross_file_ownership",
+    "set": "dev",
+    "question": "The browser-side view part that owns a single line's DOM node writes the wrapping div and its inline styles itself, and then hands the line over to a module in a different directory to produce the markup inside that div from the line's tokens, its inline decorations and the whitespace-rendering setting, getting back a mapping from columns to DOM positions. Which definition in that other file produces the markup, appending it into a string builder passed in by the caller? The same file also exports a near-identical sibling that allocates its own builder and returns the HTML as a string; that sibling is not the answer. Give the path-qualified symbol.",
+    "expected_json": {
+      "answer": "src/vs/editor/common/viewLayout/viewLineRenderer.ts::renderViewLine"
+    },
+    "rejected_alternates": [
+      "src/vs/editor/common/viewLayout/viewLineRenderer.ts::renderViewLine2",
+      "src/vs/editor/browser/viewParts/viewLines/viewLine.ts::ViewLine::renderLine",
+      "src/vs/editor/common/viewLayout/viewLineRenderer.ts::RenderLineInput"
+    ],
+    "evidence": [
+      {
+        "path": "src/vs/editor/common/viewLayout/viewLineRenderer.ts",
+        "contains": "export function renderViewLine(input: RenderLineInput, sb: StringBuilder): RenderLineOutput {"
+      },
+      {
+        "path": "src/vs/editor/common/viewLayout/viewLineRenderer.ts",
+        "contains": "export function renderViewLine2(input: RenderLineInput): RenderLineOutput2 {"
+      },
+      {
+        "path": "src/vs/editor/browser/viewParts/viewLines/viewLine.ts",
+        "contains": "const output = renderViewLine(renderLineInput, sb);"
+      },
+      {
+        "path": "src/vs/editor/browser/viewParts/viewLines/viewLine.ts",
+        "contains": "sb.appendString('<div style=\"top:');"
+      }
+    ],
+    "author_notes": "Ownership crosses both a directory boundary and the browser/common split: viewLine.ts under browser/viewParts writes only the wrapper element and delegates the inner markup to viewLayout/viewLineRenderer.ts in common. The distinguishing fact is the string builder in the signature, because the same file exports renderViewLine2, which differs only by allocating its own builder and returning HTML; the question calls that sibling out and rejects it, since a system that matches on the file rather than the definition would land there. The calling method ViewLine.renderLine and the input record type are the other rejects."
+  },
+  {
+    "id": "vs-callers-indentation-inference",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "helper": "src/vs/editor/common/model/indentationGuesser.ts::guessIndentation",
+    "hops": 1,
+    "exhaustive": true,
+    "question": "A helper in the text-model layer reads at most the first ten thousand lines of a buffer, counts how many of them begin with a tab versus how many begin with two or more blanks, scores the plausible step widths between the leading whitespace of consecutive non-blank lines while discarding lines that merely look like continuation alignment, and returns both a step width and whether blanks are in use. Identify every definition outside that helper's own module that calls it directly, attributing each call to the definition that encloses it. Return a JSON list of path::name.",
+    "expected_json": {
+      "answer": [
+        "src/vs/editor/common/model/textModel.ts::TextModel::resolveOptions",
+        "src/vs/editor/common/model/textModel.ts::TextModel::detectIndentation"
+      ]
+    },
+    "rejected_alternates": [
+      "src/vs/editor/common/model/textModel.ts::TextModel::normalizeIndentation",
+      "src/vs/editor/common/services/modelService.ts::updateModel",
+      "src/vs/editor/common/model/indentationGuesser.ts::spacesDiff"
+    ],
+    "evidence": [
+      {
+        "path": "src/vs/editor/common/model/indentationGuesser.ts",
+        "contains": "export function guessIndentation(source: ITextBuffer, defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {"
+      },
+      {
+        "path": "src/vs/editor/common/model/textModel.ts",
+        "contains": "const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces);"
+      },
+      {
+        "path": "src/vs/editor/common/model/textModel.ts",
+        "contains": "const guessedIndentation = guessIndentation(this._buffer, defaultTabSize, defaultInsertSpaces);"
+      }
+    ],
+    "author_notes": "An independent ripgrep enumeration over this corpus finds the helper named on five lines: its own definition and a doc-comment mention in indentationGuesser.ts, the import in textModel.ts, and exactly two call sites, both in textModel.ts. The call at textModel.ts:198 sits inside the static TextModel.resolveOptions, which only consults the guesser when the creation options ask for it; the call at textModel.ts:680 sits inside the instance method TextModel.detectIndentation, which feeds the guess straight into updateOptions. No other module calls it, so the set of two is exhaustive. The helper is described by behaviour rather than named, so a lexical arm must first find it and then pay one read to learn which definitions enclose the two hits, which is the asymmetry this bucket measures."
+  },
+  {
+    "id": "vs-callers-enter-rule-resolution",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "helper": "src/vs/editor/common/languages/enterAction.ts::getEnterAction",
+    "hops": 1,
+    "exhaustive": true,
+    "question": "A helper in the language-configuration layer takes an auto-indent strategy, a model and a range, forces the start line to be tokenized, asks the language's on-enter rules what should happen given the previous line and the text on either side of the range, and returns the resulting indent action together with the text to append, the number of characters to strip and the indentation currently at the position. Identify every definition outside that helper's own module that calls it directly, attributing each call to the definition that encloses it. Return a JSON list of path::name.",
+    "expected_json": {
+      "answer": [
+        "src/vs/editor/common/commands/shiftCommand.ts::ShiftCommand::getEditOperations",
+        "src/vs/editor/common/cursor/cursorTypeEditOperations.ts::EnterOperation::_enter",
+        "src/vs/editor/common/cursor/cursorTypeEditOperations.ts::TabOperation::_goodIndentForLine"
+      ]
+    },
+    "rejected_alternates": [
+      "src/vs/editor/common/languages/enterAction.ts::getEnterAction",
+      "src/vs/editor/common/languages/autoIndent.ts::getIndentForEnter",
+      "src/vs/editor/common/languages/languageConfigurationRegistry.ts::getIndentationAtPosition"
+    ],
+    "evidence": [
+      {
+        "path": "src/vs/editor/common/languages/enterAction.ts",
+        "contains": "export function getEnterAction("
+      },
+      {
+        "path": "src/vs/editor/common/commands/shiftCommand.ts",
+        "contains": "const enterAction = getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)), this._languageConfigurationService);"
+      },
+      {
+        "path": "src/vs/editor/common/cursor/cursorTypeEditOperations.ts",
+        "contains": "const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);"
+      },
+      {
+        "path": "src/vs/editor/common/cursor/cursorTypeEditOperations.ts",
+        "contains": "const expectedEnterAction = getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn), config.languageConfigurationService);"
+      }
+    ],
+    "author_notes": "An independent ripgrep enumeration over this corpus finds five occurrences of the helper name: the definition in enterAction.ts, two imports, and exactly three call sites outside its module. shiftCommand.ts:150 is inside ShiftCommand.getEditOperations; cursorTypeEditOperations.ts:543 is inside the private static EnterOperation._enter (declared at line 534); cursorTypeEditOperations.ts:836 is inside the private static TabOperation._goodIndentForLine (declared at line 815). The set of three is therefore exhaustive. One gold leaf, getEditOperations, is defined five times in this corpus, so the answer format demanded is path::name, which is also what lets the frozen grader score it; the helper itself and two neighbouring indentation helpers that are not callers are the rejected alternates."
+  },
+  {
+    "id": "vs-exact-model-option-default-literals",
+    "category": "exact_control",
+    "set": "dev",
+    "question": "Exactly one definition in this corpus is an exported object literal that contains both of these lines verbatim: `largeFileOptimizations: true,` and, nested one level deeper, `independentColorPoolPerBracketType: false,`. Name it as a path-qualified symbol.",
+    "expected_json": {
+      "answer": "src/vs/editor/common/core/textModelDefaults.ts::EDITOR_MODEL_DEFAULTS"
+    },
+    "rejected_alternates": [
+      "src/vs/editor/common/config/editorOptions.ts::filterValidationDecorations",
+      "src/vs/editor/common/model/indentationGuesser.ts::guessIndentation",
+      "src/vs/editor/common/services/modelService.ts::updateModel"
+    ],
+    "evidence": [
+      {
+        "path": "src/vs/editor/common/core/textModelDefaults.ts",
+        "contains": "export const EDITOR_MODEL_DEFAULTS = {"
+      },
+      {
+        "path": "src/vs/editor/common/core/textModelDefaults.ts",
+        "contains": "largeFileOptimizations: true,"
+      },
+      {
+        "path": "src/vs/editor/common/core/textModelDefaults.ts",
+        "contains": "independentColorPoolPerBracketType: false,"
+      }
+    ],
+    "author_notes": "Control question: both quoted lines occur exactly once each in the corpus and in the same file, so a plain fixed-string search wins in one call and any arm that loses this one is losing on lexical retrieval rather than on concepts. The question quotes the literals and never the identifier, so the answer still has to be the enclosing exported definition rather than the matched line."
+  }
+]

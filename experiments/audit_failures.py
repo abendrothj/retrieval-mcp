@@ -64,14 +64,147 @@ def call_sites(corpus, name):
     return sites
 
 
+BRACE_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".rs")
+RAW_STRING = re.compile(r'r(#*)"')
+CHAR_LITERAL = re.compile(r"'(?:\\.|[^\\'])'")
+
+# Words that can stand exactly where a declaration's name would in a script, so a block they open
+# is anonymous rather than a definition. Without this, `if (x) {` would attribute every call
+# inside it to `if`, and `new (resolveClass(reader))(` to `new`. Rust never consults this list:
+# its only declaration keyword is `fn`, so a match arm or an `if let Ok(x) = f() {` guard cannot
+# reach a name at all.
+CONTROL_WORDS = frozenset({
+    "if", "for", "while", "switch", "catch", "do", "else", "try", "finally", "return", "new",
+    "typeof", "await", "yield", "throw", "case", "with", "in", "of", "instanceof", "delete",
+    "void", "super", "function", "class", "interface", "enum", "namespace", "module",
+    "import", "export", "declare", "extends", "implements",
+})
+
+# Declaration syntax is read per language, because the same line means different things in each.
+# Rust declares a callable with `fn` and nothing else - which is also the only Rust form the
+# definition index knows - so `let render = |x| {`, a match arm such as `Ok(file) => {`, an
+# `impl` block and a builder call all open anonymous frames there, while in TypeScript a bare
+# `name(args) {` really is a method. Applying the script rules to Rust credited match arms and
+# closures with names like `Ok` and `custom_str_cmp`, which is a caller that does not exist.
+RUST_DECLARATIONS = (
+    re.compile(r"\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:default\s+)?(?:const\s+)?(?:async\s+)?"
+               r"(?:unsafe\s+)?(?:extern\s+\"[^\"]*\"\s+)?fn\s+([A-Za-z_]\w*)"),
+)
+
+# The member pattern is last so that control flow reaches it and is rejected by name rather than
+# by accident.
+SCRIPT_MEMBER = re.compile(
+    r"\s*(?:(?:public|private|protected|static|readonly|abstract|override|async|"
+    r"get|set|declare)\s+)*\*?\s*([A-Za-z_$][\w$]*)\s*\??\s*[(<]")
+SCRIPT_BINDING = re.compile(r"\s*(?:export\s+)?(?:declare\s+)?(?:const|let|var)\s+"
+                            r"([A-Za-z_$][\w$]*)\s*[:=]")
+SCRIPT_DECLARATIONS = (
+    re.compile(r"\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:async\s+)?"
+               r"function\s*\*?\s*([A-Za-z_$][\w$]*)"),
+    re.compile(r"\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:const\s+)?(?:abstract\s+)?"
+               r"(?:class|interface|enum|namespace|module|type)\s+([A-Za-z_$][\w$]*)"),
+    SCRIPT_BINDING,
+    SCRIPT_MEMBER,
+)
+# A block opened by an arrow belongs to the callback, not to the line that passed it, unless the
+# arrow is the binding's own value: `const f = (a) => {` declares `f`, while
+# `const o = new ResizeObserver(() => {` and `this.onEvent(() => {` declare nothing.
+CALLBACK_BLOCK = re.compile(r"=>\s*\{")
+ARROW_VALUE = re.compile(r"=\s*(?:async\s+)?(?:\([^()]*\)|[A-Za-z_$][\w$]*)\s*(?::\s*[^=]*?)?=>")
+
+
+def without_literals(source, suffix=".ts"):
+    """Each line with its comments and string, char and raw-string literals blanked out.
+
+    Brace counting is only meaningful over code. A `{` inside a JSDoc block, a string or a Rust
+    raw string opens a scope that never closes, which would mis-attribute every call after it in
+    the file. Only Rust gets the lifetime exception: there `'a` is not a char literal and reading
+    it as one swallows the real braces that follow on the same line, while in a script `'...'` is
+    an ordinary string and must be blanked whole.
+    """
+    cleaned, in_block = [], False
+    for text in source:
+        out, index, length = [], 0, len(text)
+        while index < length:
+            if in_block:
+                if text.startswith("*/", index):
+                    in_block, index = False, index + 2
+                else:
+                    index += 1
+                continue
+            if text.startswith("/*", index):
+                in_block, index = True, index + 2
+                continue
+            if text.startswith("//", index):
+                break
+            raw = RAW_STRING.match(text, index) if suffix == ".rs" else None
+            if raw:
+                closing = '"' + raw.group(1)
+                position = text.find(closing, raw.end())
+                index = length if position < 0 else position + len(closing)
+                out.append(" ")
+                continue
+            character = text[index]
+            if character == "'" and suffix == ".rs" and not CHAR_LITERAL.match(text, index):
+                out.append(" ")
+                index += 1
+                continue
+            if character in "\"'`":
+                index += 1
+                while index < length:
+                    if text[index] == "\\":
+                        index += 2
+                        continue
+                    if text[index] == character:
+                        index += 1
+                        break
+                    index += 1
+                out.append(" ")
+                continue
+            out.append(character)
+            index += 1
+        cleaned.append("".join(out))
+    return cleaned
+
+
+def declared_name(text, suffix=".ts"):
+    """The name a brace-language line introduces, or None when it introduces nothing."""
+    script = suffix != ".rs"
+    for expression in (SCRIPT_DECLARATIONS if script else RUST_DECLARATIONS):
+        match = expression.match(text)
+        if not match:
+            continue
+        name = match.group(1)
+        if script and name in CONTROL_WORDS:
+            return None
+        if CALLBACK_BLOCK.search(text, match.end()) and (
+                expression is SCRIPT_MEMBER or
+                (expression is SCRIPT_BINDING and not ARROW_VALUE.search(text, match.end()))):
+            return None
+        return name
+    return None
+
+
 def enclosing(path, line):
-    """The definition a line sits inside, by reading backwards. Independent of every index.
+    """The definition a line sits inside, by reading the file. Independent of every index.
 
     Python is indentation-scoped, so the enclosing definition is not merely the nearest `def` or
     `class` indented less than the call site: a nested helper defined earlier in the same body is
     also indented less, and it has already closed. The bound therefore tightens on every statement
     shallower than the current one, so only a definition that still contains the line can match.
-    Brace languages are matched on their declaration syntax.
+
+    Brace languages are scoped by `{}`, so they are matched on their declaration syntax instead:
+    the file is scanned forward over a copy with comments and literals blanked, every `{` pushes
+    the name its header declared and every `}` pops, and the answer is the innermost frame that
+    carries a name. Declaration syntax is read per language - Rust names a frame only for `fn`,
+    scripts also for `function`, a type, a binding and a class member - so a Rust match arm and a
+    JavaScript callback both open anonymous frames. Anonymous blocks push nothing, so a call
+    inside a closure is attributed to the definition containing the closure, exactly as the
+    systems under test attribute it. A declaration whose body brace lands on a later line, which
+    a wrapped TypeScript signature or a Rust `where` clause both produce, stays pending until
+    that brace opens.
+
+    Returns the leaf name only, or None for a suffix this cannot parse.
     """
     source = path.read_text(encoding="utf-8", errors="ignore").splitlines()
     if path.suffix == ".py":
@@ -95,6 +228,52 @@ def enclosing(path, line):
             # indentation can enclose the call any more.
             limit = indent
         return None
+    if path.suffix not in BRACE_SUFFIXES:
+        return None
+    stack, pending, owner, depth = [], None, None, 0
+    for text in without_literals(source, path.suffix)[:line]:
+        declared = declared_name(text, path.suffix)
+        # The owner of the line is the stack as it stands before the line's own braces open, so a
+        # declaration belongs to its parent while its body belongs to it.
+        owner = next((entry for entry in reversed(stack) if entry), None)
+        opened, statement = [], depth == 0
+        for character in text:
+            if character == "{":
+                opened.append((len(stack), depth))
+                stack.append(None)
+            elif character == "}" and stack:
+                if opened and opened[-1][0] == len(stack) - 1:
+                    opened.pop()
+                stack.pop()
+            elif character == "(":
+                depth += 1
+            elif character == ")":
+                depth = max(depth - 1, 0)
+        stripped = text.strip()
+        label = declared if declared is not None else pending
+        if opened:
+            # A declaration's body brace stands outside every argument list, so only a `{` at
+            # parenthesis depth zero can carry the name. That skips the object literal in
+            # `emit(this._store, value => {` while still reaching the body in
+            # `(): { a: b } {`, whose type-literal frame closed again on the same line.
+            body = next((position for position, level in opened if level == 0), None)
+            if label is not None and body is not None:
+                stack[body] = label
+            pending = None
+        elif declared is not None and statement and not stripped.endswith((";", ",")):
+            # A wrapped TypeScript signature or a Rust `where` clause puts the body brace on a
+            # later line; the name waits for it. Only a header that starts its own statement may
+            # wait - an argument such as `getActiveWindow(),` on the next line of a call is not a
+            # declaration, and letting it wait names the callback that follows it.
+            pending = declared
+        elif stripped.endswith((";", "}")) or not stripped:
+            pending = None
+        if stripped.endswith((";", "}")) or not stripped:
+            # A statement cannot continue past its terminator, so depth resyncs here. Without
+            # this, one unbalanced parenthesis inside a regex literal leaves every later body
+            # brace looking like an argument and silently unnames the rest of the file.
+            depth = 0
+    return owner
 
 
 def true_callers(corpus, name, defining_path):
