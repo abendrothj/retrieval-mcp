@@ -1,0 +1,84 @@
+[
+ {
+  "id": "cu-callers-01",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "src/uucore/src/lib/features/pipes.rs::send_n_bytes",
+  "hops": 1,
+  "exhaustive": true,
+  "caller_key": "callers",
+  "question": "The shared pipe layer exposes one zero-copy helper that transfers a bounded number of bytes from one file descriptor to another, splicing through a cached broker pipe and reporting how many bytes it actually moved. Name every function in this corpus that calls that helper directly, exhaustively, each as a qualified symbol of the form path::function.",
+  "expected_json": {
+   "answer": {
+    "callers": [
+     "src/uu/head/src/head.rs::print_n_bytes",
+     "src/uu/tail/src/tail.rs::print_target_section"
+    ]
+   }
+  },
+  "rejected_alternates": [
+   "src/uucore/src/lib/features/buf_copy.rs::copy_fast",
+   "src/uu/head/src/head.rs::head_backwards_file",
+   "src/uu/tail/src/tail.rs::tail_stdin"
+  ],
+  "evidence": [
+   {
+    "path": "src/uucore/src/lib/features/pipes.rs",
+    "contains": "pub fn send_n_bytes(input: impl AsFd, target: impl AsFd, n: u64) -> std::io::Result<u64> {"
+   },
+   {
+    "path": "src/uu/head/src/head.rs",
+    "contains": "uucore::pipes::send_n_bytes(input, &out, n).map_err(wrap_in_stdout_error)"
+   },
+   {
+    "path": "src/uu/tail/src/tail.rs",
+    "contains": "uucore::pipes::send_n_bytes(file, &mut stdout, limit)?;"
+   }
+  ],
+  "author_notes": "The caller set is exactly what an independent ripgrep enumeration of `send_n_bytes(` outside the defining module finds: head.rs:219 inside the Linux variant of print_n_bytes, and tail.rs:582 inside print_target_section. There are no other call sites in production code, benches or tests, and both sites sit directly in a function body rather than in a closure or match arm, so the attribution is stable. The answer is the only defensible one because exhaustiveness is the question: any set missing either name is incomplete, and any set with a third name claims a call site the corpus does not contain. copy_fast is wrong because it calls the unbounded splice helper next door in the same module, not the bounded one asked about. head_backwards_file is wrong because it is the seek-versus-stream chooser in the same file and reaches the pipe layer, if at all, only through other functions. tail_stdin is wrong because it dispatches an input kind and does no transferring itself; it is a plausible near miss precisely because it lives in the same file as a real caller."
+ },
+ {
+  "id": "cu-callers-02",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "src/uucore/src/lib/features/parser/parse_size.rs::with_allow_list",
+  "hops": 1,
+  "exhaustive": true,
+  "caller_key": "callers",
+  "question": "The shared size-argument parser is a builder, and one of its builder methods narrows the parser to a whitelist of unit suffixes, so that a utility can reject the multipliers the generic parser would otherwise accept. Name every function in this corpus that configures a parser through that method, exhaustively, each as a qualified symbol of the form path::function.",
+  "expected_json": {
+   "answer": {
+    "callers": [
+     "src/uu/sort/src/sort.rs::parse_byte_count",
+     "src/uu/truncate/src/truncate.rs::parse_mode_and_size",
+     "src/uucore/src/lib/features/parser/parse_signed_num.rs::parse_count"
+    ]
+   }
+  },
+  "rejected_alternates": [
+   "src/uucore/src/lib/features/parser/parse_size.rs::allow_list_with_all_suffixes",
+   "src/uucore/src/lib/features/parser/parse_size.rs::with_default_unit",
+   "src/uu/head/src/parse.rs::parse_num",
+   "src/uu/ls/src/config.rs::from"
+  ],
+  "evidence": [
+   {
+    "path": "src/uucore/src/lib/features/parser/parse_size.rs",
+    "contains": "pub fn with_allow_list(&mut self, allow_list: &'parser [&str]) -> &mut Self {"
+   },
+   {
+    "path": "src/uu/sort/src/sort.rs",
+    "contains": ".with_allow_list(&["
+   },
+   {
+    "path": "src/uu/truncate/src/truncate.rs",
+    "contains": ".with_allow_list(&allow_list_ref)"
+   },
+   {
+    "path": "src/uucore/src/lib/features/parser/parse_signed_num.rs",
+    "contains": ".with_allow_list(&allow_list)"
+   }
+  ],
+  "author_notes": "An independent ripgrep enumeration of `with_allow_list(` outside the defining file yields exactly three call sites - sort.rs:354 inside parse_byte_count, truncate.rs:469 inside parse_mode_and_size, and parse_signed_num.rs:34 inside parse_count - and every one of them sits directly in a function body, so the attribution does not depend on closure or match-arm handling. The set is the only defensible answer because the question asks for all of them: dropping any name understates the fan-in, and adding one claims a call the corpus does not show. allow_list_with_all_suffixes is wrong because it only builds the list of accepted suffixes; two of the three real callers pass its output into the method, which makes it the most tempting near miss and still not a caller of the method in question. with_default_unit is wrong because it is a sibling builder method, not a caller. parse_num is wrong because head's numeric option parsing reaches the whitelist only indirectly, through the shared helper that is itself one of the three answers. ls's config conversion is wrong for the same reason: it parses a block size through a different entry point that never touches this builder method."
+ }
+]

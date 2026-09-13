@@ -1179,7 +1179,13 @@ fn is_import(kind: &str) -> bool {
 
 fn owner(mut node: Node<'_>, source: &str) -> Option<String> {
     while let Some(parent) = node.parent() {
+        // A call inside `const enterAction = getEnterAction(...)` sits in the function that holds
+        // the binding, not in the binding: the symbol index already refuses to index a declarator
+        // that is not a function, and attributing a caller to one asserts a definition that this
+        // index does not believe exists. Measured on VS Code 1.96, the three call sites of
+        // getEnterAction were reported as `enterAction`, `r` and `expectedEnterAction`.
         if (is_definition(parent.kind()) || parent.kind() == "impl_item")
+            && holds_definition(parent)
             && let Some(name) = parent
                 .child_by_field_name("name")
                 .or_else(|| parent.child_by_field_name("type"))
@@ -1744,6 +1750,42 @@ mod tests {
         let checksum = index.search_concept(&ws, "checksum of bytes", None, 1).unwrap();
         assert_eq!(checksum[0].start_line, 3);
         assert!(index.search_concept(&ws, "  ", None, 5).is_err());
+    }
+
+    /// A call written into a local binding belongs to the function holding the binding. Reported
+    /// as the binding, an exhaustive caller answer names a const that no caller could verify: on
+    /// VS Code 1.96 every caller row for `getEnterAction` named `enterAction`, `r` or
+    /// `expectedEnterAction` instead of the three methods the corpus actually defines.
+    #[test]
+    fn a_call_bound_to_a_local_const_is_attributed_to_its_enclosing_function() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("indent.ts"),
+            "export function getEnterAction(line: number) { return line; }\n\
+             export class ShiftCommand {\n\
+             \tgetEditOperations(line: number) {\n\
+             \t\tconst enterAction = getEnterAction(line);\n\
+             \t\treturn enterAction;\n\
+             \t}\n\
+             }\n\
+             export const run = (line: number) => getEnterAction(line);\n",
+        )
+        .unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index =
+            StructuralIndex::from_files(&ws, vec!["indent.ts".into()], Duration::from_secs(5))
+                .unwrap();
+        let callers: Vec<_> = index
+            .references
+            .iter()
+            .filter(|reference| reference.name == "getEnterAction" && reference.kind == "call")
+            .filter_map(|reference| reference.caller.clone())
+            .collect();
+        assert_eq!(
+            callers,
+            vec!["getEditOperations".to_string(), "run".to_string()],
+            "a local const is not a caller; an arrow function bound to a const is"
+        );
     }
     #[test]
     fn typescript_definitions_calls_and_generic_names_are_indexed() {

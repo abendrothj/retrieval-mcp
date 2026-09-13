@@ -25,6 +25,7 @@ artifacts, caveats, and the commands that produced it.
 | 12 | Do post-freeze index changes earn their place? | [One of three did](#three-index-changes-one-survivor): doc comments in the chunk nearly doubled offline MRR; markdown chunks and macro-argument calls were reverted on their own evidence |
 | 13 | Does the v0.1.2 ranking gain reach the agent? | [No, and it still beats zvec](#layer-2-four-arms-120-trials-claude-sonnet-4-6): offline v0.1.2 goes from behind zvec to ahead (MRR 0.126 → 0.234 vs 0.165), but end to end on 120 trials it ties v0.1.1 while both beat zvec-grep 28–29/30 against 25 at 36% fewer total tokens |
 | 14 | Is the 9 KB of advertised output schema a token tax? | [No — the client never forwards it](#layer-3-the-schema-diet-and-the-saving-that-was-not-there): a pre-registered ≥15% context cut came out at −0.1%, and the same measurement showed this server's model-facing surface is 1,450 tokens *smaller* than zvec's, not larger |
+| 15 | Does an enclosing-container line fix wrong-level answers? | [Undecided, and it found a bug](#layer-4-the-container-line-and-the-bug-it-was-hiding): no wrong_level error occurred in 36 trials, but caller rows were naming local consts as callers, and fixing that cut source reads 66% |
 
 **The result in one line.** On a sealed 30-question held-out set, this server matched zvec-grep at
 29/30 on the same 78 tool calls while spending 24% fewer input tokens and carrying 34% less
@@ -1163,6 +1164,59 @@ What survives: **on three corpora and a suite none of the systems had seen, both
 server beat zvec-grep 0.2.2 on quality, total context and speed to first evidence, and the
 doc-comment change is a ranking improvement that an agent loop does not need.** Artifacts in
 `runs/perf-v020-20260912/`.
+
+
+### Layer 4: the container line, and the bug it was hiding
+
+All three remaining quality misses were `wrong_level` - the right member named under the wrong
+container - so the next intervention was the smallest thing that could fix it: the enclosing
+container identity on caller rows and on `search_concept`'s symbol block, and nothing else. No
+outlines, no member listings. Pre-registered on the caller bucket alone, six questions, two arms,
+**three repetitions**, because one-question signals have misled this project before.
+
+Building the treatment found a defect first. `owner()` accepted any definition-shaped parent,
+including a TypeScript `variable_declarator` that the symbol index itself refuses to index, so a
+call written into a local binding was attributed to the binding. On the vs-editor corpus the three
+call sites of `getEnterAction` were reported as `enterAction`, `r` and `expectedEnterAction`, and
+both call sites of `guessIndentation` as `guessedIndentation`. **Every caller row on both graded
+TypeScript questions named a local const rather than a function.** With the same guard the symbol
+index applies, those five rows read `ShiftCommand::getEditOperations`, `EnterOperation::_enter`,
+`TabOperation::_goodIndentForLine`, `TextModel::resolveOptions` and `TextModel::detectIndentation`
+- the two gold sets exactly. The row was not missing a level; it was naming the wrong definition.
+
+36 trials, `claude-sonnet-4-6`:
+
+| | baseline | + container | 
+|---|---:|---:|
+| Correct / 18 | **15** | 14 |
+| Graded credit | **0.944** | 0.907 |
+| `wrong_level` errors | 0 | 0 |
+| Calls, mean | 3.28 | **2.50** |
+| `read_source` per trial | 0.83 | **0.28** |
+| Input tokens, total | 677,601 | **487,924** |
+| Input tokens, median | **25,138** | 25,644 |
+| Input tokens, worst trial | 107,670 | **42,130** |
+| Answered without evidence | **0** | 1 |
+
+**The primary endpoint could not be demonstrated: zero `wrong_level` errors occurred in either
+arm.** The Layer 2 failure did not reproduce in three repetitions, so there was nothing to reduce -
+which is what three repetitions are for. Correctness differs by one repetition of one question, and
+the audit says it is a routing error rather than a row defect: the model called `find_callers` on
+`getIndentForEnter`, a symbol the question never describes, took its single row and committed.
+`unretrieved_identities` names the gold it never retrieved, so the safety flag is correct.
+
+What the intervention did do is remove recovery work: `read_source` calls fell 66%, mean calls
+3.28 → 2.50, and the worst trial dropped from 107,670 input tokens to 42,130. The median is
+unchanged; the whole saving is in the tail, because the model no longer re-reads source to work out
+which function a call site sits in. Payload grew 0.9-6.0% per response, as predicted.
+
+By the pre-registered rule the bundle does not ship: the endpoint was not demonstrated, correctness
+was not held, and a guardrail moved. But the two halves are not the same kind of change. A row
+naming a local `const` as a caller is a false statement about the corpus, so **the attribution guard
+ships on its own**, with a regression test pinning that a call bound to a local const is attributed
+to its enclosing function while an arrow function bound to a const is still a caller. The container
+fields do not ship. This run cannot attribute the 66% drop in source reads between the two halves,
+so the next A/B is bugfix-only against bugfix-plus-container-fields on the same six questions.
 
 
 ## Native-system comparison

@@ -1,0 +1,84 @@
+[
+ {
+  "id": "dj-tag-keyword-argument-parser-callers",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "question": "django/template/base.py defines a module-level helper that strips keyword arguments off the front of a template tag's remaining bit list - accepting the standard foo=1 spelling, and optionally also the legacy `1 as foo` spelling chained with `and` - deleting the bits it consumes from the caller's list and compiling each right-hand side into a filter expression, returning as soon as it meets a bit it cannot accept. Enumerate every definition elsewhere in this corpus that calls it. Return a JSON list of strings, each one a qualified symbol as path::name.",
+  "expected_json": {
+   "answer": [
+    "django/template/defaulttags.py::do_with",
+    "django/template/library.py::parse_bits",
+    "django/template/loader_tags.py::do_include",
+    "django/templatetags/i18n.py::do_block_translate"
+   ]
+  },
+  "helper": "django/template/base.py::token_kwargs",
+  "hops": 1,
+  "exhaustive": true,
+  "rejected_alternates": [
+   "django/template/defaulttags.py::do_for",
+   "django/template/loader_tags.py::do_extends",
+   "django/template/base.py::Parser.compile_filter",
+   "django/templatetags/i18n.py::do_translate"
+  ],
+  "evidence": [
+   {
+    "path": "django/template/base.py",
+    "contains": "def token_kwargs(bits, parser, support_legacy=False):"
+   },
+   {
+    "path": "django/template/defaulttags.py",
+    "contains": "    extra_context = token_kwargs(remaining_bits, parser, support_legacy=True)"
+   },
+   {
+    "path": "django/template/library.py",
+    "contains": "        kwarg = token_kwargs([bit], parser)"
+   },
+   {
+    "path": "django/template/loader_tags.py",
+    "contains": "            value = token_kwargs(remaining_bits, parser, support_legacy=False)"
+   },
+   {
+    "path": "django/templatetags/i18n.py",
+    "contains": "            value = token_kwargs(remaining_bits, parser, support_legacy=True)"
+   }
+  ],
+  "author_notes": "Exhaustive caller set, enumerated by ripgrep for `token_kwargs\\(` over this corpus only and attributed to the enclosing definition: four compile functions in four different files, two of them in packages other than django/template. Besides those four attributed call sites, ripgrep also matches the definition line itself and a second call in the `count` branch of the same i18n compile function, which collapses onto the caller already listed. All four gold leaves are defined exactly once in the corpus, so prose naming them can be scored, and none of the four appears in the question text. Rejected alternates are the neighbouring compile functions in the same files that parse their own bits by hand instead."
+ },
+ {
+  "id": "dj-dotted-view-import-helper-callers",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "question": "django/urls/utils.py defines a cached helper that returns the callable designated by a dotted import path, returning the argument unchanged when it is already callable, and raising ViewDoesNotExist when the argument is neither a callable nor a dotted string, when the parent module is absent, or when the named attribute is missing or not callable. Enumerate every definition outside that module which calls it. Return a JSON list of strings, each one a qualified symbol as path::name.",
+  "expected_json": {
+   "answer": [
+    "django/middleware/csrf.py::_get_failure_view",
+    "django/urls/resolvers.py::URLResolver::resolve_error_handler"
+   ]
+  },
+  "helper": "django/urls/utils.py::get_callable",
+  "hops": 1,
+  "exhaustive": true,
+  "rejected_alternates": [
+   "django/urls/utils.py::get_mod_func",
+   "django/urls/resolvers.py::URLResolver.resolve",
+   "django/middleware/csrf.py::CsrfViewMiddleware.process_view",
+   "django/urls/base.py::reverse"
+  ],
+  "evidence": [
+   {
+    "path": "django/urls/utils.py",
+    "contains": "def get_callable(lookup_view):"
+   },
+   {
+    "path": "django/middleware/csrf.py",
+    "contains": "    return get_callable(settings.CSRF_FAILURE_VIEW)"
+   },
+   {
+    "path": "django/urls/resolvers.py",
+    "contains": "        return get_callable(callback)"
+   }
+  ],
+  "author_notes": "Exhaustive caller set over this corpus only, enumerated by ripgrep for `get_callable\\(`: exactly two call sites outside the defining module, one in the CSRF middleware resolving the configured failure view and one in URLResolver where the handler404/handler500 names are turned into views. The `from django.urls import get_callable` import line is not a call and is correctly not counted. Both gold leaves are defined once each in the corpus and neither appears in the question text; the helper is described by its documented contract instead of by name. Rejected alternates are its own sibling in the same module, the resolver method a topical match reaches first, and the middleware hook that consumes the failure view further down."
+ }
+]

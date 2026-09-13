@@ -1,0 +1,77 @@
+[
+ {
+  "id": "vs-callers-indentation-inference",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "src/vs/editor/common/model/indentationGuesser.ts::guessIndentation",
+  "hops": 1,
+  "exhaustive": true,
+  "question": "A helper in the text-model layer reads at most the first ten thousand lines of a buffer, counts how many of them begin with a tab versus how many begin with two or more blanks, scores the plausible step widths between the leading whitespace of consecutive non-blank lines while discarding lines that merely look like continuation alignment, and returns both a step width and whether blanks are in use. Identify every definition outside that helper's own module that calls it directly, attributing each call to the definition that encloses it. Return a JSON list of path::name.",
+  "expected_json": {
+   "answer": [
+    "src/vs/editor/common/model/textModel.ts::TextModel::resolveOptions",
+    "src/vs/editor/common/model/textModel.ts::TextModel::detectIndentation"
+   ]
+  },
+  "rejected_alternates": [
+   "src/vs/editor/common/model/textModel.ts::TextModel::normalizeIndentation",
+   "src/vs/editor/common/services/modelService.ts::updateModel",
+   "src/vs/editor/common/model/indentationGuesser.ts::spacesDiff"
+  ],
+  "evidence": [
+   {
+    "path": "src/vs/editor/common/model/indentationGuesser.ts",
+    "contains": "export function guessIndentation(source: ITextBuffer, defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {"
+   },
+   {
+    "path": "src/vs/editor/common/model/textModel.ts",
+    "contains": "const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces);"
+   },
+   {
+    "path": "src/vs/editor/common/model/textModel.ts",
+    "contains": "const guessedIndentation = guessIndentation(this._buffer, defaultTabSize, defaultInsertSpaces);"
+   }
+  ],
+  "author_notes": "An independent ripgrep enumeration over this corpus finds the helper named on five lines: its own definition and a doc-comment mention in indentationGuesser.ts, the import in textModel.ts, and exactly two call sites, both in textModel.ts. The call at textModel.ts:198 sits inside the static TextModel.resolveOptions, which only consults the guesser when the creation options ask for it; the call at textModel.ts:680 sits inside the instance method TextModel.detectIndentation, which feeds the guess straight into updateOptions. No other module calls it, so the set of two is exhaustive. The helper is described by behaviour rather than named, so a lexical arm must first find it and then pay one read to learn which definitions enclose the two hits, which is the asymmetry this bucket measures."
+ },
+ {
+  "id": "vs-callers-enter-rule-resolution",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "src/vs/editor/common/languages/enterAction.ts::getEnterAction",
+  "hops": 1,
+  "exhaustive": true,
+  "question": "A helper in the language-configuration layer takes an auto-indent strategy, a model and a range, forces the start line to be tokenized, asks the language's on-enter rules what should happen given the previous line and the text on either side of the range, and returns the resulting indent action together with the text to append, the number of characters to strip and the indentation currently at the position. Identify every definition outside that helper's own module that calls it directly, attributing each call to the definition that encloses it. Return a JSON list of path::name.",
+  "expected_json": {
+   "answer": [
+    "src/vs/editor/common/commands/shiftCommand.ts::ShiftCommand::getEditOperations",
+    "src/vs/editor/common/cursor/cursorTypeEditOperations.ts::EnterOperation::_enter",
+    "src/vs/editor/common/cursor/cursorTypeEditOperations.ts::TabOperation::_goodIndentForLine"
+   ]
+  },
+  "rejected_alternates": [
+   "src/vs/editor/common/languages/enterAction.ts::getEnterAction",
+   "src/vs/editor/common/languages/autoIndent.ts::getIndentForEnter",
+   "src/vs/editor/common/languages/languageConfigurationRegistry.ts::getIndentationAtPosition"
+  ],
+  "evidence": [
+   {
+    "path": "src/vs/editor/common/languages/enterAction.ts",
+    "contains": "export function getEnterAction("
+   },
+   {
+    "path": "src/vs/editor/common/commands/shiftCommand.ts",
+    "contains": "const enterAction = getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)), this._languageConfigurationService);"
+   },
+   {
+    "path": "src/vs/editor/common/cursor/cursorTypeEditOperations.ts",
+    "contains": "const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);"
+   },
+   {
+    "path": "src/vs/editor/common/cursor/cursorTypeEditOperations.ts",
+    "contains": "const expectedEnterAction = getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn), config.languageConfigurationService);"
+   }
+  ],
+  "author_notes": "An independent ripgrep enumeration over this corpus finds five occurrences of the helper name: the definition in enterAction.ts, two imports, and exactly three call sites outside its module. shiftCommand.ts:150 is inside ShiftCommand.getEditOperations; cursorTypeEditOperations.ts:543 is inside the private static EnterOperation._enter (declared at line 534); cursorTypeEditOperations.ts:836 is inside the private static TabOperation._goodIndentForLine (declared at line 815). The set of three is therefore exhaustive. One gold leaf, getEditOperations, is defined five times in this corpus, so the answer format demanded is path::name, which is also what lets the frozen grader score it; the helper itself and two neighbouring indentation helpers that are not callers are the rejected alternates."
+ }
+]
