@@ -26,6 +26,7 @@ artifacts, caveats, and the commands that produced it.
 | 13 | Does the v0.1.2 ranking gain reach the agent? | [No, and it still beats zvec](#layer-2-four-arms-120-trials-claude-sonnet-4-6): offline v0.1.2 goes from behind zvec to ahead (MRR 0.126 → 0.234 vs 0.165), but end to end on 120 trials it ties v0.1.1 while both beat zvec-grep 28–29/30 against 25 at 36% fewer total tokens |
 | 14 | Is the 9 KB of advertised output schema a token tax? | [No — the client never forwards it](#layer-3-the-schema-diet-and-the-saving-that-was-not-there): a pre-registered ≥15% context cut came out at −0.1%, and the same measurement showed this server's model-facing surface is 1,450 tokens *smaller* than zvec's, not larger |
 | 15 | Does an enclosing-container line fix wrong-level answers? | [Undecided, and it found a bug](#layer-4-the-container-line-and-the-bug-it-was-hiding): no wrong_level error occurred in 36 trials, but caller rows were naming local consts as callers, and fixing that cut source reads 66% |
+| 16 | Was that the fix or the feature? | [The fix](#layers-5-and-6-isolating-the-feature-from-the-fix): isolated, the container fields move nothing and the attribution guard cuts source reads 74%, calls 30%, total tokens 39.5% and the worst trial 81%, at identical correctness |
 
 **The result in one line.** On a sealed 30-question held-out set, this server matched zvec-grep at
 29/30 on the same 78 tool calls while spending 24% fewer input tokens and carrying 34% less
@@ -1217,6 +1218,47 @@ ships on its own**, with a regression test pinning that a call bound to a local 
 to its enclosing function while an arrow function bound to a const is still a caller. The container
 fields do not ship. This run cannot attribute the 66% drop in source reads between the two halves,
 so the next A/B is bugfix-only against bugfix-plus-container-fields on the same six questions.
+
+
+### Layers 5 and 6: isolating the feature from the fix
+
+Layer 4 bundled a correctness fix with a feature, so its efficiency could not be credited to either.
+Two more runs separate them, six questions and three repetitions each, everything else frozen.
+
+**Layer 5, against a baseline whose caller rows are already correct, the container fields move
+nothing.** `read_source` per trial is 0.28 in both arms, mean calls 2.39 in both, total input tokens
+rise 4%, median 5.8%, retrieval bytes 21.8%. Correctness 12 of 18 against 13. The fields are not
+shipped: there is no measured benefit to weigh the payload against.
+
+**Layer 6 isolates the guard with the seed held equal, and it is free and large:**
+
+| | pre-guard | post-guard |
+|---|---:|---:|
+| Correct / 18 | 15 | 15 |
+| Graded credit | 0.944 | 0.944 |
+| `read_source` per trial | 0.83 | **0.22** (−74%) |
+| Calls, mean | 3.67 | **2.56** (−30%) |
+| Input tokens, total | 773,300 | **467,775** (−39.5%) |
+| Input tokens, worst trial | 158,376 | **30,098** (−81%) |
+| Answered without evidence | 0 | 0 |
+
+So Layer 4's entire efficiency signal belongs to the attribution guard — the correctness fix — and
+none of it to the container identity that was the hypothesis. Correct rows stop the model
+re-reading source to work out which function a call site sits in; a container label on rows that
+were already right buys nothing.
+
+One more thing happened on the way, and it is the most useful part. Layer 5 appeared to show the
+shipped guard *costing* answers: `vs-callers-enter-rule-resolution` scored 1 of 3 where the
+pre-guard arm had scored 3 of 3, and the call traces even offered a mechanism — before the fix the
+model had to read source, and while doing so it stumbled onto the helper the question describes.
+Layer 6 ran that exact configuration again — same binary, same seed, same questions — and scored
+**3 of 3**. The cell is model variance, not a treatment effect. Pooled across every run, that one
+question scored full credit in 10 of 12 trials without the container fields and 2 of 6 with them,
+which is the only evidence that has ever pointed at the fields at all, and it points the wrong way
+for them.
+
+The rule this project keeps re-learning, in its sharpest form yet: a single three-repetition cell is
+not a finding, even when a plausible mechanism is sitting right next to it.
 
 
 ## Native-system comparison
