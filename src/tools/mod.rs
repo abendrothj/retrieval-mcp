@@ -219,8 +219,14 @@ impl RetrievalServer {
     async fn concept(&self, args: Value) -> Result<ConceptResult> {
         let args: ConceptArgs = serde_json::from_value(args)?;
         let ranker = self.config.ranker;
-        let wanted = args.limit.unwrap_or(10);
-        let offset = args.offset.unwrap_or(0);
+        // The same bounds `search_exact` enforces, applied before the ranker is chosen: the
+        // backend path validated its own page while the in-process path did not, so `limit: 1000`
+        // was quietly answered with 100 rows and `offset: 99999` with an empty page that looked
+        // like an absence. A page the caller did not ask for is a wrong answer, not a lenient one.
+        let (wanted, offset) = crate::search::lexical::pagination(
+            Some(args.limit.unwrap_or(10)),
+            Some(args.offset.unwrap_or(0)),
+        )?;
         let include_excerpt = args
             .fields
             .as_deref()

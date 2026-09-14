@@ -7,14 +7,14 @@
     "src/lib.rs": "3491d7f875642a69c473c5609a14c4671f9754ff0ef9e29b6ebacb6c2257d153",
     "src/main.rs": "91420329e044b8c2316bf278a44147318df47a55b0eae6cb0a4857ab6beba1b2",
     "src/config/mod.rs": "a5984a1a3d66bfba23bb1b835eedf7e9562a007a1069c9f3264112af44b70c73",
-    "src/index/mod.rs": "2bd6f0b85876fa0c3659106953caf90181f42e662a84fd390b16131dbe64350e",
+    "src/index/mod.rs": "ce90c3c0728b4e30fa66d1ad870c61e3eb1822978fbd47547eb9f25ff214019b",
     "src/logging/mod.rs": "45cc308d50c77ead9cebae858aba354613988dcf46fb76d8f9c0088eabf3ac8e",
     "src/search/mod.rs": "b90120e8ed00b2871344807d4f914beea1edf6e2ee1d00a400dda7aad80f2e5f",
     "src/search/lexical.rs": "87dbc11445a75715465ee4508873fe6db0e93821c7299e131efe2c939a400bd0",
     "src/search/process.rs": "e374206308a7df2ba39a1227e69b1f2749cec7cee21f63a59f8c5ef39086d770",
     "src/search/semantic.rs": "b9eca5bb6518ce260be717c8ecbc57761e9bd3ec3fe10d1fd520c12ded78f57a",
     "src/source/mod.rs": "82c7f29fd3cbcaf1803267be10f52dbe87d9f58d222d86265da27b04649bb30e",
-    "src/tools/mod.rs": "fb2268d6d36edd6647170d5d48aa05c1612e4d1df80e993ba7705ef9b39decb8",
+    "src/tools/mod.rs": "909bfb04f5c0b1b651502bd573c6b1bf84c45d0c1900a4b34d2bab87085676f8",
     "examples/ollama_backend.rs": "413f40ece28b28f6d711062dc9d79e8f570b7cfcf72665ce46ff0f3db443717e",
     "examples/support/cache.rs": "56d98597c67919fd26c73dd696398712d989f46e39b58b2d2e68e9384dd377eb"
   },
@@ -312,7 +312,7 @@
       "question": "Which distinct production methods or functions under src/ directly call Workspace::text? Exclude tests and examples; do not include transitive callers. Return the set of qualified symbols.",
       "expected_json": {
         "answer": [
-          "src/index/mod.rs::StructuralIndex::from_files",
+          "src/index/mod.rs::parse_batch",
           "src/search/semantic.rs::validate_response",
           "src/source/mod.rs::Workspace::read"
         ]
@@ -322,7 +322,7 @@
         {
           "path": "src/index/mod.rs",
           "contains": [
-            "workspace.text(&file)"
+            "let Ok(source) = workspace.text(file) else"
           ]
         },
         {
@@ -338,7 +338,8 @@
           ]
         }
       ],
-      "notes": "Three direct callers, including calls not fully represented in the authoring graph."
+      "notes": "Three direct callers, including calls not fully represented in the authoring graph.",
+      "author_notes": " REPAIRED 2026-09-13: the snapshot now reads and parses files in parse_batch, on every core, so the call sites moved out of StructuralIndex::from_files by one hop."
     },
     {
       "id": "callers-reference-builder",
@@ -386,7 +387,7 @@
           "path": "src/index/mod.rs",
           "contains": [
             "Self::from_files(",
-            "workspace.text(&file)"
+            "let Ok(source) = workspace.text(file) else"
           ]
         },
         {
@@ -403,7 +404,8 @@
           ]
         }
       ],
-      "notes": "Can-reach relation, not unconditional execution; lexical search never calls Workspace::text."
+      "notes": "Can-reach relation, not unconditional execution; lexical search never calls Workspace::text.",
+      "author_notes": " REPAIRED 2026-09-13: the snapshot now reads and parses files in parse_batch, on every core, so the call sites moved out of StructuralIndex::from_files by one hop. The tool set that can reach Workspace::text is unchanged; only the anchor moved."
     },
     {
       "id": "blast-child-cap-tools",
@@ -450,6 +452,7 @@
           "src/tools/mod.rs::RetrievalServer::index",
           "src/index/mod.rs::StructuralIndex::build",
           "src/index/mod.rs::StructuralIndex::from_files",
+          "src/index/mod.rs::parse_batch",
           "src/index/mod.rs::parse_file"
         ]
       },
@@ -466,11 +469,13 @@
           "path": "src/index/mod.rs",
           "contains": [
             "Self::from_files(",
-            "match parse_file("
+            "parse_batch(workspace, batch",
+            "let parsed = parse_file(file, &source, remaining);"
           ]
         }
       ],
-      "notes": "Six source-level hops including async closures, no fabricated generic-library nodes."
+      "notes": "Six source-level hops including async closures, no fabricated generic-library nodes.",
+      "author_notes": " REPAIRED 2026-09-13: the snapshot now reads and parses files in parse_batch, on every core, so the call sites moved out of StructuralIndex::from_files by one hop. The chain gains parse_batch between from_files and parse_file."
     },
     {
       "id": "blast-log-writer",

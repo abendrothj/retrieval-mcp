@@ -261,6 +261,31 @@ async fn profiles_and_structural_queries_over_stdio() {
     }
 }
 
+/// Both rankers page by the same rule. The in-process one used to answer `limit: 1000` with 100
+/// rows and `offset: 99999` with an empty page, which reads as "nothing here" rather than "you
+/// asked for a page that cannot exist".
+#[tokio::test]
+async fn concept_search_enforces_the_page_bounds_it_documents() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("sample.rs"), "/// Wrap text.\nfn wrap() {}\n").unwrap();
+    let mut client = Client::start(root.path(), "C").await;
+    for (arguments, expected) in [
+        (json!({"query": "wrap text", "limit": 1000}), "limit must be 1..100"),
+        (json!({"query": "wrap text", "limit": 0}), "limit must be 1..100"),
+        (json!({"query": "wrap text", "offset": 99999}), "offset must be 0..10000"),
+    ] {
+        let result = client.tool("search_concept", arguments.clone()).await;
+        assert_eq!(result["isError"], true, "{arguments} -> {result}");
+        let error = result["structuredContent"]["error"].as_str().unwrap();
+        assert!(error.contains(expected), "{arguments} -> {error}");
+    }
+    let page = client
+        .tool("search_concept", json!({"query": "wrap text", "limit": 5}))
+        .await;
+    assert_ne!(page["isError"], true, "{page}");
+    client.stop().await;
+}
+
 #[tokio::test]
 async fn an_explicit_tool_list_gates_exactly_what_it_names() {
     let root = tempfile::tempdir().unwrap();

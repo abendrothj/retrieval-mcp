@@ -479,35 +479,44 @@ impl StructuralIndex {
         let started = Instant::now();
         let mut total_bytes = 0;
         let mut total_records = 0;
+        // Parsing is the expensive half of a snapshot and is embarrassingly parallel; merging is
+        // not, because symbol and reference order is part of the answer. Files are read and parsed
+        // a batch at a time across every available core and then merged in path order, so the
+        // snapshot is what a single-threaded build produces and only the wall clock changes.
+        let mut eligible = Vec::new();
         for file in files {
-            let extension = Path::new(&file).extension().and_then(|s| s.to_str());
-            if !matches!(extension, Some("rs" | "py" | "ts" | "tsx")) {
-                index.coverage.unsupported_files += 1;
-                continue;
+            match Path::new(&file).extension().and_then(|s| s.to_str()) {
+                Some("rs" | "py" | "ts" | "tsx") => eligible.push(file),
+                _ => index.coverage.unsupported_files += 1,
             }
-            index.coverage.eligible_files += 1;
-            // Bounded full snapshots suit small repositories; replace with incremental storage when these ceilings matter.
-            if index.coverage.indexed_files >= Budget::FILES
-                || total_bytes >= Budget::BYTES
-                || total_records >= Budget::RECORDS
-                || started.elapsed() >= timeout
-            {
-                // A file never scanned is not a file searched and found empty. Say so once here,
-                // rather than leaving the caller to infer it from a skip count.
-                index.coverage.budget_truncated = true;
-                index.skip(&file, "snapshot budget reached");
-                continue;
-            }
-            let source = match workspace.text(&file) {
-                Ok(s) => s,
-                Err(_) => {
-                    index.skip(&file, "unreadable, oversized, binary, or unsafe path");
+        }
+        index.coverage.eligible_files = eligible.len();
+        let workers = std::thread::available_parallelism().map_or(1, |count| count.get());
+        for batch in eligible.chunks(256) {
+            // One deadline per batch: a per-file remainder would make the snapshot depend on the
+            // order threads happened to finish in.
+            let remaining = timeout.saturating_sub(started.elapsed());
+            let parsed = parse_batch(workspace, batch, remaining, workers);
+            for (file, outcome) in parsed {
+                // Bounded full snapshots suit small repositories; replace with incremental storage
+                // when these ceilings matter.
+                if index.coverage.indexed_files >= Budget::FILES
+                    || total_bytes >= Budget::BYTES
+                    || total_records >= Budget::RECORDS
+                    || started.elapsed() >= timeout
+                {
+                    // A file never scanned is not a file searched and found empty. Say so once
+                    // here, rather than leaving the caller to infer it from a skip count.
+                    index.coverage.budget_truncated = true;
+                    index.skip(&file, "snapshot budget reached");
                     continue;
                 }
-            };
-            total_bytes += source.len();
-            let remaining = timeout.saturating_sub(started.elapsed());
-            match parse_file(&file, &source, remaining) {
+                let Some((source, parsed)) = outcome else {
+                    index.skip(&file, "unreadable, oversized, binary, or unsafe path");
+                    continue;
+                };
+                total_bytes += source.len();
+                match parsed {
                 Ok(parsed) => {
                     if parsed.has_error {
                         index.coverage.parse_error_files += 1;
@@ -580,7 +589,10 @@ impl StructuralIndex {
                     index.imports.extend(parsed.imports);
                     index.coverage.indexed_files += 1;
                 }
-                Err(_) => index.skip(&file, "parser timeout or per-file syntax budget exceeded"),
+                    Err(_) => {
+                        index.skip(&file, "parser timeout or per-file syntax budget exceeded")
+                    }
+                }
             }
         }
         for import in &mut index.imports {
@@ -1117,6 +1129,43 @@ impl StructuralIndex {
     }
 }
 
+
+/// Read and parse one batch of files across `workers` threads, returning results in the order the
+/// batch names them. Ordering is the whole point: the merge that follows writes symbol and
+/// reference indices, so it has to see files in path order however the threads finished.
+type Parsed = (String, Option<(String, Result<ParsedFile>)>);
+
+fn parse_batch(
+    workspace: &Workspace,
+    batch: &[String],
+    remaining: Duration,
+    workers: usize,
+) -> Vec<Parsed> {
+    let one = |file: &String| -> Parsed {
+        let Ok(source) = workspace.text(file) else {
+            return (file.clone(), None);
+        };
+        let parsed = parse_file(file, &source, remaining);
+        (file.clone(), Some((source, parsed)))
+    };
+    if workers <= 1 || batch.len() <= 1 {
+        return batch.iter().map(one).collect();
+    }
+    let stride = batch.len().div_ceil(workers);
+    let mut slices = Vec::new();
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = batch
+            .chunks(stride)
+            .map(|slice| scope.spawn(move || slice.iter().map(&one).collect::<Vec<_>>()))
+            .collect();
+        for handle in handles {
+            // A panicking parser would poison one slice; treat its files as unreadable rather
+            // than losing the whole snapshot, and let the skip count say so.
+            slices.push(handle.join().unwrap_or_default());
+        }
+    });
+    slices.into_iter().flatten().collect()
+}
 struct ParsedFile {
     symbols: Vec<Symbol>,
     references: Vec<Reference>,

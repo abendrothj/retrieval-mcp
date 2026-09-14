@@ -270,7 +270,7 @@ Every structural result includes `coverage.complete:false`, supported languages,
 
 `coverage.budget_truncated` is the one that changes how an answer should be written. `complete:false` is always true — syntactic resolution is never complete — so on its own it cannot distinguish "matching is approximate" from "the index stopped before scanning the repository". When `budget_truncated` is true, whole files were never read, `indexed_files` against `eligible_files` says how many, the limitations string states that absence is not evidence of absence, and the routing instructions tell the model not to answer an exhaustive question from that snapshot as though absence were proven.
 
-Budget checks stop adding files after 20,000 indexed files, 128 MiB of source, 2,000,000 records, or the configured indexing time — sized so `--timeout-seconds` is normally what binds. Measured cost is roughly 3 ms and 150 KB resident per indexed file: Django 5.1.4 indexes 2,786 files in 6 s and about 0.35 GB, VS Code 1.96 indexes 5,188 in 18 s and about 0.8 GB, both fully covered. Per-file limits are 2 MiB, 100,000 named nodes, and syntax depth 128. File-granular aggregate budgets can overshoot by one file. Skips are reported. A repository large enough to truncate says so; narrow `--root`, raise `--timeout-seconds`, or replace the index behind `StructuralBackend`.
+Budget checks stop adding files after 20,000 indexed files, 128 MiB of source, 2,000,000 records, or the configured indexing time — sized so `--timeout-seconds` is normally what binds. Files are read and parsed across every available core and merged in path order, so a snapshot is what a single-threaded build produces and only the wall clock changes: on a 14-core M4 Pro, Django 5.1.4 indexes 2,786 files in 2.1 s against 6.2 s single-threaded, VS Code 1.96 indexes 5,188 in 5.6 s against 18.8 s, and coreutils 672 in 0.9 s against 3.7 s — 3.0× to 4.0×, with coverage, caller rows and concept scores identical and stable across repeated builds. Resident cost is unchanged at roughly 150 KB per indexed file, about 0.35 GB for Django and 0.8 GB for VS Code, both fully covered. Per-file limits are 2 MiB, 100,000 named nodes, and syntax depth 128. File-granular aggregate budgets can overshoot by one file. Skips are reported. A repository large enough to truncate says so; narrow `--root`, raise `--timeout-seconds`, or replace the index behind `StructuralBackend`.
 
 ## Concept search: one tool, three rankers
 
@@ -322,7 +322,7 @@ Corpora, run artifacts, transcripts, and model answers are deliberately absent. 
 ## Testing
 
 ```sh
-cargo test --locked --all-targets            # 21 library, 7 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 21 library, 8 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
 python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 201 tests
 ```
