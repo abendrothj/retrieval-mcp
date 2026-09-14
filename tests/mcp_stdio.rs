@@ -344,8 +344,8 @@ async fn concept_search_enforces_the_page_bounds_it_documents() {
 #[tokio::test]
 async fn an_oversized_page_is_trimmed_rather_than_refused() {
     let root = tempfile::tempdir().unwrap();
-    // Namesakes make every row carry several candidate definitions, which is what pushes a
-    // legal page past the cap on a real repository.
+    // What pushes a legal page past the cap on a real repository is the per-row weight: each row
+    // carries its own call-site excerpt and expression. Namesakes add the page-level definitions.
     for module in 0..6 {
         std::fs::write(
             root.path().join(format!("defs{module}.rs")),
@@ -353,14 +353,19 @@ async fn an_oversized_page_is_trimmed_rather_than_refused() {
         )
         .unwrap();
     }
+    // Every row carries its own path, enclosing caller, excerpt and expression, so a fixture that
+    // overflows needs weight in each: a deep directory, long caller names and long call lines.
+    let padding = "_".repeat(200);
+    let directory = root.path().join(format!("nested{padding}")).join("inner");
+    std::fs::create_dir_all(&directory).unwrap();
     let calls: String = (0..200)
-        .map(|nth| format!("    let _{nth} = target({nth});\n"))
+        .map(|nth| {
+            format!(
+                "fn caller{padding}{nth}() {{\n    let value{padding}{nth} = target({nth}) + {nth};\n}}\n"
+            )
+        })
         .collect();
-    std::fs::write(
-        root.path().join("calls.rs"),
-        format!("fn caller() {{\n{calls}}}\n"),
-    )
-    .unwrap();
+    std::fs::write(directory.join("calls.rs"), calls).unwrap();
     let mut client = Client::start(root.path(), "B").await;
     let page = client
         .tool("find_callers", json!({"name": "target", "limit": 100}))

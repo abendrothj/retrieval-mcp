@@ -28,6 +28,7 @@ artifacts, caveats, and the commands that produced it.
 | 15 | Does an enclosing-container line fix wrong-level answers? | [Undecided, and it found a bug](#layer-4-the-container-line-and-the-bug-it-was-hiding): no wrong_level error occurred in 36 trials, but caller rows were naming local consts as callers, and fixing that cut source reads 66% |
 | 16 | Was that the fix or the feature? | [The fix](#layers-5-and-6-isolating-the-feature-from-the-fix): isolated, the container fields move nothing and the attribution guard cuts source reads 74%, calls 30%, total tokens 39.5% and the worst trial 81%, at identical correctness |
 | 17 | Do the remaining backlog candidates earn their keep? | [Three of four do not](#four-backlog-items-measured): test down-ranking helps inside the suites and hurts outside them, a snapshot cache buys 5% of wall time for the worst defect class, concurrency was already sound; payload de-duplication measured −52.8% offline and is pre-registered |
+| 18 | Does de-duplicating the caller payload reach the model? | [Yes, on Codex](#layer-7-the-de-duplication-run-on-the-other-client): context_token_turns -18.6% median and -32% on per-question medians, input tokens -11.1%, quality identical at 16/18, and 3.1x more call sites fit under the response cap |
 
 **The result in one line.** On a sealed 30-question held-out set, this server matched zvec-grep at
 29/30 on the same 78 tool calls while spending 24% fewer input tokens and carrying 34% less
@@ -1348,6 +1349,40 @@ duplicate, no deadlock, no second build. The assertions are shown to discriminat
 pass vacuously — removing eight ids from the owed set makes the pipelining test fail on the stray
 reply, two processes over the same corpus produce different `snapshot_id`s, and a lexical-only
 session logs zero `index_built` lines against exactly one for each build.
+
+
+### Layer 7: the de-duplication, run on the other client
+
+`find_callers` repeated the requested name's `candidate_definitions` and the same `confidence`
+sentence once per row, which is 27-61% of a caller response. Stating them once per page cut 18 real
+calls across three corpora from 494,683 to 233,609 bytes offline, and fits **800 caller rows where
+the shipped build fits 258** under the same 64 KiB cap on Django - 3.1x more call sites per call at
+identical row content. That is a shape change to model-facing output, so it was pre-registered at a
+>=10% `context_token_turns` reduction with every quality and grounding column held, and deliberately
+run on **Codex CLI with `gpt-5.6-luna`** rather than the model every other post-freeze result came
+from.
+
+36 trials, six caller questions, three repetitions:
+
+| | base | de-duplicated |
+|---|---:|---:|
+| Correct / 18 | 16 | 16 |
+| Graded credit | 0.907 | 0.907 |
+| `context_token_turns`, median | 14,061 | **11,448** (-18.6%) |
+| `context_token_turns`, per-question medians | 119,114 | **81,023** (-32.0%) |
+| Input tokens, total | 2.518 M | **2.238 M** (-11.1%) |
+| Input tokens, per-question medians | 866,406 | **720,619** (-16.8%) |
+| `find_callers` payload per trial | 7,375 B | **6,325 B** (-14.2%) |
+| Answered / wrong without evidence | 2 / 0 | 2 / 0 |
+
+Shipped. Two things are worth stating alongside the pass. The offline arithmetic predicted about 4%
+of input tokens on Claude and the measured saving on Codex is 11-17%, because this client re-sends
+more per turn - the same "turns dominate" mechanism, arriving from the other side. And the arms are
+discordant one question each way: the base lost one question inside a 16-call flailing trial, the
+treatment lost one repetition of `cu-callers-01` by answering about the wrong symbol entirely, with
+`unretrieved_identities` showing it never retrieved the gold. That is the wrong-seed routing error
+this suite has produced before, but the pre-registration said plainly that 36 trials are weakly
+powered for a comprehension regression, and one trial is not evidence either way.
 
 
 ## Native-system comparison
