@@ -21,7 +21,8 @@ REPO="abendrothj/retrieval-mcp"
 VERSION="${RETRIEVAL_MCP_VERSION:-}"
 INSTALL_DIR="${RETRIEVAL_MCP_INSTALL_DIR:-$HOME/.local/bin}"
 RELEASES="https://github.com/${REPO}/releases"
-TARGETS="aarch64-apple-darwin, x86_64-apple-darwin, aarch64-unknown-linux-gnu, x86_64-unknown-linux-gnu"
+TARGETS="aarch64-apple-darwin, x86_64-apple-darwin, aarch64-unknown-linux-gnu,
+         x86_64-unknown-linux-gnu, aarch64-unknown-linux-musl, x86_64-unknown-linux-musl"
 
 die() {
 	printf 'retrieval-mcp: %s\n' "$1" >&2
@@ -40,9 +41,19 @@ Darwin)
 	esac
 	;;
 Linux)
+	# Alpine and other musl distributions cannot run a glibc binary at all, and the failure they
+	# produce - "No such file or directory" from a file that plainly exists - explains nothing. The
+	# loader's own name is the reliable signal; `ldd --version` is the fallback, and on glibc it
+	# answers without either matching.
+	libc=gnu
+	if [ -n "$(echo /lib/ld-musl-*.so.1)" ] && [ -e "$(echo /lib/ld-musl-*.so.1 | cut -d' ' -f1)" ]; then
+		libc=musl
+	elif command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | head -1 | grep -qi musl; then
+		libc=musl
+	fi
 	case "$arch" in
-	aarch64 | arm64) target="aarch64-unknown-linux-gnu" ;;
-	x86_64) target="x86_64-unknown-linux-gnu" ;;
+	aarch64 | arm64) target="aarch64-unknown-linux-${libc}" ;;
+	x86_64) target="x86_64-unknown-linux-${libc}" ;;
 	*) die "unsupported Linux architecture: $arch (release targets: $TARGETS)" ;;
 	esac
 	;;

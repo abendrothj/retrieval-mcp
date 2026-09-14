@@ -43,6 +43,13 @@ jobs:
             runner: ubuntu-latest
           - target: aarch64-unknown-linux-gnu
             runner: ubuntu-24.04-arm
+          # Alpine and distroless images cannot run the glibc binaries, and a container is where
+          # an MCP server most often lives. A musl build is static, so it runs on the glibc runner
+          # that produced it and the packaged-binary smoke test below still executes for real.
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,6 +62,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
+
+      # The Tree-sitter grammars are C, so a musl target needs a musl C compiler; `cc` looks for
+      # it under this per-target variable before falling back to the host `cc`, which would link
+      # the grammars against glibc and defeat the point.
+      - name: musl C toolchain
+        if: endsWith(matrix.target, '-musl')
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          target_env="$(echo '${{ matrix.target }}' | tr 'a-z-' 'A-Z_')"
+          echo "CC_${target_env}=musl-gcc" >> "$GITHUB_ENV"
 
       - name: Build
         run: cargo build --locked --release --bin retrieval-mcp --target ${{ matrix.target }}
@@ -117,9 +136,9 @@ jobs:
           path: dist
           merge-multiple: true
 
-      # One manifest covering every archive, generated here rather than in the matrix: four
-      # parallel runners cannot append to a single file without racing, and this job is the one
-      # place that has all four archives at once. The per-archive `<name>.tar.gz.sha256` files
+      # One manifest covering every archive, generated here rather than in the matrix: parallel
+      # runners cannot append to a single file without racing, and this job is the one place that
+      # holds every archive at once. The per-archive `<name>.tar.gz.sha256` files
       # stay - they are already documented - and this adds the aggregate form `install.sh`
       # verifies against. `SHA256SUMS` is also the only asset whose name does not embed the tag,
       # so it can be fetched from `releases/latest/download/` and then name the archive to
@@ -131,7 +150,9 @@ jobs:
           cd dist
           sha256sum retrieval-mcp-*.tar.gz > SHA256SUMS
           lines="$(wc -l < SHA256SUMS)"
-          if [ "$lines" -ne 4 ]; then
+          # One record per matrix target: six today, and a matrix change that silently drops a
+          # platform should fail the release rather than publish a short manifest.
+          if [ "$lines" -ne 6 ]; then
             echo "expected one record per release target, got ${lines}:" >&2
             cat SHA256SUMS >&2
             exit 1
