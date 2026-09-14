@@ -388,6 +388,24 @@ async fn an_oversized_page_is_trimmed_rather_than_refused() {
     client.stop().await;
 }
 
+/// Every install path asks a binary what it is - a release script, a package manager, a user
+/// checking which build their client launched - and the answer has to be the version rather than
+/// `missing value for --version`, which is what the argument parser used to say.
+#[test]
+fn the_binary_reports_its_own_version_and_needs_no_root_to_do_it() {
+    for flag in ["--version", "-V"] {
+        let asked = std::process::Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"))
+            .arg(flag)
+            .output()
+            .unwrap();
+        assert!(asked.status.success(), "{flag}: {asked:?}");
+        assert_eq!(
+            String::from_utf8(asked.stdout).unwrap().trim(),
+            format!("retrieval-mcp {}", env!("CARGO_PKG_VERSION"))
+        );
+    }
+}
+
 #[tokio::test]
 async fn an_explicit_tool_list_gates_exactly_what_it_names() {
     let root = tempfile::tempdir().unwrap();

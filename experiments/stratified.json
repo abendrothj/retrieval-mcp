@@ -6,7 +6,7 @@
     "Cargo.lock": "24d9de06b616d16f0fe00643cc7276399def31bc3e927f4d33fdd7735455af42",
     "src/lib.rs": "3491d7f875642a69c473c5609a14c4671f9754ff0ef9e29b6ebacb6c2257d153",
     "src/main.rs": "91420329e044b8c2316bf278a44147318df47a55b0eae6cb0a4857ab6beba1b2",
-    "src/config/mod.rs": "a5984a1a3d66bfba23bb1b835eedf7e9562a007a1069c9f3264112af44b70c73",
+    "src/config/mod.rs": "7bec1963b37e940ffd6e9445df1f837d8a4196560ec1edda8de90ba21c5104e7",
     "src/index/mod.rs": "9c18014871f5423d01edd8996423cfd166fb86a1932b2b9165d1fd142080d07a",
     "src/logging/mod.rs": "45cc308d50c77ead9cebae858aba354613988dcf46fb76d8f9c0088eabf3ac8e",
     "src/search/mod.rs": "b90120e8ed00b2871344807d4f914beea1edf6e2ee1d00a400dda7aad80f2e5f",

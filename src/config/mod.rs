@@ -123,6 +123,14 @@ impl Config {
                 );
                 return Ok(None);
             }
+            // Every install path asks a binary what it is: release scripts, `brew`, a user
+            // checking which build a client launched. Without this, `retrieval-mcp --version`
+            // read the flag as one expecting a value and answered "missing value for --version",
+            // which is the shape of an answer nobody can act on.
+            if flag == "--version" || flag == "-V" {
+                println!("retrieval-mcp {}", env!("CARGO_PKG_VERSION"));
+                return Ok(None);
+            }
             if flag == "--no-ignore" {
                 config.no_ignore = true;
                 continue;
