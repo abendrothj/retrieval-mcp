@@ -852,10 +852,12 @@ async fn semantic_subprocess_contract_over_stdio() {
         .await;
     assert_ne!(lean["isError"], true, "{lean}");
     let row = &lean["structuredContent"]["results"][0];
-    // A row names the enclosing definition and carries its degrees; source stays out by default.
+    // A row names the enclosing definition and separates name-scoped caller candidates from call
+    // expressions syntactically owned by that exact definition; source stays out by default.
     assert_eq!(row["symbol"]["symbol"], "sample.rs::meaning", "{lean}");
     assert_eq!(row["symbol"]["kind"], "function_item");
-    assert_eq!(row["symbol"]["callers"], 0);
+    assert_eq!(row["symbol"]["name_candidate_callers"], 0);
+    assert_eq!(row["symbol"]["direct_callees"], 0);
     assert!(row["excerpt"].is_null(), "{lean}");
     let full = client
         .tool(

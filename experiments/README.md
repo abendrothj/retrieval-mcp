@@ -1385,6 +1385,52 @@ this suite has produced before, but the pre-registration said plainly that 36 tr
 powered for a comprehension regression, and one trial is not evidence either way.
 
 
+### Two drivers, and the defect every suite was blind to
+
+Two agents were given the server, three corpora and no instruction to be kind. One drove Django
+(49 calls), one drove VS Code's editor core (163 calls, not one `isError` reply). Between them they
+found the most serious defect in this project since the caller attribution guard, and it was
+invisible to every question set here for the same structural reason as the last two.
+
+**`find_callers` dropped every TypeScript member call.** The callee resolver knew the field names
+Rust and Python use and accepted `identifier`, `field_identifier` and `type_identifier`. TypeScript
+keeps a callee under a `property` field as a `property_identifier`, so `this.method()` and
+`obj.method()` resolved to nothing at all. The driver sampled 25 class methods with real call sites
+and got zero rows for 24 of them. Checked against ripgrep after the fix: `getEdits` 14 real call
+sites, 0 rows before and 14 after; `_isAutoIndentType`, `resolveOptions`, `detectIndentation`,
+`onElectricCharacter`, `atomicPosition` all 0 before and exactly their true count after; `dispose`
+10 rows before against 173 real sites. Free functions were unaffected in both directions
+— `guessIndentation` 2, `getEnterAction` 3, `renderViewLine` 3 — **and that is exactly why no suite
+caught it: every TypeScript, Python and Rust caller gold in this repository names a free function.**
+Python and Rust extraction is unchanged, verified on a synthetic file and row-for-row on two corpora.
+
+The Django driver found three more wrong successes. `import_string(r)()` produced two rows for one
+call because the outer invocation descended into the inner call. `candidate_definitions` silently
+showed 5 of 31 `database_forwards` definitions with no field saying 26 were absent. And a
+`path:"django/db/migrations"` caller page returned 10 scoped rows and `has_more:false` beside
+repository-wide orientation counts of 171. The TypeScript driver found a fourth: an empty
+five-line constructor carried 440 `callees`, because `search_concept` attached a name-wide
+`constructor` aggregate to each distinct definition.
+
+All four are correctness defects, not feature proposals. A pre-registered nine-file audit under
+`runs/driver-correctness-20260913/` compared the `46293db` binary with the fixes, with no model
+usage. `import_string(name)()` fell from two same-position rows to one; the seven-definition cell
+now reports five rows plus `candidate_definition_count:7` and
+`candidate_definitions_truncated:true`; scoped orientation fell from the wrong 7/7 to 1/1; and the
+empty `dispose` method now reports `direct_callees:0` rather than inheriting the other `dispose`
+method's one call. The concept fields are renamed to expose their scopes:
+`name_candidate_callers` is a same-language spelling count, while `direct_callees` belongs to the
+exact definition. The schema cost is exact and small but not hidden: the final four-tool
+`tools/list` payload grew from 27,073 to 27,838 bytes, **+765 bytes / +2.8%**.
+
+The praise is worth recording too, because it is specific: `search_concept` ranked the owning
+definition first on the first attempt for the hardest conceptual question either driver asked, and
+212 calls produced no errors. So did the criticism: caller rows still do not name the class of the
+function they name, conceptual results still surface test files, and one caller response spent
+4,661 of 6,795 bytes on unresolved imports. The first two have been measured and refused; the third
+is a payload question of exactly the kind the de-duplication just answered, and is not yet measured.
+
+
 ## Native-system comparison
 
 `comparison_runner.py` holds OpenCode and DeepSeek V4 Flash constant across six arms: a native

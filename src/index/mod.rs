@@ -195,7 +195,7 @@ pub struct InspectResult {
     pub limitations: String,
 }
 
-/// The symbol a retrieved range falls inside, with its call-graph salience.
+/// The symbol a retrieved range falls inside, with honest call-graph salience.
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct SymbolLocation {
     pub symbol: String,
@@ -204,8 +204,11 @@ pub struct SymbolLocation {
     pub path: String,
     pub line: usize,
     pub end_line: usize,
-    pub callers: usize,
-    pub callees: usize,
+    /// Same-language call sites with this unqualified spelling. These are candidates for this
+    /// definition, not resolved callers when several definitions share the name.
+    pub name_candidate_callers: usize,
+    /// Call expressions syntactically owned by this exact definition.
+    pub direct_callees: usize,
 }
 
 /// One ranked candidate region, whatever ranker produced it.
@@ -334,6 +337,10 @@ pub struct CallersResult {
     /// of the name that was asked about - so they are stated once for the page rather than once per
     /// call site. Measured: 27-61% of a caller response was that repetition.
     pub candidate_definitions: Vec<Symbol>,
+    /// Full definition count before the bounded page-level list.
+    pub candidate_definition_count: usize,
+    /// Whether `candidate_definitions` omits definitions after its first five entries.
+    pub candidate_definitions_truncated: bool,
     /// What the rows are and are not, stated once for the page.
     pub confidence: String,
     pub imports: Vec<Import>,
@@ -935,11 +942,13 @@ impl StructuralBackend for StructuralIndex {
                 nearest_indexed_names,
             },
             candidate_definitions: candidates.iter().take(5).cloned().collect(),
+            candidate_definition_count: candidates.len(),
+            candidate_definitions_truncated: candidates.len() > 5,
             confidence:
                 "low: spelling match only; receiver type and lexical binding are unresolved".into(),
             imports,
             imports_truncated,
-            orientation: self.orientation(&args.name, "callers", "inbound"),
+            orientation: self.orientation(&args.name, "callers", "inbound", &scope),
             file_relationships,
             relationships_truncated,
         })
@@ -991,7 +1000,7 @@ impl StructuralBackend for StructuralIndex {
             coverage: self.coverage.clone(),
             symbol_status,
             nearest_indexed_names,
-            orientation: self.orientation(&args.name, relation.0, relation.1),
+            orientation: self.orientation(&args.name, relation.0, relation.1, &scope),
             limitations: "Candidate call paths only: unqualified syntax names can merge unrelated functions or methods. Verify material edges with read_source.".into(),
         })
     }
@@ -1016,12 +1025,32 @@ impl StructuralBackend for StructuralIndex {
             .flatten()
             .filter(|symbol| symbol.path == path && (symbol.line..=symbol.end_line).contains(&line))
             .min_by_key(|symbol| symbol.end_line - symbol.line)?;
-        let calls_named = |index: &Vec<usize>| {
-            index
-                .iter()
-                .filter(|position| self.references[**position].kind == "call")
-                .count()
+        let same_language = |reference: &Reference| {
+            Path::new(&reference.path).extension() == Path::new(&symbol.path).extension()
         };
+        let name_candidate_callers =
+            self.references_by_name
+                .get(&symbol.name)
+                .map_or(0, |positions| {
+                    positions
+                        .iter()
+                        .filter(|position| {
+                            let reference = &self.references[**position];
+                            reference.kind == "call" && same_language(reference)
+                        })
+                        .count()
+                });
+        let direct_callees = self.calls_by_caller.get(&symbol.name).map_or(0, |positions| {
+            positions
+                .iter()
+                .filter(|position| {
+                    let reference = &self.references[**position];
+                    reference.kind == "call"
+                        && reference.path == symbol.path
+                        && (symbol.line..=symbol.end_line).contains(&reference.line)
+                })
+                .count()
+        });
         Some(SymbolLocation {
             symbol: format!("{}::{}", symbol.path, symbol.name),
             name: symbol.name.clone(),
@@ -1029,14 +1058,8 @@ impl StructuralBackend for StructuralIndex {
             path: symbol.path.clone(),
             line: symbol.line,
             end_line: symbol.end_line,
-            callers: self
-                .references_by_name
-                .get(&symbol.name)
-                .map_or(0, calls_named),
-            callees: self
-                .calls_by_caller
-                .get(&symbol.name)
-                .map_or(0, calls_named),
+            name_candidate_callers,
+            direct_callees,
         })
     }
 
@@ -1086,12 +1109,15 @@ impl StructuralIndex {
         scored.into_iter().take(5).map(|(_, name)| name).collect()
     }
 
-    fn call_degrees(&self, name: &str) -> (usize, usize) {
+    fn call_degrees(&self, name: &str, scope: &str) -> (usize, usize) {
         let calls = |index: Option<&Vec<usize>>| {
             index.map_or(0, |positions| {
                 positions
                     .iter()
-                    .filter(|position| self.references[**position].kind == "call")
+                    .filter(|position| {
+                        let reference = &self.references[**position];
+                        reference.kind == "call" && in_scope(&reference.path, scope)
+                    })
                     .count()
             })
         };
@@ -1102,8 +1128,8 @@ impl StructuralIndex {
     }
 
     /// Graph facts about which way an answer looked, never a recommendation of what to call next.
-    fn orientation(&self, name: &str, relation: &str, direction: &str) -> Orientation {
-        let (incoming_callers, outgoing_callees) = self.call_degrees(name);
+    fn orientation(&self, name: &str, relation: &str, direction: &str, scope: &str) -> Orientation {
+        let (incoming_callers, outgoing_callees) = self.call_degrees(name, scope);
         let note = match direction {
             "inbound" if outgoing_callees > 0 => Some(format!(
                 "this symbol also calls {outgoing_callees} indexed definitions"
@@ -1249,17 +1275,28 @@ fn owner(mut node: Node<'_>, source: &str) -> Option<String> {
     None
 }
 
+/// The identifier a call expression is calling. Each language names the part differently, and a
+/// field this does not know is a call site silently dropped: TypeScript's `member_expression`
+/// keeps the callee under `property` as a `property_identifier`, so before that was listed here
+/// every `this.method()` and `obj.method()` in a TypeScript corpus was invisible to `find_callers`
+/// while free-function calls looked fine - 14 real call sites of `getEdits` reported as none.
 fn call_name(mut node: Node<'_>) -> Option<Node<'_>> {
+    // `factory()()` contains two call nodes, but only the inner one directly calls `factory`.
+    // Descending through the outer call would report the same source position twice.
+    if matches!(node.kind(), "call_expression" | "call") {
+        return None;
+    }
     for _ in 0..32 {
         if matches!(
             node.kind(),
-            "identifier" | "field_identifier" | "type_identifier"
+            "identifier" | "field_identifier" | "type_identifier" | "property_identifier"
         ) {
             return Some(node);
         }
         node = node
             .child_by_field_name("field")
             .or_else(|| node.child_by_field_name("attribute"))
+            .or_else(|| node.child_by_field_name("property"))
             .or_else(|| node.child_by_field_name("name"))
             .or_else(|| node.child_by_field_name("function"))?;
     }
@@ -1804,6 +1841,119 @@ mod tests {
         assert!(index.search_concept(&ws, "  ", None, 5).is_err());
     }
 
+    /// A method called on an object is a call site. TypeScript keeps the callee under a
+    /// `property` field as a `property_identifier`, which the callee resolver did not know, so
+    /// every `this.method()` and `obj.method()` was dropped: on VS Code's editor core, `getEdits`
+    /// had fourteen real call sites and `find_callers` reported none, while free functions in the
+    /// same corpus looked perfectly healthy.
+    #[test]
+    fn typescript_member_calls_are_call_sites() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("ops.ts"),
+            "export class Operation {\n\
+             \tgetEdits(value: number) { return value; }\n\
+             \trun(value: number) { return this.getEdits(value); }\n\
+             }\n\
+             export function drive(operation: Operation) { return operation.getEdits(1); }\n\
+             export function plain(value: number) { return value; }\n\
+             export function callPlain() { return plain(2); }\n",
+        )
+        .unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index =
+            StructuralIndex::from_files(&ws, vec!["ops.ts".into()], Duration::from_secs(5)).unwrap();
+        let callers = |name: &str| {
+            let mut found: Vec<_> = index
+                .references
+                .iter()
+                .filter(|reference| reference.name == name && reference.kind == "call")
+                .filter_map(|reference| reference.caller.clone())
+                .collect();
+            found.sort();
+            found
+        };
+        assert_eq!(
+            callers("getEdits"),
+            vec!["drive".to_string(), "run".to_string()]
+        );
+        assert_eq!(callers("plain"), vec!["callPlain".to_string()]);
+    }
+
+    /// `import_string(name)()` contains an outer invocation of the returned callable and one
+    /// direct call to `import_string`. The outer call used to descend through the inner call and
+    /// emit a second row at the same source position.
+    #[test]
+    fn immediately_invoked_return_value_is_not_a_second_call_to_the_factory() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("loading.py"),
+            "def import_string(name):\n    return lambda: name\n\ndef load(name):\n    return import_string(name)()\n",
+        )
+        .unwrap();
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index = StructuralIndex::from_files(
+            &ws,
+            vec!["loading.py".into()],
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        let calls: Vec<_> = index
+            .references
+            .iter()
+            .filter(|reference| reference.name == "import_string" && reference.kind == "call")
+            .collect();
+        assert_eq!(calls.len(), 1, "{calls:?}");
+        assert_eq!(calls[0].caller.as_deref(), Some("load"));
+        assert_eq!(calls[0].expression, "import_string");
+    }
+
+    /// Candidate definitions and graph degrees have different scopes. Definition context remains
+    /// repository-wide, but the path argument restricts both returned call sites and orientation
+    /// counts. A bounded definition list must state exactly what it omitted.
+    #[test]
+    fn caller_context_exposes_definition_truncation_and_scopes_orientation() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("inside")).unwrap();
+        std::fs::write(
+            dir.path().join("inside/target.rs"),
+            "fn helper_inside() {}\nfn target() { helper_inside(); }\nfn call_inside() { target(); }\n",
+        )
+        .unwrap();
+        let mut files = vec!["inside/target.rs".to_string()];
+        for number in 0..6 {
+            let path = format!("outside{number}.rs");
+            std::fs::write(
+                dir.path().join(&path),
+                format!(
+                    "fn helper_{number}() {{}}\nfn target() {{ helper_{number}(); }}\nfn call_outside_{number}() {{ target(); }}\n"
+                ),
+            )
+            .unwrap();
+            files.push(path);
+        }
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index = StructuralIndex::from_files(&ws, files, Duration::from_secs(5)).unwrap();
+        let found = index
+            .find_callers(
+                &ws,
+                CallerArgs {
+                    name: "target".into(),
+                    path: Some("inside".into()),
+                    include_references: None,
+                    limit: Some(20),
+                    offset: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(found.retrieval.page.results.len(), 1);
+        assert_eq!(found.candidate_definition_count, 7);
+        assert_eq!(found.candidate_definitions.len(), 5);
+        assert!(found.candidate_definitions_truncated);
+        assert_eq!(found.orientation.incoming_callers, 1);
+        assert_eq!(found.orientation.outgoing_callees, 1);
+    }
+
     /// A call written into a local binding belongs to the function holding the binding. Reported
     /// as the binding, an exhaustive caller answer names a const that no caller could verify: on
     /// VS Code 1.96 every caller row for `getEnterAction` named `enterAction`, `r` or
@@ -1951,25 +2101,45 @@ mod tests {
         assert!(concept_tokens("   ").is_empty());
     }
     #[test]
-    fn ranges_resolve_to_the_innermost_definition_with_degrees() {
+    fn ranges_resolve_to_the_innermost_definition_with_honest_degrees() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
             dir.path().join("chain.rs"),
             "fn leaf() {}\nstruct Thing;\nimpl Thing {\n    fn run(&self) {\n        leaf();\n        leaf();\n    }\n}\nfn top() { leaf(); }\n",
         )
         .unwrap();
+        std::fs::write(
+            dir.path().join("empty.rs"),
+            "struct Empty;\nimpl Empty {\n    fn dispose(&self) {}\n}\nfn call(empty: Empty) { empty.dispose(); }\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("active.rs"),
+            "fn cleanup() {}\nstruct Active;\nimpl Active {\n    fn dispose(&self) { cleanup(); }\n}\n",
+        )
+        .unwrap();
         let ws = Workspace::new(dir.path()).unwrap();
-        let index =
-            StructuralIndex::from_files(&ws, vec!["chain.rs".into()], Duration::from_secs(5))
-                .unwrap();
+        let index = StructuralIndex::from_files(
+            &ws,
+            vec!["active.rs".into(), "chain.rs".into(), "empty.rs".into()],
+            Duration::from_secs(5),
+        )
+        .unwrap();
         // Line 5 sits inside run, which sits inside the impl block: the tighter span wins.
         let inner = index.locate("chain.rs", 5).unwrap();
         assert_eq!(inner.symbol, "chain.rs::run");
-        assert_eq!(inner.callees, 2);
-        assert_eq!(inner.callers, 0);
+        assert_eq!(inner.direct_callees, 2);
+        assert_eq!(inner.name_candidate_callers, 0);
         let leaf = index.locate("chain.rs", 1).unwrap();
         assert_eq!(leaf.name, "leaf");
-        assert_eq!(leaf.callers, 3);
+        assert_eq!(leaf.name_candidate_callers, 3);
+        // Same-named definitions share candidate callers, but their owned body counts are exact.
+        let empty = index.locate("empty.rs", 3).unwrap();
+        let active = index.locate("active.rs", 4).unwrap();
+        assert_eq!(empty.name_candidate_callers, 1);
+        assert_eq!(active.name_candidate_callers, 1);
+        assert_eq!(empty.direct_callees, 0);
+        assert_eq!(active.direct_callees, 1);
         assert!(index.locate("missing.rs", 1).is_none());
         let spans =
             StructuralIndex::symbol_spans("chain.rs", "fn only() {}\n", Duration::from_secs(2))

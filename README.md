@@ -256,7 +256,7 @@ The four tools a default session exposes are `search_exact`, `read_source`, `fin
 
 `inspect_symbol` answers the orientation question the directed tools make the model guess. One call returns the symbol's definitions, its callers, its callees, and its members when it is a container, each row labelled with its `relation`, plus `counts` that stay complete when rows are capped. Caps are structural: 3 definitions, 6 per direction, 8 members, so a response is a few hundred bytes rather than a subgraph. `has_more` is set whenever any count exceeds its cap, and an unindexed name returns `symbol_status:"unknown_symbol"` with `nearest_indexed_names` instead of a silent empty page. Use it first for relationship questions, then expand one side with `find_callers` or `trace_dependencies`. In the decision study it cut wrong-direction traversals from 15 to 4 of 44; see [experiments/README.md](experiments/README.md).
 
-`find_symbol.path` restricts definitions. `find_callers.path` restricts **call sites**, not target definitions. Caller records include the enclosing symbol, expression, candidate definitions, candidate count, resolution label, confidence explanation, and snippet. At most five candidate definitions accompany each reference; the full count and truncation flag preserve ambiguity. Imports and possible file relationships are bounded context for the returned call-site files.
+`find_symbol.path` restricts definitions. `find_callers.path` restricts **call sites**, not target definitions; orientation counts use that same call-site scope. Caller records include the enclosing symbol, expression, per-reference candidate count, resolution label, confidence explanation, and snippet. Up to five candidate definitions are stated once per page; `candidate_definition_count` and `candidate_definitions_truncated` make omissions explicit even when no caller row exists. Imports and possible file relationships are bounded context for the returned call-site files.
 
 `trace_dependencies` answers the transitive questions `find_callers` cannot: call chains, dependencies, and impact sets. `direction:"callers"` walks inbound call syntax toward the root; `direction:"callees"` walks outbound from it. Depth defaults to 3 hops and is capped at 5. Each edge names the enclosing caller, the callee name, the call site, the hop distance, and the same low-confidence explanation used elsewhere. Traversal expands each symbol name once, so recursive and mutually recursive code terminates instead of looping. Root definitions accompany the edges, capped at five with a truncation flag. Because names are unqualified, distinct namesakes merge into one traversal node; verify material edges with `read_source`.
 
@@ -284,7 +284,7 @@ Budget checks stop adding files after 20,000 indexed files, 128 MiB of source, 2
 | `semantic` | The configured subprocess backend | an adapter, e.g. Ollama | no |
 | `hybrid` | Reciprocal rank fusion (k=60) of both | an adapter | no |
 
-The lexical ranker builds documents from a symbol's path, container, name, split identifier, the comment block directly above the definition, and its body, with standard BM25 (k1 1.2, b 0.75) and scope filtering. It needs no model, service, weights, or fetch script, which is why the default configuration is fully offline. Rows name the enclosing definition with caller and callee counts; ask for `fields:["excerpt"]` only when source text is actually needed.
+The lexical ranker builds documents from a symbol's path, container, name, split identifier, the comment block directly above the definition, and its body, with standard BM25 (k1 1.2, b 0.75) and scope filtering. It needs no model, service, weights, or fetch script, which is why the default configuration is fully offline. Rows name the enclosing definition; `name_candidate_callers` counts same-language call sites sharing its unqualified spelling, while `direct_callees` counts call expressions syntactically owned by that exact definition. Ask for `fields:["excerpt"]` only when source text is actually needed.
 
 Choosing `semantic` or `hybrid` without `--semantic-command` is a configuration error rather than a silent downgrade. Setting either up is in [Research options](#research-options--not-needed-to-use-the-server); the default needs none of it. Which ranker to prefer is an empirical question this repository measures rather than assumes; see [What the experiments found](#what-the-experiments-found).
 
@@ -324,7 +324,7 @@ Corpora, run artifacts, transcripts, and model answers are deliberately absent. 
 ## Testing
 
 ```sh
-cargo test --locked --all-targets            # 21 library, 13 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 24 library, 13 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
 python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 201 tests
 ```

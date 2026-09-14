@@ -136,7 +136,7 @@ impl RetrievalServer {
             {
                 let mut tool = definition::<ConceptArgs>(
                     "search_concept",
-                    "Find code by behaviour or intent when the exact identifier or location is unknown. Phrase the query as the code would read: likely identifiers, API terms, constants, and implementation concepts, several spellings included, rather than the question's own words. Use first for conceptual discovery and the discovery stage of mixed questions; follow with find_symbol and find_callers or trace_dependencies when relationships matter. Rows name the enclosing definition with its caller and callee counts; ask for fields:[\"excerpt\"] only when you need source text. The ranking mechanism is an operator setting, not a choice you make.",
+                    "Find code by behaviour or intent when the exact identifier or location is unknown. Phrase the query as the code would read: likely identifiers, API terms, constants, and implementation concepts, several spellings included, rather than the question's own words. Use first for conceptual discovery and the discovery stage of mixed questions; follow with find_symbol and find_callers or trace_dependencies when relationships matter. Rows name the enclosing definition; name_candidate_callers are same-language spelling candidates, while direct_callees are syntactically owned by that exact definition. Ask for fields:[\"excerpt\"] only when you need source text. The ranking mechanism is an operator setting, not a choice you make.",
                 );
                 tool.annotations = Some(
                     ToolAnnotations::new()
