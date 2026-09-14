@@ -321,13 +321,13 @@ def enclosing(path, line, detail=False):
                 continue
             header = re.match(r"(\s*)(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)", text)
             if header:
-                return (header.group(2), True) if detail else header.group(2)
+                return (header.group(2), True, True) if detail else header.group(2)
             # A shallower statement means the inner block has closed; nothing at or below this
             # indentation can enclose the call any more.
             limit = indent
-        return (result, True) if detail else result
+        return (result, True, True) if detail else result
     if path.suffix not in BRACE_SUFFIXES:
-        return (None, False) if detail else None
+        return (None, False, False) if detail else None
     # Each frame is None, or (name, opened_by_a_callable_header).
     stack, pending, owner, depth = [], None, None, 0
     inline_owner = None
@@ -350,8 +350,9 @@ def enclosing(path, line, detail=False):
         # already waiting for its body, in which case the lines between the two are part of that
         # declaration. A C++ constructor's initialiser list and a default argument both call
         # from inside the definition, and the systems under test attribute them to it.
-        owner = pending[0] if pending is not None else next(
-            (entry[0] for entry in reversed(stack) if entry), None)
+        frame = pending if pending is not None else next(
+            (entry for entry in reversed(stack) if entry), None)
+        owner, owner_callable = frame if frame is not None else (None, False)
         opened, born, statement = [], [], depth == 0
         for character in text:
             if character == "{":
@@ -412,7 +413,12 @@ def enclosing(path, line, detail=False):
             # brace looking like an argument and silently unnames the rest of the file.
             depth = 0
     answer = inline_owner or owner
-    return (answer, inline_owner is not None or not continuing) if detail else answer
+    if not detail:
+        return answer
+    # `inline_owner` is only ever set from a definition's own header, so it is callable by
+    # construction; otherwise the frame that holds the line decides.
+    return (answer, inline_owner is not None or not continuing,
+            True if inline_owner is not None else owner_callable)
 
 
 def annotation(statement, declared, name):
@@ -490,12 +496,19 @@ def true_callers(corpus, name, defining_path):
         match = re.search(rf"\b{re.escape(name)}\s*\(", body)
         if match and re.search(r"#|//", body[:match.start()]):
             continue
-        owner, inside_body = enclosing(Path(corpus) / path, int(number), detail=True)
+        owner, inside_body, callable_owner = enclosing(Path(corpus) / path, int(number),
+                                                       detail=True)
         # A `name(...)` on a line that only continues a declaration - LevelDB wraps a prototype
         # and puts `EXCLUSIVE_LOCKS_REQUIRED(mutex_);` on the next line - annotates that
         # declaration instead of calling anything, and no system under test reports it.
-        if owner and (inside_body or Path(path).suffix not in C_SUFFIXES):
-            callers.add(f"{path}::{owner}")
+        if not owner or (Path(path).suffix in C_SUFFIXES and not inside_body):
+            continue
+        # Nothing calls anything from inside a type: `MetricsRecorder() stats.MetricsRecorder`
+        # written in a Go `interface` body declares a method, and counting it as a call demands
+        # that an exhaustive gold name the interface as a caller of its own member.
+        if Path(path).suffix == ".go" and not callable_owner:
+            continue
+        callers.add(f"{path}::{owner}")
     return sorted(callers)
 
 

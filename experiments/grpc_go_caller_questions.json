@@ -1,0 +1,1119 @@
+[
+  {
+    "id": "gg-dialopt-default-scheme-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "In the root grpc package's dial-option source file there is an unexported constructor that builds a functional option wrapping a single assignment: it stores the string it is handed as the fallback URI scheme on the internal option struct that the channel constructor later consults. Its doc comment explains that it exists so the legacy dialing entry point can keep falling back to \"passthrough\" name resolution while the newer client constructor falls back to \"dns\"; it sits between the test-only option that overrides the minimum connect deadline and the exported option that registers local resolver builders. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "dialoptions.go::withDefaultScheme",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "clientconn.go::DialContext",
+        "clientconn_parsed_target_test.go::TestParsedTarget_WithCustomDialer",
+        "resolver_test.go::TestResolverCaseSensitivity"
+      ]
+    },
+    "rejected_alternates": [
+      "dialoptions.go::withMinConnectDeadline",
+      "dialoptions.go::WithResolvers",
+      "clientconn_parsed_target_test.go::TestParsedTarget_Success_WithoutCustomDialer",
+      "clientconn_parsed_target_test.go::resetInitialResolverState",
+      "resolver_test.go::TestResolverAddressesToEndpoints"
+    ],
+    "evidence": [
+      {
+        "path": "dialoptions.go",
+        "contains": "func withDefaultScheme(s string) DialOption {"
+      },
+      {
+        "path": "dialoptions.go",
+        "contains": "o.defaultScheme = s"
+      },
+      {
+        "path": "clientconn.go",
+        "contains": "opts = append([]DialOption{withDefaultScheme(\"passthrough\"), WithLocalDNSResolution()}, opts...)"
+      },
+      {
+        "path": "clientconn_parsed_target_test.go",
+        "contains": "cc, err := NewClient(test.target, WithTransportCredentials(insecure.NewCredentials()), withDefaultScheme(defScheme), WithContextDialer(dialer))"
+      },
+      {
+        "path": "resolver_test.go",
+        "contains": "cc, err = NewClient(target, WithContextDialer(customDialer), withDefaultScheme(\"passthrough\"), WithResolvers(res), WithTransportCredentials(insecure.NewCredentials()))"
+      }
+    ],
+    "author_notes": "The description pins the only unexported dial option in dialoptions.go whose closure assigns the fallback scheme field, distinguishing it from its neighbours that set the minimum connect deadline or the resolver list. Because the symbol is package-private it can only be used from the root grpc package: the legacy dialing entry point injects it ahead of user options, and two in-package tests pass it explicitly to pin the scheme they expect. Nothing else in the corpus references the symbol, so the caller set is exactly those three definitions."
+  },
+  {
+    "id": "gg-encoding-v2-registry-lookup-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "In the encoding package's buffer-slice-oriented registry file there is a one-line exported lookup: it takes a content-subtype string, performs a type assertion on whatever the package-level registry map holds for that subtype, and returns the newer buffer-slice-based serializer interface value, or nil when nothing registered under that subtype satisfies that interface. Its doc comment notes the content-subtype is expected to be lowercase, and it is the read side of the registration function immediately above it. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "encoding/encoding_v2.go::GetCodecV2",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "codec.go::getCodec",
+        "codec_test.go::TestGetCodecForProtoIsNotNil",
+        "encoding/encoding_test.go::Marshal",
+        "encoding/encoding_test.go::TestForceCodecName",
+        "encoding/encoding_test.go::TestUnsupportedCodecOnServer",
+        "encoding/encoding_test.go::Unmarshal"
+      ]
+    },
+    "rejected_alternates": [
+      "encoding/encoding_v2.go::RegisterCodecV2",
+      "codec.go::newCodecV1Bridge",
+      "codec.go::newCodecV0Bridge",
+      "encoding/encoding_test.go::TestDuplicateCompressorRegister",
+      "encoding/encoding_test.go::TestEncodeDoesntPanicOnServer"
+    ],
+    "evidence": [
+      {
+        "path": "encoding/encoding_v2.go",
+        "contains": "func GetCodecV2(contentSubtype string) CodecV2 {"
+      },
+      {
+        "path": "codec.go",
+        "contains": "return encoding.GetCodecV2(name)"
+      },
+      {
+        "path": "codec_test.go",
+        "contains": "if encoding.GetCodecV2(proto.Name) == nil {"
+      },
+      {
+        "path": "encoding/encoding_test.go",
+        "contains": "return encoding.GetCodecV2(proto.Name).Marshal(v)"
+      },
+      {
+        "path": "encoding/encoding_test.go",
+        "contains": "codec := &renameProtoCodec{CodecV2: encoding.GetCodecV2(proto.Name), name: t.Name()}"
+      }
+    ],
+    "author_notes": "The registry file holds exactly one lookup keyed by content-subtype that type-asserts to the newer interface, so the prose cannot match the older V1 lookup or the registration function. The callers are the root package's internal resolution helper, which checks the V2 registry before falling back to a bridged V1 codec, and the test definitions that fetch the proto serializer to delegate to or to wrap in a renaming shim. Both file-level test helpers and the two tests that build a renaming wrapper appear, because each of them names the lookup directly."
+  },
+  {
+    "id": "gg-creds-handshake-attrs-from-ctx-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "The root credentials package has an experimental two-line reader that extracts a value from a context via the internal credentials package's own context accessor, type-asserts it to the exported struct that carries per-address attributes supplied by the resolver or balancer down to a transport credential's dialing-time negotiation, and returns that struct's zero value when nothing of that type is present. It sits directly after the declaration of that attribute-carrying struct and before the helper that compares a connection's security level. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "credentials/credentials.go::ClientHandshakeInfoFromContext",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "credentials/google/xds.go::clusterName",
+        "credentials/xds/xds.go::ClientHandshake",
+        "internal/transport/transport_test.go::ClientHandshake",
+        "internal/transport/transport_test.go::TestClientHandshakeInfoDialer"
+      ]
+    },
+    "rejected_alternates": [
+      "credentials/credentials.go::RequestInfoFromContext",
+      "credentials/credentials.go::NewContextWithRequestInfo",
+      "credentials/google/xds.go::isDirectPathCluster",
+      "credentials/xds/xds.go::ServerHandshake",
+      "credentials/xds/xds.go::NewClientCredentials"
+    ],
+    "evidence": [
+      {
+        "path": "credentials/credentials.go",
+        "contains": "func ClientHandshakeInfoFromContext(ctx context.Context) ClientHandshakeInfo {"
+      },
+      {
+        "path": "credentials/google/xds.go",
+        "contains": "chi := credentials.ClientHandshakeInfoFromContext(ctx)"
+      },
+      {
+        "path": "credentials/xds/xds.go",
+        "contains": "chi := credentials.ClientHandshakeInfoFromContext(ctx)"
+      },
+      {
+        "path": "internal/transport/transport_test.go",
+        "contains": "ai := credentials.ClientHandshakeInfoFromContext(ctx)"
+      }
+    ],
+    "author_notes": "Two context readers live in that file; the described one is distinguished by asserting to the attribute-carrying struct rather than to the per-RPC request info and by returning a bare value with no ok flag. Its consumers are the two credential implementations that need resolver-supplied attributes at negotiation time \u2014 the xDS-aware cluster lookup used by the Google default credentials and the xDS credentials' own client-side negotiation \u2014 plus two definitions in the transport tests, a fake credential implementation and the test whose custom dialer reads the same attributes."
+  },
+  {
+    "id": "gg-alts-counter-peer-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "The ALTS record-protocol connection package keeps a few tiny counter helpers in a shared utilities file. One of them takes a raw sequence-counter byte slice and reports which end of the connection owns it: if the high bit of the counter's final byte is set it returns the server end, otherwise the client end. It is the inverse of the two constructors in the same file that set that same high bit when initialising outgoing and incoming counters. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "credentials/alts/internal/conn/utils.go::CounterSide",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "credentials/alts/internal/conn/aes128gcm_test.go::TestAES128GCMEncrypt",
+        "credentials/alts/internal/conn/aes128gcm_test.go::getGCMCryptoPair",
+        "credentials/alts/internal/conn/aes128gcmrekey_test.go::getRekeyCryptoPair",
+        "credentials/alts/internal/conn/counter_test.go::TestCounterSides"
+      ]
+    },
+    "rejected_alternates": [
+      "credentials/alts/internal/conn/utils.go::NewOutCounter",
+      "credentials/alts/internal/conn/utils.go::NewInCounter",
+      "credentials/alts/internal/conn/utils.go::CounterFromValue",
+      "credentials/alts/internal/conn/counter_test.go::TestCounterInc",
+      "credentials/alts/internal/conn/aes128gcm_test.go::testGCMEncryptionDecryption"
+    ],
+    "evidence": [
+      {
+        "path": "credentials/alts/internal/conn/utils.go",
+        "contains": "func CounterSide(c []byte) core.Side {"
+      },
+      {
+        "path": "credentials/alts/internal/conn/aes128gcm_test.go",
+        "contains": "if CounterSide(counter) == core.ClientSide {"
+      },
+      {
+        "path": "credentials/alts/internal/conn/aes128gcmrekey_test.go",
+        "contains": "if CounterSide(counter) == core.ClientSide {"
+      },
+      {
+        "path": "credentials/alts/internal/conn/counter_test.go",
+        "contains": "if g, w := CounterSide(value), side; g != w {"
+      }
+    ],
+    "author_notes": "Only one helper in that utilities file reads the high bit and returns an end-of-connection value; the others construct or copy counters. All of its uses are inside the package's own tests: the two crypto-pair builders that decide which side owns a supplied counter, the AES-128-GCM encryption test that routes a test vector accordingly, and the counter test that asserts the reported end for both outgoing and incoming counters. No production code in the corpus calls it."
+  },
+  {
+    "id": "gg-metadata-add-values-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "The metadata package's map-based header type has a method that adds extra values for a key without discarding what is already stored there: it returns immediately when no values are supplied, lowercases the key, and extends the existing slice held at that key with the new values. It sits between the method that replaces a key's whole value slice and the one that drops a key entirely, and its doc comment stresses that the key is lowercased before storing. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "metadata/metadata.go::Append",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "balancer/rls/picker.go::delegateToChildPoliciesLocked",
+        "metadata/metadata_test.go::TestAppend",
+        "stats/opentelemetry/csm/pluginoption_test.go::TestGetLabels"
+      ]
+    },
+    "rejected_alternates": [
+      "metadata/metadata.go::Set",
+      "metadata/metadata.go::Delete",
+      "metadata/metadata_test.go::TestDelete",
+      "balancer/rls/picker.go::useDefaultPickIfPossible",
+      "stats/opentelemetry/csm/pluginoption_test.go::TestDetermineTargetCSM"
+    ],
+    "evidence": [
+      {
+        "path": "metadata/metadata.go",
+        "contains": "func (md MD) Append(k string, vals ...string) {"
+      },
+      {
+        "path": "balancer/rls/picker.go",
+        "contains": "res.Metadata.Append(rlsDataHeaderName, dcEntry.headerData)"
+      },
+      {
+        "path": "metadata/metadata_test.go",
+        "contains": "test.md.Append(test.appendKey, test.appendVals...)"
+      },
+      {
+        "path": "stats/opentelemetry/csm/pluginoption_test.go",
+        "contains": "md.Append(metadataExchangeKey, \"extra-val\")"
+      }
+    ],
+    "author_notes": "The neighbouring methods either overwrite or delete, so \"extend the existing values, lowercasing the key\" identifies exactly one method on that type. Its callers are the RLS picker path that attaches the cached route-lookup header data onto an already-populated pick result, the metadata unit test that exercises the add-without-overwrite table, and the CSM plugin-option test that deliberately puts a second value under the metadata-exchange key. Other places that build headers use the pair constructors or the replacing setter instead."
+  },
+  {
+    "id": "gg-resolver-fallback-scheme-reader-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "The resolver package exposes a one-line accessor that returns the package-level variable holding the scheme applied when a dial target has no registered scheme of its own. It is the read counterpart of the initialisation-time setter just above it, which overwrites that variable and also records in an internal package that the user changed it; the doc comment notes the value seen by the legacy dialing entry point versus the \"dns\" fallback used by the newer client constructor. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "resolver/resolver.go::GetDefaultScheme",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "balancer/rls/config.go::parseRLSProto",
+        "clientconn.go::initParsedTargetAndResolverBuilder",
+        "clientconn_parsed_target_test.go::TestParsedTarget_WithCustomDialer"
+      ]
+    },
+    "rejected_alternates": [
+      "resolver/resolver.go::SetDefaultScheme",
+      "resolver/resolver.go::Get",
+      "resolver/resolver.go::Register",
+      "clientconn_parsed_target_test.go::resetInitialResolverState",
+      "balancer/rls/config.go::convertDuration"
+    ],
+    "evidence": [
+      {
+        "path": "resolver/resolver.go",
+        "contains": "func GetDefaultScheme() string {"
+      },
+      {
+        "path": "balancer/rls/config.go",
+        "contains": "parsedTarget, err = url.Parse(resolver.GetDefaultScheme() + \":///\" + lookupService)"
+      },
+      {
+        "path": "clientconn.go",
+        "contains": "defScheme = resolver.GetDefaultScheme()"
+      },
+      {
+        "path": "clientconn_parsed_target_test.go",
+        "contains": "defScheme := resolver.GetDefaultScheme()"
+      }
+    ],
+    "author_notes": "Only one function in the resolver package reads and returns that package-level fallback scheme variable; the setter next to it writes it, and the builder lookup takes a scheme argument instead. It is called from the RLS config parser when a lookup-service target lacks a scheme, from the channel helper that canonicalises a target after the user overrode the global default, and from the parsed-target test that computes the expected scheme for its table. Those three definitions are the complete set of references in the corpus."
+  },
+  {
+    "id": "gg-header-allowlist-predicate-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "In internal/transport/http_util.go there is a tiny unexported predicate over a single HTTP/2 header name whose entire body is a two-arm switch: it answers true only for \":authority\" and \"user-agent\", the two protocol-owned names that must still be surfaced to users as metadata, and false for everything else. It is always consulted together with the sibling predicate that classifies a name as protocol-owned, to carve out that exception. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "internal/transport/http_util.go::isWhitelistedHeader",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "internal/transport/handler_server.go::NewServerHandlerTransport",
+        "internal/transport/http2_client.go::operateHeaders",
+        "internal/transport/http2_server.go::operateHeaders"
+      ]
+    },
+    "rejected_alternates": [
+      "internal/transport/http_util.go::isReservedHeader",
+      "internal/transport/http_util.go::decodeMetadataHeader",
+      "internal/transport/http_util.go::encodeMetadataHeader",
+      "internal/transport/http2_server.go::HandleStreams",
+      "internal/transport/handler_server.go::HandleStreams"
+    ],
+    "evidence": [
+      {
+        "path": "internal/transport/http_util.go",
+        "contains": "func isWhitelistedHeader(hdr string) bool {"
+      },
+      {
+        "path": "internal/transport/http_util.go",
+        "contains": "case \":authority\", \"user-agent\":"
+      },
+      {
+        "path": "internal/transport/handler_server.go",
+        "contains": "if isReservedHeader(k) && !isWhitelistedHeader(k) {"
+      },
+      {
+        "path": "internal/transport/http2_client.go",
+        "contains": "if isReservedHeader(hf.Name) && !isWhitelistedHeader(hf.Name) {"
+      },
+      {
+        "path": "internal/transport/http2_server.go",
+        "contains": "if isReservedHeader(hf.Name) && !isWhitelistedHeader(hf.Name) {"
+      }
+    ],
+    "author_notes": "Only one function in the corpus is a two-case switch returning true for exactly \":authority\" and \"user-agent\"; its sibling reserved-name predicate lists many more names and returns true for any colon-prefixed name, so the description cannot match that one. The three callers are the only places that merge inbound HTTP/2 header fields into user-visible metadata: the net/http-backed server transport constructor and the header-handling routine of each of the two HTTP/2 transports; all three guard the same way and no other code needs the exception list."
+  },
+  {
+    "id": "gg-deadline-string-parse-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "A helper in internal/transport/http_util.go turns the wire form of an RPC deadline into a time.Duration: the input is at most eight digits followed by a one-character unit suffix (H, M, S, m, u or n), and it errors out with %q-formatted messages when the string is shorter than two bytes, longer than nine bytes, or carries an unrecognised unit. It parses the digits with strconv.ParseUint, multiplies by the unit's duration, and clamps hour-scale values that would overflow math.MaxInt64 to the largest representable duration. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "internal/transport/http_util.go::decodeTimeout",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "internal/transport/handler_server.go::NewServerHandlerTransport",
+        "internal/transport/http2_server.go::operateHeaders",
+        "internal/transport/http_util_test.go::TestDecodeTimeout"
+      ]
+    },
+    "rejected_alternates": [
+      "internal/transport/http_util.go::timeoutUnitToDuration",
+      "internal/transport/http_util.go::decodeMetadataHeader",
+      "internal/transport/http_util_test.go::TestEncodeGrpcMessage",
+      "internal/transport/http2_client.go::NewHTTP2Client",
+      "internal/transport/handler_server.go::HandleStreams"
+    ],
+    "evidence": [
+      {
+        "path": "internal/transport/http_util.go",
+        "contains": "func decodeTimeout(s string) (time.Duration, error) {"
+      },
+      {
+        "path": "internal/transport/http_util.go",
+        "contains": "return 0, fmt.Errorf(\"transport: timeout string is too long: %q\", s)"
+      },
+      {
+        "path": "internal/transport/handler_server.go",
+        "contains": "to, err := decodeTimeout(v)"
+      },
+      {
+        "path": "internal/transport/http2_server.go",
+        "contains": "if timeout, err = decodeTimeout(hf.Value); err != nil {"
+      },
+      {
+        "path": "internal/transport/http_util_test.go",
+        "contains": "d, err := decodeTimeout(test.s)"
+      }
+    ],
+    "author_notes": "The size checks, the unit-suffix lookup and the MaxInt64 clamp together describe exactly one function; the unit-to-duration lookup it delegates to has no string parsing or clamping at all. Only the two server-side paths that see an inbound grpc-timeout header call it -- the net/http-backed transport constructor and the HTTP/2 server's header handler -- plus its own table test. The HTTP/2 client never sees that header, so its header handler is not a caller."
+  },
+  {
+    "id": "gg-compressor-registry-add-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "A short exported function in encoding/encoding.go stores a compression codec in the package-level map keyed by the codec's own reported name, and additionally appends that name to the shared slice of advertised compression names kept in internal/grpcutil when it is not already listed there. Its doc comment says it is not thread-safe, that it must only run during program start-up, and that the last registration for a given name wins. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "encoding/encoding.go::RegisterCompressor",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "encoding/encoding_test.go::TestDuplicateCompressorRegister",
+        "encoding/gzip/gzip.go::init",
+        "rpc_util_test.go::TestNewAcceptedCompressionConfig"
+      ]
+    },
+    "rejected_alternates": [
+      "encoding/encoding.go::GetCompressor",
+      "encoding/gzip/gzip.go::SetLevel",
+      "encoding/encoding_test.go::TestForceServerCodec",
+      "rpc_util_test.go::TestDecompress",
+      "rpc_util_test.go::TestCompress"
+    ],
+    "evidence": [
+      {
+        "path": "encoding/encoding.go",
+        "contains": "func RegisterCompressor(c Compressor) {"
+      },
+      {
+        "path": "encoding/encoding.go",
+        "contains": "registeredCompressor[c.Name()] = c"
+      },
+      {
+        "path": "encoding/encoding.go",
+        "contains": "grpcutil.RegisteredCompressorNames = append(grpcutil.RegisteredCompressorNames, c.Name())"
+      },
+      {
+        "path": "encoding/encoding_test.go",
+        "contains": "encoding.RegisterCompressor(&mockNamedCompressor{})"
+      },
+      {
+        "path": "encoding/gzip/gzip.go",
+        "contains": "encoding.RegisterCompressor(c)"
+      },
+      {
+        "path": "rpc_util_test.go",
+        "contains": "encoding.RegisterCompressor(testCompressor)"
+      }
+    ],
+    "author_notes": "Two functions touch the compressor map, but only this one writes to it and also maintains the advertised-names slice; the lookup next to it merely indexes the map. The callers are the gzip package's package-level setup hook, the test that registers the same name twice, and the accepted-compression test in the root package that installs a stub codec. Other tests reach the registry through the internal testing-only indirection rather than calling this function, and call sites inside the defining file are not part of the set."
+  },
+  {
+    "id": "gg-http2-frame-plumbing-ctor-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "An unexported constructor in internal/transport/http_util.go wraps an io.ReadWriter connection into the struct that owns an HTTP/2 frame encoder plus its buffered writer, source and memory pool. It floors a negative write-buffer size to zero, builds a buffered source over the connection, optionally takes a shared write pool from the size-keyed pool map, creates the buffered writer, then caps the largest acceptable incoming frame, opts into frame reuse to reduce garbage, applies a maximum header list size and installs an hpack decoder for meta-headers. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "internal/transport/http_util.go::newFramer",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "internal/transport/http2_client.go::NewHTTP2Client",
+        "internal/transport/http2_server.go::NewServerTransport",
+        "internal/transport/http_util_test.go::TestFramer_ParseDataFrame",
+        "internal/transport/keepalive_test.go::TestKeepaliveServerClosesUnresponsiveClient"
+      ]
+    },
+    "rejected_alternates": [
+      "internal/transport/http_util.go::bufferedReader",
+      "internal/transport/http_util.go::newBufWriter",
+      "internal/transport/http_util_test.go::TestEncodeGrpcMessage",
+      "internal/transport/keepalive_test.go::TestKeepaliveServerWithResponsiveClient",
+      "internal/transport/http2_server.go::HandleStreams"
+    ],
+    "evidence": [
+      {
+        "path": "internal/transport/http_util.go",
+        "contains": "func newFramer(conn io.ReadWriter, writeBufferSize, readBufferSize int, sharedWriteBuffer bool, maxHeaderListSize uint32, memPool mem.BufferPool) *framer {"
+      },
+      {
+        "path": "internal/transport/http_util.go",
+        "contains": "f.fr.ReadMetaHeaders = hpack.NewDecoder(http2InitHeaderTableSize, nil)"
+      },
+      {
+        "path": "internal/transport/http2_client.go",
+        "contains": "newFramer(conn, writeBufSize, readBufSize, opts.SharedWriteBuffer, maxHeaderListSize, opts.BufferPool)"
+      },
+      {
+        "path": "internal/transport/http2_server.go",
+        "contains": "framer := newFramer(conn, writeBufSize, readBufSize, config.SharedWriteBuffer, maxHeaderListSize, config.BufferPool)"
+      },
+      {
+        "path": "internal/transport/http_util_test.go",
+        "contains": "fr := newFramer(bytes.NewBuffer(tc.wire), defaultWriteBufSize, defaultReadBufSize, false, defaultClientMaxHeaderListSize, mem.DefaultBufferPool())"
+      },
+      {
+        "path": "internal/transport/keepalive_test.go",
+        "contains": "framer := newFramer(conn, defaultWriteBufSize, defaultReadBufSize, false, 0, mem.DefaultBufferPool())"
+      }
+    ],
+    "author_notes": "Only one function in that file assembles the whole frame-plumbing struct; the buffered-source and buffered-writer helpers it calls each build a single piece and take no header-list or pool arguments. Every HTTP/2 connection is set up exactly once per side, so the production callers are the client transport constructor and the server transport constructor; the remaining two callers are tests that need raw frame plumbing over a buffer or a bare TCP connection."
+  },
+  {
+    "id": "gg-outbound-trace-adapter-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "A one-line exported constructor in stats/opentelemetry/internal/tracing/carrier.go wraps a context.Context in the text-map adapter meant for the send side of an RPC and returns a pointer to it. The type it builds is the one whose Set appends a key/value pair to the context's outbound metadata, whose Keys enumerates that same outbound metadata, and whose Get does nothing but log an error because it is not usable in that direction. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "stats/opentelemetry/internal/tracing/carrier.go::NewOutgoingCarrier",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "stats/opentelemetry/client_tracing.go::traceTagRPC",
+        "stats/opentelemetry/grpc_trace_bin_propagator_test.go::TestInject_InvalidSpanContext",
+        "stats/opentelemetry/grpc_trace_bin_propagator_test.go::TestInject_ValidSpanContext",
+        "stats/opentelemetry/internal/tracing/carrier_test.go::TestOutgoingCarrier"
+      ]
+    },
+    "rejected_alternates": [
+      "stats/opentelemetry/internal/tracing/carrier.go::NewIncomingCarrier",
+      "stats/opentelemetry/internal/tracing/carrier_test.go::TestIncomingCarrier",
+      "stats/opentelemetry/client_tracing.go::createCallTraceSpan",
+      "stats/opentelemetry/grpc_trace_bin_propagator_test.go::TestExtract"
+    ],
+    "evidence": [
+      {
+        "path": "stats/opentelemetry/internal/tracing/carrier.go",
+        "contains": "func NewOutgoingCarrier(ctx context.Context) *OutgoingCarrier {"
+      },
+      {
+        "path": "stats/opentelemetry/internal/tracing/carrier.go",
+        "contains": "c.ctx = metadata.AppendToOutgoingContext(c.ctx, key, value)"
+      },
+      {
+        "path": "stats/opentelemetry/client_tracing.go",
+        "contains": "carrier := otelinternaltracing.NewOutgoingCarrier(ctx)"
+      },
+      {
+        "path": "stats/opentelemetry/grpc_trace_bin_propagator_test.go",
+        "contains": "c := itracing.NewOutgoingCarrier(ctx)"
+      },
+      {
+        "path": "stats/opentelemetry/internal/tracing/carrier_test.go",
+        "contains": "c := NewOutgoingCarrier(metadata.NewOutgoingContext(ctx, test.initialMD))"
+      }
+    ],
+    "author_notes": "The file defines a mirrored pair of adapters, and only the send-side one appends to outbound metadata while logging on reads, so the description picks exactly one of the two constructors. Production code needs it in a single place -- the client tracing handler that starts an attempt span and injects it into metadata -- and the rest of the set is its own unit test plus the two injection tests of the grpc-trace-bin propagator."
+  },
+  {
+    "id": "gg-server-cert-pair-loader-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "A four-line exported function in credentials/tls.go builds server-side transport credentials from two filesystem paths: it loads an X.509 certificate and its private key with tls.LoadX509KeyPair, returns that error unchanged on failure, and otherwise puts the loaded certificate as the sole entry of a tls.Config certificate list and hands that config to the package's generic constructor for TLS credentials. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "credentials/tls.go::NewServerTLSFromFile",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "balancer/rls/balancer_test.go::TestConfigUpdate_ControlChannelWithCreds",
+        "credentials/credentials_test.go::gRPCServerHandshake",
+        "credentials/xds/xds_server_test.go::makeFallbackServerCreds"
+      ]
+    },
+    "rejected_alternates": [
+      "credentials/tls.go::NewServerTLSFromCert",
+      "credentials/tls.go::NewClientTLSFromFile",
+      "credentials/credentials_test.go::gRPCClientHandshake",
+      "credentials/xds/xds_server_test.go::makeClientTLSConfig",
+      "balancer/rls/balancer_test.go::TestConfigUpdate_ControlChannel"
+    ],
+    "evidence": [
+      {
+        "path": "credentials/tls.go",
+        "contains": "func NewServerTLSFromFile(certFile, keyFile string) (TransportCredentials, error) {"
+      },
+      {
+        "path": "credentials/tls.go",
+        "contains": "cert, err := tls.LoadX509KeyPair(certFile, keyFile)"
+      },
+      {
+        "path": "credentials/credentials_test.go",
+        "contains": "serverTLS, err := NewServerTLSFromFile(testdata.Path(\"x509/server1_cert.pem\"), testdata.Path(\"x509/server1_key.pem\"))"
+      },
+      {
+        "path": "balancer/rls/balancer_test.go",
+        "contains": "serverCreds, err := credentials.NewServerTLSFromFile(testdata.Path(\"x509/server1_cert.pem\"), testdata.Path(\"x509/server1_key.pem\"))"
+      },
+      {
+        "path": "credentials/xds/xds_server_test.go",
+        "contains": "creds, err := credentials.NewServerTLSFromFile(testdata.Path(\"x509/server1_cert.pem\"), testdata.Path(\"x509/server1_key.pem\"))"
+      }
+    ],
+    "author_notes": "Of the four constructors in that file this is the only one that reads a certificate/key pair off disk for the server side: the sibling server constructor takes an already-parsed certificate and the two client constructors deal with a root pool and a server-name override. Its callers are all test helpers that need a real server certificate -- the credentials package's own gRPC server handshake helper, the xds server-credentials fallback helper, and the RLS test that gives the parent channel real transport credentials."
+  },
+  {
+    "id": "gg-keepalive-client-option-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "In the root package of this Go corpus, an exported constructor returns a client-side connection option that stores a keepalive.ClientParameters struct onto the connect options used when a new client connection is built. Before it builds that option it compares the parameters' ping interval field against internal.KeepaliveMinPingTime, and when the interval is below that floor it logs a warning about adjusting the keepalive ping interval to the minimum period and raises the field to that floor. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "dialoptions.go::WithKeepaliveParams",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "balancer/grpclb/grpclb_remote_balancer.go::newRemoteBalancerCCWrapper",
+        "credentials/alts/internal/handshaker/service/service.go::Dial",
+        "dial_test.go::TestClientUpdatesParamsAfterGoAway"
+      ]
+    },
+    "rejected_alternates": [
+      "dialoptions.go::WithUserAgent",
+      "dialoptions.go::WithConnectParams",
+      "dialoptions.go::WithUnaryInterceptor",
+      "balancer/grpclb/grpclb_remote_balancer.go::watchRemoteBalancer",
+      "credentials/alts/internal/handshaker/service/service.go::CloseForTesting"
+    ],
+    "evidence": [
+      {
+        "path": "dialoptions.go",
+        "contains": "func WithKeepaliveParams(kp keepalive.ClientParameters) DialOption {"
+      },
+      {
+        "path": "dialoptions.go",
+        "contains": "logger.Warningf(\"Adjusting keepalive ping interval to minimum period of %v\", internal.KeepaliveMinPingTime)"
+      },
+      {
+        "path": "balancer/grpclb/grpclb_remote_balancer.go",
+        "contains": "dopts = append(dopts, grpc.WithKeepaliveParams(keepalive.ClientParameters{"
+      },
+      {
+        "path": "credentials/alts/internal/handshaker/service/service.go",
+        "contains": "opts = append(opts, grpc.WithKeepaliveParams(keepalive.ClientParameters{"
+      },
+      {
+        "path": "dial_test.go",
+        "contains": "cc, err := DialContext(ctx, addr, WithBlock(), WithTransportCredentials(insecure.NewCredentials()), WithKeepaliveParams(keepalive.ClientParameters{"
+      }
+    ],
+    "author_notes": "Only one constructor in the options file both carries keepalive.ClientParameters into the connect options and clamps the ping interval to internal.KeepaliveMinPingTime with a warning log, so the floor-and-warn behaviour pins it uniquely. The caller set is small because the option is a public API that the library itself uses in only two places - the grpclb remote balancer's channel setup and the ALTS handshaker service channel - plus one client test that exercises keepalive after a GOAWAY."
+  },
+  {
+    "id": "gg-transport-io-error-predicate-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "In internal/transport/http_util.go, a one-line unexported predicate takes an error and reports whether that error, anywhere in its unwrap chain, is the file's tiny private error wrapper type that marks a failure as having come from the network connection itself. It answers by passing errors.As a pointer to a zero value of that wrapper type, and its companion in the same file produces such a wrapped error from a non-nil error. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "internal/transport/http_util.go::isIOError",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "internal/transport/controlbuf.go::run",
+        "internal/transport/http2_client.go::NewHTTP2Client",
+        "internal/transport/http2_server.go::NewServerTransport"
+      ]
+    },
+    "rejected_alternates": [
+      "internal/transport/http_util.go::toIOError",
+      "internal/transport/http_util.go::Unwrap",
+      "internal/transport/http_util.go::isReservedHeader",
+      "internal/transport/controlbuf.go::put",
+      "internal/transport/http2_server.go::HandleStreams"
+    ],
+    "evidence": [
+      {
+        "path": "internal/transport/http_util.go",
+        "contains": "func isIOError(err error) bool {"
+      },
+      {
+        "path": "internal/transport/http_util.go",
+        "contains": "return errors.As(err, &ioError{})"
+      },
+      {
+        "path": "internal/transport/controlbuf.go",
+        "contains": "if !isIOError(err) {"
+      },
+      {
+        "path": "internal/transport/http2_client.go",
+        "contains": "if err := t.loopy.run(); !isIOError(err) {"
+      },
+      {
+        "path": "internal/transport/http2_server.go",
+        "contains": "if !isIOError(err) {"
+      }
+    ],
+    "author_notes": "The file holds a matched pair of tiny functions over the same private wrapper type - one wraps, one tests - and only the testing half calls errors.As against a zero wrapper, so the description cannot be confused with its companion. Every caller is a place that decides whether a loopy writer failure was a connection error worth logging, so the set is the control buffer's writer body plus the two transport constructors that start that writer."
+  },
+  {
+    "id": "gg-alts-counter-from-bytes-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "In credentials/alts/internal/conn/utils.go, an exported helper builds an ALTS 96-bit little-endian sequence counter struct out of bytes handed in by the caller: it records the given overflow length on the named result, copies the supplied slice into the struct's fixed-size array, and returns that named result with a bare return. Unlike the two constructors above it in the same file, it derives nothing from which side of the connection the counter belongs to. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "credentials/alts/internal/conn/utils.go::CounterFromValue",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "credentials/alts/internal/conn/aes128gcm_test.go::getGCMCryptoPair",
+        "credentials/alts/internal/conn/aes128gcmrekey_test.go::getRekeyCryptoPair",
+        "credentials/alts/internal/conn/counter_test.go::TestCounterInc",
+        "credentials/alts/internal/conn/counter_test.go::TestRolloverCounter"
+      ]
+    },
+    "rejected_alternates": [
+      "credentials/alts/internal/conn/utils.go::NewOutCounter",
+      "credentials/alts/internal/conn/utils.go::NewInCounter",
+      "credentials/alts/internal/conn/utils.go::CounterSide",
+      "credentials/alts/internal/conn/counter_test.go::TestCounterSides",
+      "credentials/alts/internal/conn/aes128gcm.go::NewAES128GCM"
+    ],
+    "evidence": [
+      {
+        "path": "credentials/alts/internal/conn/utils.go",
+        "contains": "func CounterFromValue(value []byte, overflowLen int) (c Counter) {"
+      },
+      {
+        "path": "credentials/alts/internal/conn/utils.go",
+        "contains": "copy(c.value[:], value)"
+      },
+      {
+        "path": "credentials/alts/internal/conn/aes128gcm_test.go",
+        "contains": "client.(*aes128gcm).outCounter = CounterFromValue(counter, overflowLenAES128GCM)"
+      },
+      {
+        "path": "credentials/alts/internal/conn/aes128gcmrekey_test.go",
+        "contains": "client.(*aes128gcmRekey).outCounter = CounterFromValue(counter, overflowLenAES128GCMRekey)"
+      },
+      {
+        "path": "credentials/alts/internal/conn/counter_test.go",
+        "contains": "c := CounterFromValue(test.counter, overflowLenAES128GCM)"
+      }
+    ],
+    "author_notes": "The other two constructors in the same file seed the high bit from the client/server side and take no bytes, so \"copies caller-supplied bytes into the array\" names exactly one of the three. Nothing in the production ALTS record path needs to resume a counter from arbitrary bytes, so every caller is a test: two crypto-pair fixtures that force a starting counter and two counter tests that build one from a table value."
+  },
+  {
+    "id": "gg-auth-security-level-guard-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "In credentials/credentials.go, an exported experimental function takes an AuthInfo and a required minimum SecurityLevel and returns an error when the connection does not reach that minimum. It reports \"AuthInfo is nil\" for a nil argument, type-asserts the argument to a locally declared one-method interface exposing the embedded common auth-info struct, accepts an invalid zero level for backward compatibility, and otherwise formats an error naming the required level and the level the connection actually has. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "credentials/credentials.go::CheckSecurityLevel",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "credentials/credentials_test.go::TestCheckSecurityLevel",
+        "credentials/credentials_test.go::TestCheckSecurityLevelNoGetCommonAuthInfoMethod",
+        "credentials/google/gcp_service_account_identity_credentials.go::GetRequestMetadata",
+        "credentials/jwt/token_file_call_creds.go::GetRequestMetadata",
+        "credentials/oauth/oauth.go::GetRequestMetadata",
+        "credentials/sts/sts.go::GetRequestMetadata",
+        "internal/transport/http2_client.go::getCallAuthData"
+      ]
+    },
+    "rejected_alternates": [
+      "credentials/credentials.go::ClientHandshakeInfoFromContext",
+      "credentials/credentials.go::RequestInfoFromContext",
+      "credentials/oauth/oauth.go::RequireTransportSecurity",
+      "credentials/sts/sts.go::validateOptions",
+      "credentials/credentials_test.go::TestClientHandshakeReturnsAuthInfo"
+    ],
+    "evidence": [
+      {
+        "path": "credentials/credentials.go",
+        "contains": "func CheckSecurityLevel(ai AuthInfo, level SecurityLevel) error {"
+      },
+      {
+        "path": "credentials/credentials.go",
+        "contains": "return errors.New(\"AuthInfo is nil\")"
+      },
+      {
+        "path": "credentials/credentials_test.go",
+        "contains": "err := CheckSecurityLevel(testAuthInfo{CommonAuthInfo: CommonAuthInfo{SecurityLevel: tc.authLevel}}, tc.testLevel)"
+      },
+      {
+        "path": "credentials/oauth/oauth.go",
+        "contains": "if err = credentials.CheckSecurityLevel(ri.AuthInfo, credentials.PrivacyAndIntegrity); err != nil {"
+      },
+      {
+        "path": "credentials/sts/sts.go",
+        "contains": "if err := credentials.CheckSecurityLevel(ri.AuthInfo, credentials.PrivacyAndIntegrity); err != nil {"
+      },
+      {
+        "path": "internal/transport/http2_client.go",
+        "contains": "if !t.isSecure || credentials.CheckSecurityLevel(ri.AuthInfo, credentials.PrivacyAndIntegrity) != nil {"
+      }
+    ],
+    "author_notes": "Only one function in the credentials package declares a local interface purely to sniff the shared auth-info struct off an AuthInfo and compares the reported level with a demanded one, so the nil message and the backward-compatibility carve-out pin it. Its callers are the four per-RPC credential implementations that refuse to send a bearer token over an unprotected connection, the transport's own call-credential gate, and the two package tests that drive it directly."
+  },
+  {
+    "id": "gg-control-frame-queue-ctor-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "In internal/transport/controlbuf.go, an unexported four-line constructor allocates the queue that passes control frames to the loopy writer. It returns a pointer to a freshly built struct whose wakeup channel is made with a single slot of buffering, whose queued-frame list starts as an empty itemList, and whose done field is the caller-supplied receive-only channel that closes when the transport is finished. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "internal/transport/controlbuf.go::newControlBuffer",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "internal/transport/controlbuf_test.go::TestControlBuffer_NoThrottleForNonThrottledItems",
+        "internal/transport/controlbuf_test.go::TestControlBuffer_Throttle",
+        "internal/transport/http2_client.go::NewHTTP2Client",
+        "internal/transport/http2_server.go::NewServerTransport",
+        "internal/transport/transport_test.go::TestClientTransport_Handle1xxHeaders",
+        "internal/transport/transport_test.go::newTestHTTP2Client"
+      ]
+    },
+    "rejected_alternates": [
+      "internal/transport/controlbuf.go::newLoopyWriter",
+      "internal/transport/controlbuf.go::throttle",
+      "internal/transport/controlbuf.go::executeAndPut",
+      "internal/transport/controlbuf.go::newOutStreamList",
+      "internal/transport/transport_test.go::TestClientHandshakeInfo"
+    ],
+    "evidence": [
+      {
+        "path": "internal/transport/controlbuf.go",
+        "contains": "func newControlBuffer(done <-chan struct{}) *controlBuffer {"
+      },
+      {
+        "path": "internal/transport/controlbuf.go",
+        "contains": "wakeupCh: make(chan struct{}, 1),"
+      },
+      {
+        "path": "internal/transport/controlbuf_test.go",
+        "contains": "cb := newControlBuffer(done)"
+      },
+      {
+        "path": "internal/transport/http2_client.go",
+        "contains": "t.controlBuf = newControlBuffer(t.ctxDone)"
+      },
+      {
+        "path": "internal/transport/http2_server.go",
+        "contains": "t.controlBuf = newControlBuffer(t.done)"
+      },
+      {
+        "path": "internal/transport/transport_test.go",
+        "contains": "controlBuf: newControlBuffer(make(<-chan struct{})),"
+      }
+    ],
+    "author_notes": "No other constructor in that file builds a struct with a one-slot wakeup channel, an itemList and a done channel, so the field-by-field description is unambiguous. Each transport owns exactly one such queue, so the callers are the client and server transport constructors plus the three test helpers - two in the file's own test and one shared client fixture - that build a transport or a bare queue by hand."
+  },
+  {
+    "id": "gg-listener-accept-loop-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "In the root package of this corpus, an exported method on the type that hosts registered gRPC handlers takes a net.Listener, blocks, and returns an error. It marks the receiver as having started accepting; if the receiver was already shut down it closes the listener and returns the package's already-stopped sentinel error. Otherwise it registers a listen socket with channelz and loops on Accept, sleeping with a delay that doubles from 5ms up to one second on temporary accept failures and handing each accepted raw connection to its own goroutine. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "server.go::Serve",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "balancer/grpclb/grpclb_test.go::startBackendsAndRemoteLoadBalancer",
+        "credentials/alts/alts_test.go::startFakeHandshakerServiceWithExpectedBoundAccessToken",
+        "server_test.go::TestGracefulStop",
+        "server_test.go::TestStopBeforeServe"
+      ]
+    },
+    "rejected_alternates": [
+      "server.go::ServeHTTP",
+      "server.go::GracefulStop",
+      "server.go::NewServer",
+      "server_test.go::TestGetServiceInfo",
+      "credentials/alts/alts_test.go::startFakeHandshakerService"
+    ],
+    "evidence": [
+      {
+        "path": "server.go",
+        "contains": "func (s *Server) Serve(lis net.Listener) error {"
+      },
+      {
+        "path": "server.go",
+        "contains": "rawConn, err := lis.Accept()"
+      },
+      {
+        "path": "balancer/grpclb/grpclb_test.go",
+        "contains": "lb.Serve(lbLis)"
+      },
+      {
+        "path": "credentials/alts/alts_test.go",
+        "contains": "if err := s.Serve(listener); err != nil {"
+      },
+      {
+        "path": "server_test.go",
+        "contains": "err = server.Serve(lis)"
+      }
+    ],
+    "author_notes": "Only one method on that type takes a net.Listener and owns the accept loop with the doubling temporary-error backoff, which separates it from the HTTP handler entry point and from the shutdown methods it mentions. The corpus is the library itself rather than an application, so nothing in production code drives the accept loop; the callers are the two test fixtures that stand up a fake backend or handshaker and the two root-package tests that check shutdown behaviour."
+  },
+  {
+    "id": "gg-trace-rpc-label-prefix-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "In the root package's file that defines gRPC's optional golang.org/x/net/trace instrumentation types, an unexported one-argument string function normalizes a fully qualified RPC path into the grouping label used for event logs: it trims any leading slash and then cuts the remaining string at the next slash, so that \"/pkg.Service/GetFoo\" collapses to \"pkg.Service\". It is a pure string transformation with no dependencies beyond the standard strings package. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "trace.go::methodFamily",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "server.go::handleStream",
+        "stream.go::newAttemptLocked",
+        "trace_test.go::TestMethodFamily"
+      ]
+    },
+    "rejected_alternates": [
+      "trace.go::truncate",
+      "trace_withtrace.go::newTrace",
+      "trace_withtrace.go::newTraceContext",
+      "stream.go::newClientStream",
+      "server.go::handleRawConn"
+    ],
+    "evidence": [
+      {
+        "path": "trace.go",
+        "contains": "func methodFamily(m string) string {"
+      },
+      {
+        "path": "trace.go",
+        "contains": "m = strings.TrimPrefix(m, \"/\") // remove leading slash"
+      },
+      {
+        "path": "server.go",
+        "contains": "tr := newTrace(\"grpc.Recv.\"+methodFamily(stream.Method()), stream.Method())"
+      },
+      {
+        "path": "stream.go",
+        "contains": "tr: newTrace(\"grpc.Sent.\"+methodFamily(method), method),"
+      },
+      {
+        "path": "trace_test.go",
+        "contains": "if got := methodFamily(ut.method); got != ut.wantMethodFamily {"
+      }
+    ],
+    "author_notes": "The description pins the only unexported slash-splitting string helper in trace.go, distinguished from the neighbouring length-limiting helper by its two-step slash handling and its documented \"/pkg.Service/GetFoo\" to \"pkg.Service\" behaviour. Because the label it produces is only needed when building an x/net/trace record, exactly two production sites use it: the server path that opens a receive-side record for an incoming stream and the client path that opens a send-side record for a new attempt. The third caller is the table-driven unit test in the same package, which is the only other reference in the corpus."
+  },
+  {
+    "id": "gg-rpc-util-marshal-helper-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "The root package's RPC utility file defines an unexported two-argument helper that serializes an arbitrary message value into a buffer slice using the supplied base codec. A nil message produces a nil slice and no error; a marshaling failure is returned as an Internal status error mentioning marshaling; and a serialized result longer than the maximum uint32 is freed and rejected with a ResourceExhausted status error describing a message that is too large. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "rpc_util.go::encode",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "preloader.go::Encode",
+        "rpc_util_test.go::TestEncode",
+        "rpc_util_test.go::bmEncode",
+        "stream.go::prepareMsg"
+      ]
+    },
+    "rejected_alternates": [
+      "rpc_util.go::compress",
+      "rpc_util.go::msgHeader",
+      "rpc_util.go::decompress",
+      "rpc_util.go::recv",
+      "rpc_util_test.go::TestToRPCErr"
+    ],
+    "evidence": [
+      {
+        "path": "rpc_util.go",
+        "contains": "func encode(c baseCodec, msg any) (mem.BufferSlice, error) {"
+      },
+      {
+        "path": "rpc_util.go",
+        "contains": "return nil, status.Errorf(codes.ResourceExhausted, \"grpc: message too large (%d bytes)\", bufSize)"
+      },
+      {
+        "path": "preloader.go",
+        "contains": "data, err := encode(rpcInfo.preloaderInfo.codec, msg)"
+      },
+      {
+        "path": "stream.go",
+        "contains": "data, err = encode(codec, m)"
+      },
+      {
+        "path": "rpc_util_test.go",
+        "contains": "data, err := encode(getCodec(protoenc.Name), test.msg)"
+      },
+      {
+        "path": "rpc_util_test.go",
+        "contains": "encodeData, _ := encode(cdc, msg)"
+      }
+    ],
+    "author_notes": "The size check against math.MaxUint32 plus the two distinct status codes (Internal for marshal failure, ResourceExhausted for oversize) uniquely identify this serialization helper among the codec helpers in rpc_util.go, none of which take a codec and a message and return only a buffer slice. Message serialization funnels through exactly two production entry points: the pre-marshaling path that builds a PreparedMsg and the per-send path that prepares a message for the wire, so those are the only non-test callers. The remaining two callers are the unit test and the benchmark helper for the same function in the package's test file."
+  },
+  {
+    "id": "gg-alts-recv-sequence-ctor-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "In the small utilities file of the ALTS record-protocol connection package, an exported constructor returns a freshly initialized sequence counter used to check the ordering of frames received from the peer. It stores the supplied overflow length and, when the local endpoint is the client side, pre-sets the little-endian high bit of the counter's last byte, because the peer stamps that bit on the messages it produces; the returned value is the package's plain counter struct, not a pointer. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "credentials/alts/internal/conn/utils.go::NewInCounter",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "credentials/alts/internal/conn/aes128gcm.go::NewAES128GCM",
+        "credentials/alts/internal/conn/aes128gcmrekey.go::NewAES128GCMRekey",
+        "credentials/alts/internal/conn/counter_test.go::TestCounterSides"
+      ]
+    },
+    "rejected_alternates": [
+      "credentials/alts/internal/conn/utils.go::NewOutCounter",
+      "credentials/alts/internal/conn/utils.go::CounterFromValue",
+      "credentials/alts/internal/conn/utils.go::CounterSide",
+      "credentials/alts/internal/conn/counter_test.go::TestCounterInc",
+      "credentials/alts/internal/conn/aes128gcm.go::Encrypt"
+    ],
+    "evidence": [
+      {
+        "path": "credentials/alts/internal/conn/utils.go",
+        "contains": "func NewInCounter(s core.Side, overflowLen int) (c Counter) {"
+      },
+      {
+        "path": "credentials/alts/internal/conn/utils.go",
+        "contains": "if s == core.ClientSide {"
+      },
+      {
+        "path": "credentials/alts/internal/conn/aes128gcm.go",
+        "contains": "inCounter:  NewInCounter(side, overflowLenAES128GCM),"
+      },
+      {
+        "path": "credentials/alts/internal/conn/aes128gcmrekey.go",
+        "contains": "inCounter := NewInCounter(side, overflowLenAES128GCMRekey)"
+      },
+      {
+        "path": "credentials/alts/internal/conn/counter_test.go",
+        "contains": "inCounter := NewInCounter(side, testOverflowLen)"
+      }
+    ],
+    "author_notes": "Two constructors in this file differ only in which side triggers the high-bit initialization; the description names the client-side branch and the receive-direction purpose, which selects exactly one of them. Inbound counters are only created when an ALTS record crypto instance is built, so the two AEAD constructors in the package (plain and rekeying) are the sole production callers. The third caller is the counter test that builds both directions to assert their sides differ."
+  },
+  {
+    "id": "gg-endpointsharding-picker-state-accessor-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "The endpoint-sharding balancer package exports a one-argument accessor that takes a balancer picker and type-asserts it to the package's own aggregating picker, the one that delegates picks round-robin across its children and carries a slice of per-child status records alongside those delegates. On a successful assertion it returns that slice; for any other picker implementation it returns nil. Petiole policies layered on top of endpoint sharding use it to recover the per-endpoint status that accompanies an aggregated picker. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "balancer/endpointsharding/endpointsharding.go::ChildStatesFromPicker",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "balancer/endpointsharding/endpointsharding_ext_test.go::UpdateState",
+        "balancer/leastrequest/leastrequest.go::UpdateState",
+        "balancer/ringhash/ringhash.go::UpdateState",
+        "balancer/weightedroundrobin/balancer.go::UpdateState"
+      ]
+    },
+    "rejected_alternates": [
+      "balancer/endpointsharding/endpointsharding.go::updateStateLocked",
+      "balancer/endpointsharding/endpointsharding.go::Pick",
+      "balancer/endpointsharding/endpointsharding.go::NewBalancer",
+      "balancer/leastrequest/leastrequest.go::Pick",
+      "balancer/ringhash/ringhash.go::updatePickerLocked"
+    ],
+    "evidence": [
+      {
+        "path": "balancer/endpointsharding/endpointsharding.go",
+        "contains": "func ChildStatesFromPicker(picker balancer.Picker) []ChildState {"
+      },
+      {
+        "path": "balancer/endpointsharding/endpointsharding.go",
+        "contains": "p, ok := picker.(*pickerWithChildStates)"
+      },
+      {
+        "path": "balancer/leastrequest/leastrequest.go",
+        "contains": "for _, child := range endpointsharding.ChildStatesFromPicker(state.Picker) {"
+      },
+      {
+        "path": "balancer/ringhash/ringhash.go",
+        "contains": "childStates := endpointsharding.ChildStatesFromPicker(state.Picker)"
+      },
+      {
+        "path": "balancer/weightedroundrobin/balancer.go",
+        "contains": "childStates := endpointsharding.ChildStatesFromPicker(state.Picker)"
+      },
+      {
+        "path": "balancer/endpointsharding/endpointsharding_ext_test.go",
+        "contains": "childStates := endpointsharding.ChildStatesFromPicker(state.Picker)"
+      }
+    ],
+    "author_notes": "Only one exported function in the package takes a picker and returns a slice of child status records via a type assertion on the aggregating picker type, so the description is unambiguous. The accessor is only useful where a petiole policy intercepts the aggregated state pushed up by endpoint sharding, which is why every caller is the state-forwarding hook of such a policy: least-request, ring hash and weighted round robin in production, plus the fake petiole in the package's own external test."
+  },
+  {
+    "id": "gg-server-service-desc-entry-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "An exported method on the root package's server type takes a service descriptor and an implementation value and adds the pair to the server's table of served services. When the implementation value is non-nil it first uses reflection to verify that the value satisfies the handler interface type named by the descriptor, fatally logging a message about a handler type that does not satisfy the interface otherwise, and then delegates to the unexported routine that takes the server mutex, refuses duplicates and builds the per-method information map. The generated stubs call it, and using it after the accept loop has begun is fatal. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "server.go::RegisterService",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "balancer/grpclb/grpc_lb_v1/load_balancer_grpc.pb.go::RegisterLoadBalancerServer",
+        "channelz/grpc_channelz_v1/channelz_grpc.pb.go::RegisterChannelzServer",
+        "credentials/alts/internal/proto/grpc_gcp/handshaker_grpc.pb.go::RegisterHandshakerServiceServer",
+        "server_test.go::TestGetServiceInfo"
+      ]
+    },
+    "rejected_alternates": [
+      "server.go::ServeHTTP",
+      "server.go::GetServiceInfo",
+      "balancer/grpclb/grpc_lb_v1/load_balancer_grpc.pb.go::NewLoadBalancerClient",
+      "channelz/grpc_channelz_v1/channelz_grpc.pb.go::NewChannelzClient",
+      "server_test.go::TestStreamContext"
+    ],
+    "evidence": [
+      {
+        "path": "server.go",
+        "contains": "func (s *Server) RegisterService(sd *ServiceDesc, ss any) {"
+      },
+      {
+        "path": "server.go",
+        "contains": "logger.Fatalf(\"grpc: Server.RegisterService found the handler of type %v that does not satisfy %v\", st, ht)"
+      },
+      {
+        "path": "balancer/grpclb/grpc_lb_v1/load_balancer_grpc.pb.go",
+        "contains": "s.RegisterService(&LoadBalancer_ServiceDesc, srv)"
+      },
+      {
+        "path": "channelz/grpc_channelz_v1/channelz_grpc.pb.go",
+        "contains": "s.RegisterService(&Channelz_ServiceDesc, srv)"
+      },
+      {
+        "path": "credentials/alts/internal/proto/grpc_gcp/handshaker_grpc.pb.go",
+        "contains": "s.RegisterService(&HandshakerService_ServiceDesc, srv)"
+      },
+      {
+        "path": "server_test.go",
+        "contains": "server.RegisterService(&testSd, &testServer{})"
+      }
+    ],
+    "author_notes": "The reflection-based handler-type check followed by delegation to the locking, duplicate-rejecting internal routine identifies the exported entry point rather than the unexported worker it wraps or the same-named interface method declared just above it. Callers are therefore the generated registration functions of every service whose protobuf stubs are vendored in this corpus (grpclb load balancer, channelz and the ALTS handshaker), each of which forwards a package-level service descriptor. The remaining caller is the server test that registers a synthetic descriptor before inspecting the reported service information."
+  },
+  {
+    "id": "gg-pickfirst-health-optin-attribute-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "question": "The pick-first balancer package exports an experimental one-argument function that takes a resolver state by value, stores a true boolean under an attribute key whose type is an unexported empty struct, and returns the updated state. The attribute is how a parent policy opts the leaf pick-first child into the generic health-reporting path used for client-side health checking and outlier detection. Name every function or method in the corpus that calls it, each as path::name.",
+    "helper": "balancer/pickfirst/pickfirst.go::EnableHealthListener",
+    "exhaustive": true,
+    "expected_json": {
+      "answer": [
+        "balancer/leastrequest/leastrequest.go::UpdateClientConnState",
+        "balancer/pickfirst/pickfirst_ext_test.go::TestPickFirstLeaf_HealthListenerEnabled",
+        "balancer/pickfirst/pickfirst_ext_test.go::TestPickFirstLeaf_HealthUpdates",
+        "balancer/ringhash/ringhash.go::UpdateClientConnState",
+        "balancer/roundrobin/roundrobin.go::UpdateClientConnState",
+        "balancer/weightedroundrobin/balancer.go::UpdateClientConnState"
+      ]
+    },
+    "rejected_alternates": [
+      "balancer/pickfirst/pickfirst.go::ParseConfig",
+      "balancer/pickfirst/pickfirst.go::UpdateClientConnState",
+      "balancer/pickfirst/pickfirst.go::updateSubConnHealthState",
+      "balancer/weightedroundrobin/balancer.go::SetBackendService",
+      "balancer/ringhash/ringhash.go::UpdateState"
+    ],
+    "evidence": [
+      {
+        "path": "balancer/pickfirst/pickfirst.go",
+        "contains": "func EnableHealthListener(state resolver.State) resolver.State {"
+      },
+      {
+        "path": "balancer/pickfirst/pickfirst.go",
+        "contains": "state.Attributes = state.Attributes.WithValue(enableHealthListenerKeyType{}, true)"
+      },
+      {
+        "path": "balancer/leastrequest/leastrequest.go",
+        "contains": "ResolverState: pickfirst.EnableHealthListener(ccs.ResolverState),"
+      },
+      {
+        "path": "balancer/roundrobin/roundrobin.go",
+        "contains": "ResolverState: pickfirst.EnableHealthListener(ccs.ResolverState),"
+      },
+      {
+        "path": "balancer/ringhash/ringhash.go",
+        "contains": "ResolverState: pickfirst.EnableHealthListener(ccs.ResolverState),"
+      },
+      {
+        "path": "balancer/pickfirst/pickfirst_ext_test.go",
+        "contains": "ccs.ResolverState = pfbalancer.EnableHealthListener(ccs.ResolverState)"
+      }
+    ],
+    "author_notes": "Only one exported helper in the pick-first package rewrites a resolver state by attaching the private empty-struct-keyed opt-in attribute, so the behavioural description resolves to it alone. The opt-in has to be applied where a parent policy forwards resolver state down to its pick-first children, which is exactly why all four production callers are the resolver-state hooks of the petiole policies (least request, ring hash, round robin and weighted round robin). The other two callers are stub balancers inside pick-first's external test file that set the attribute before delegating to a real pick-first child."
+  }
+]

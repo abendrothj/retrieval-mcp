@@ -372,6 +372,28 @@ class LanguageFamilyAttributionTests(unittest.TestCase):
     def test_a_shorthand_method_in_an_object_literal_is_the_caller(self):
         self.assertEqual(self.at("rule.js", "return normalize(fixer);"), "fix")
 
+    def test_a_go_interface_method_signature_is_not_a_call(self):
+        """Nothing calls anything from inside a type.
+
+        `MetricsRecorder() stats.MetricsRecorder` in a gRPC-Go `interface` body declares a
+        method. Counted as a call it demanded that an exhaustive gold name `ClientConn` as a
+        caller of its own member - a caller no system under test reports, on the first Go suite
+        this repository ever compiled.
+        """
+        (self.root / "iface.go").write_text(
+            "package service\n\n"
+            "type Recorder interface {\n"
+            "\tnormalize(row string) string\n"
+            "}\n\n"
+            "func drive(r Recorder) string { return normalize(\"x\") }\n",
+            encoding="utf-8")
+        (self.root / "util.go").write_text(
+            "package service\n\nfunc normalize(v string) string { return v }\n",
+            encoding="utf-8")
+        callers = audit_failures.true_callers(self.root, "normalize", "util.go")
+        self.assertNotIn("iface.go::Recorder", callers)
+        self.assertIn("iface.go::drive", callers)
+
     def test_callers_are_enumerated_in_every_family(self):
         (self.root / "util.js").write_text("function normalize(v) { return v; }\n",
                                            encoding="utf-8")
