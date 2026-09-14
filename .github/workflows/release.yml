@@ -1,0 +1,114 @@
+# Prebuilt binaries for a tagged release. `cargo install retrieval-mcp` needs a Rust toolchain and
+# two minutes of compiling Tree-sitter grammars; this is the path for people who have neither.
+#
+# Every target is built on its own native runner rather than cross-compiled, because the
+# Tree-sitter grammars need a working C compiler for the target and a native runner is the one
+# configuration that is certain to have it.
+#
+# Windows is deliberately absent: the server has Unix-specific paths (log-file mode 0600, process
+# group handling in the tests) that have never been exercised there, and an untested binary is a
+# claim this project does not get to make.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build binaries for
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+          - target: x86_64-apple-darwin
+            runner: macos-13
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --locked --release --bin retrieval-mcp --target ${{ matrix.target }}
+
+      # The binary is the whole artifact: no config file, no data directory, no index to ship.
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ inputs.tag || github.ref_name }}"
+          name="retrieval-mcp-${version}-${{ matrix.target }}"
+          mkdir -p "dist/${name}"
+          cp "target/${{ matrix.target }}/release/retrieval-mcp" "dist/${name}/"
+          cp README.md LICENSE "dist/${name}/"
+          tar -C dist -czf "dist/${name}.tar.gz" "${name}"
+          shasum -a 256 "dist/${name}.tar.gz" | sed "s| dist/| |" > "dist/${name}.tar.gz.sha256"
+
+      # Proves the artifact runs on the machine that built it before anyone downloads it: one real
+      # MCP handshake and one real tool call against this repository, exactly as the README shows.
+      - name: Smoke test the packaged binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ inputs.tag || github.ref_name }}"
+          binary="dist/retrieval-mcp-${version}-${{ matrix.target }}/retrieval-mcp"
+          if ! command -v rg >/dev/null; then
+            if [ "$RUNNER_OS" = "Linux" ]; then sudo apt-get update && sudo apt-get install -y ripgrep;
+            else brew install ripgrep; fi
+          fi
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"find_callers","arguments":{"name":"build"}}}' \
+            | "$binary" --root . 2>/dev/null | tail -1 > reply.json
+          python3 - <<'PY'
+          import json
+          reply = json.load(open("reply.json"))
+          rows = reply["result"]["structuredContent"]["results"]
+          assert rows and all(row.get("caller") for row in rows), reply
+          print(f"packaged binary answered with {len(rows)} caller rows")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retrieval-mcp-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+
+  publish:
+    needs: binaries
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Attach the binaries to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.tag || github.ref_name }}" dist/* --clobber --repo "${{ github.repository }}"

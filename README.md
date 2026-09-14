@@ -12,6 +12,12 @@ input tokens** and carried **34% less context** — [the numbers](#what-the-expe
 cargo install retrieval-mcp
 ```
 
+Or take a prebuilt binary from [the releases page](https://github.com/abendrothj/retrieval-mcp/releases)
+— macOS and Linux, x86-64 and arm64, each a tarball with a `.sha256` beside it — and put
+`retrieval-mcp` on your `PATH`. Either way the server needs [`rg`](https://github.com/BurntSushi/ripgrep)
+on `PATH` at runtime: it shells out to ripgrep for exact search and for enumerating files, so a
+prebuilt binary removes the Rust toolchain from the install, not that one dependency.
+
 Then register it with your client. MCP servers are declared in configuration and started by the
 client on demand — you never launch this yourself, and it exits with the session:
 
