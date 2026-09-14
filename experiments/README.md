@@ -27,6 +27,7 @@ artifacts, caveats, and the commands that produced it.
 | 14 | Is the 9 KB of advertised output schema a token tax? | [No — the client never forwards it](#layer-3-the-schema-diet-and-the-saving-that-was-not-there): a pre-registered ≥15% context cut came out at −0.1%, and the same measurement showed this server's model-facing surface is 1,450 tokens *smaller* than zvec's, not larger |
 | 15 | Does an enclosing-container line fix wrong-level answers? | [Undecided, and it found a bug](#layer-4-the-container-line-and-the-bug-it-was-hiding): no wrong_level error occurred in 36 trials, but caller rows were naming local consts as callers, and fixing that cut source reads 66% |
 | 16 | Was that the fix or the feature? | [The fix](#layers-5-and-6-isolating-the-feature-from-the-fix): isolated, the container fields move nothing and the attribution guard cuts source reads 74%, calls 30%, total tokens 39.5% and the worst trial 81%, at identical correctness |
+| 17 | Do the remaining backlog candidates earn their keep? | [Three of four do not](#four-backlog-items-measured): test down-ranking helps inside the suites and hurts outside them, a snapshot cache buys 5% of wall time for the worst defect class, concurrency was already sound; payload de-duplication measured −52.8% offline and is pre-registered |
 
 **The result in one line.** On a sealed 30-question held-out set, this server matched zvec-grep at
 29/30 on the same 78 tool calls while spending 24% fewer input tokens and carrying 34% less
@@ -1302,6 +1303,51 @@ on this server:
 The bucket still discriminates - it is the one place the competitor and the native control lose -
 but it no longer discriminates *against this server*, which is why the next caller-quality feature
 should not be invented until a suite exists that can see one fail.
+
+
+### Four backlog items, measured
+
+Driving the server against Django rather than a scoped corpus produced a backlog of four candidates
+and one untested property. All five were settled without a single model call.
+
+**Test-file ranking: rejected.** A multiplicative down-weight on chunks whose path looks like test
+code lifts the authored coreutils suite from MRR 0.474 to 0.519 (recall@5 10 → 11) and moves
+Django's recall@10 by one, with VS Code unchanged and no regression anywhere. It is not a fitted
+constant either: weights of 0.10, 0.25, 0.40, 0.55 and 0.70 all produce exactly the same scores, so
+any down-weight moves the same one or two questions. It is still not shipped, and the reason is the
+cost no suite in this project can see. A query about test code loses its evidence: *"test that
+sorting handles numeric suffixes"* returns two test files in the base top five and **none** under
+the treatment, and **zero of the 62 graded questions have a gold in a test file**. A change whose
+benefit is inside the evidence base and whose cost is outside it does not get made on that evidence.
+
+**Payload de-duplication: measured, pre-registered, not yet run.** 27–61% of a `find_callers`
+response is the identical `candidate_definitions` array and `confidence` sentence repeated once per
+row. Stating them once per page cuts 18 real calls across three corpora from 494,683 to 233,609
+bytes — **−52.8%**, from −7.2% on a two-row page to −61.2% on a twenty-row page — with identical
+rows in identical order. That is a shape change to model-facing output, so it is pre-registered with
+a ≥10% `context_token_turns` reduction to ship and every quality and grounding column held. The
+distinction from the schema diet is the one that matters: output schemas are client-side metadata
+Claude Code never forwards, while tool results are sent verbatim and re-read every turn.
+
+**A cross-process snapshot cache: do not build.** Mining 1,227 archived trials for the ceiling
+settles it. A trial starts exactly one server process (937 of 937) which builds at most one
+snapshot, so a *perfect* cache saves one build: 1.05 s median, **5.0% of an 18.4 s median trial**,
+12.4% at p90, and 9.8% of structural-capable trials never make a structural call at all, where a
+cache is pure cost. Validation is not the blocker — walk-and-stat costs 1.0–2.5% of a rebuild and
+sound content hashing 2.8–4.5% — and the snapshot would weigh 78–382 MB. Net of validating and
+loading, the cache buys 0.7–0.9 s per process: 5% of wall time, 0% of tokens, calls or correctness,
+in exchange for the defect class this project treats most seriously, since `Symbol.excerpt` and
+`Reference.excerpt` are captured at build time and a stale entry would quote source that no longer
+exists. Full arithmetic in `runs/snapshot-cache-feasibility-20260913/report.json`.
+
+**Concurrency: no defect found.** Every measurement in this project until now drove one request at a
+time. Four stdio tests now pipeline 24 calls without awaiting any reply, race eight structural calls
+against the single lazy index build, cancel a call while its build is running, and close stdin with
+nine requests in flight. All four passed on their first run: no dropped or misrouted reply, no
+duplicate, no deadlock, no second build. The assertions are shown to discriminate rather than to
+pass vacuously — removing eight ids from the owed set makes the pipelining test fail on the stray
+reply, two processes over the same corpus produce different `snapshot_id`s, and a lexical-only
+session logs zero `index_built` lines against exactly one for each build.
 
 
 ## Native-system comparison

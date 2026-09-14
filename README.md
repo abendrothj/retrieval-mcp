@@ -188,6 +188,8 @@ cargo clippy --locked --all-targets -- -D warnings
   --timeout-seconds 120
 ```
 
+Concurrent calls are answered independently: requests are handled as they arrive, the structural snapshot is built once behind a `OnceCell` however many callers race it, and every accepted request is answered even if the client closes stdin mid-build. Pinned by four stdio tests that pipeline 24 calls without awaiting replies, race eight structural calls against one lazy build, cancel a call while its build runs, and close stdin with nine requests in flight.
+
 The server waits for an MCP client on stdin; it is not an interactive terminal application. Stdout carries MCP messages only. Logs go to stderr; `--log-file` additionally appends invocation events to a file whose parent directory must already exist. The file is never truncated. New log files use mode 0600 on Unix.
 
 Four tools are exposed by default — `search_exact`, `read_source`, `find_callers`, `search_concept` — and the default ranker is **lexical**, so a plain `--root` invocation is fully offline. That default is the measured one, not the maximal one: see [Restricting the tool set](#restricting-the-tool-set) for the other three and the profile presets. `--ranker semantic` or `--ranker hybrid` requires `--semantic-command`; without it, `search_concept` returns an explicit configuration error rather than silently degrading to a different ranking. `--root` is mandatory and fixed for the session; clients cannot change it through a tool argument. It may be given relative (`--root .`) and is canonicalised once at startup against the process's working directory, so what the session can read never depends on anything a later tool call says. Ignore files are honored by default; `--no-ignore` searches and indexes ignored files too, for repositories whose ignore rules hide the code under study (a nested repository ignored by its parent, say). `.git`, `target` and hidden files stay excluded either way.
@@ -322,7 +324,7 @@ Corpora, run artifacts, transcripts, and model answers are deliberately absent. 
 ## Testing
 
 ```sh
-cargo test --locked --all-targets            # 21 library, 9 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 21 library, 13 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
 python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 201 tests
 ```

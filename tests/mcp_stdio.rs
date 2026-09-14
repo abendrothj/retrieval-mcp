@@ -1,5 +1,5 @@
 use serde_json::{Value, json};
-use std::{process::Stdio, time::Duration};
+use std::{collections::HashMap, process::Stdio, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},
@@ -95,6 +95,58 @@ impl Client {
         self.request("tools/call", json!({"name":name,"arguments":args}))
             .await["result"]
             .clone()
+    }
+    /// Writes a request and returns its id without waiting for the reply, so several calls can be
+    /// in flight at once.
+    async fn dispatch(&mut self, method: &str, params: Value) -> u64 {
+        self.id += 1;
+        let id = self.id;
+        self.send(json!({"jsonrpc":"2.0","id":id,"method":method,"params":params}))
+            .await;
+        id
+    }
+    async fn dispatch_tool(&mut self, name: &str, args: Value) -> u64 {
+        self.dispatch("tools/call", json!({"name":name,"arguments":args}))
+            .await
+    }
+    /// Reads replies until every id in `owed` has one. Unlike `request`, which skips whatever it
+    /// is not waiting for, this refuses a second reply for an id and a reply for an id nobody
+    /// asked for: with several calls in flight, a misrouted or duplicated response is otherwise
+    /// silently discarded by whichever reader is not waiting for it.
+    async fn collect(&mut self, owed: &[u64]) -> HashMap<u64, Value> {
+        let mut answered: HashMap<u64, Value> = HashMap::new();
+        let within = tokio::time::timeout(Duration::from_secs(60), async {
+            while !owed.iter().all(|id| answered.contains_key(id)) {
+                let mut line = String::new();
+                assert!(
+                    self.stdout.read_line(&mut line).await.unwrap() > 0,
+                    "server closed stdout with replies still owed"
+                );
+                let value: Value =
+                    serde_json::from_str(&line).expect("stdout must contain only MCP JSON");
+                // Server-initiated notifications carry no id and answer no request.
+                let Some(id) = value["id"].as_u64() else {
+                    continue;
+                };
+                assert!(
+                    owed.contains(&id),
+                    "a reply arrived for an id nobody asked for: {value}"
+                );
+                assert!(
+                    answered.insert(id, value).is_none(),
+                    "id {id} was answered twice"
+                );
+            }
+        })
+        .await;
+        assert!(
+            within.is_ok(),
+            "replies never arrived for {:?}",
+            owed.iter()
+                .filter(|id| !answered.contains_key(id))
+                .collect::<Vec<_>>()
+        );
+        answered
     }
     async fn stop(mut self) -> Vec<Value> {
         drop(self.stdin);
@@ -454,6 +506,324 @@ async fn a_reply_is_flushed_even_when_stdin_closes_during_a_slow_call() {
         call["result"]["structuredContent"]["results"][0]["symbol"]["symbol"],
         "sample.rs::meaning"
     );
+}
+
+/// A corpus the test writes itself, sized so the first structural call spends real time building
+/// its snapshot: 200 files take about 120 ms in a debug build here, twice the 50 ms dispatch grace
+/// in `main.rs` and well short of a second. Every symbol name carries the file it lives in, so a
+/// reply that belongs to a different request is visible in the payload and not only in its id.
+fn generated_corpus(files: usize) -> tempfile::TempDir {
+    let root = tempfile::tempdir().unwrap();
+    for file in 0..files {
+        let mut text = String::new();
+        for symbol in 0..10 {
+            text.push_str(&format!(
+                "fn helper_{file}_{symbol}(value: usize) -> usize {{ let mut total = value; \
+                 for step in 0..{symbol} {{ total += step; }} total }}\n"
+            ));
+            text.push_str(&format!(
+                "fn caller_{file}_{symbol}() -> usize {{ helper_{file}_{symbol}({symbol}) }}\n"
+            ));
+        }
+        std::fs::write(root.path().join(format!("mod_{file}.rs")), text).unwrap();
+    }
+    root
+}
+
+/// Every measurement this project has made drove one request at a time. A client that writes its
+/// requests without waiting - a pipelined session, or an agent firing two tools at once - must get
+/// all of them back, each carrying the id that asked for it. Handlers finishing at the same moment
+/// share one stdout: interleaved writes would corrupt the framing, and a misrouted reply would
+/// answer one caller with another's rows. `collect` refuses unknown and repeated ids, so neither
+/// can pass as a skipped line.
+#[tokio::test]
+async fn pipelined_calls_are_each_answered_with_the_id_that_asked() {
+    let root = generated_corpus(200);
+    let mut client = Client::start(root.path(), "D").await;
+    let mut exact = Vec::new();
+    let mut source = Vec::new();
+    let mut symbol = Vec::new();
+    // Written back-to-back with nothing awaited: the server holds all twenty-four at once, and the
+    // structural third of them queues behind one lazy index build.
+    for file in 0..8 {
+        exact.push(
+            client
+                .dispatch_tool(
+                    "search_exact",
+                    json!({"query": format!("caller_{file}_3"), "limit": 5}),
+                )
+                .await,
+        );
+        source.push(
+            client
+                .dispatch_tool(
+                    "read_source",
+                    json!({"path": format!("mod_{file}.rs"), "start_line": 1, "end_line": 2}),
+                )
+                .await,
+        );
+        symbol.push(
+            client
+                .dispatch_tool("find_symbol", json!({"name": format!("helper_{file}_7")}))
+                .await,
+        );
+    }
+    let owed: Vec<u64> = exact
+        .iter()
+        .chain(&source)
+        .chain(&symbol)
+        .copied()
+        .collect();
+    let answered = client.collect(&owed).await;
+    for file in 0..8usize {
+        let found = &answered[&exact[file]]["result"]["structuredContent"];
+        let rows = found["results"].as_array().unwrap();
+        assert!(!rows.is_empty(), "{found}");
+        for row in rows {
+            assert_eq!(row["path"], format!("mod_{file}.rs"), "{found}");
+            assert!(
+                row["snippet"]
+                    .as_str()
+                    .unwrap()
+                    .contains(&format!("caller_{file}_3")),
+                "{found}"
+            );
+        }
+        let read = &answered[&source[file]]["result"]["structuredContent"];
+        assert_eq!(read["path"], format!("mod_{file}.rs"), "{read}");
+        assert!(
+            read["lines"][0]["text"]
+                .as_str()
+                .unwrap()
+                .starts_with(&format!("fn helper_{file}_0(")),
+            "{read}"
+        );
+        let defined = &answered[&symbol[file]]["result"]["structuredContent"];
+        assert_eq!(defined["symbol_status"], "indexed", "{defined}");
+        assert_eq!(
+            defined["results"][0]["name"],
+            format!("helper_{file}_7"),
+            "{defined}"
+        );
+        assert_eq!(defined["results"][0]["path"], format!("mod_{file}.rs"));
+    }
+    client.stop().await;
+}
+
+/// The structural snapshot is built lazily inside a `OnceCell` on the first structural call, and
+/// until now only one call ever reached it. Eight issued at once race that build: all eight must be
+/// answered from one snapshot rather than one snapshot each, since a per-caller rebuild would
+/// multiply the cost of the whole session and let two callers reason over different corpora.
+/// `snapshot_id` is stamped when a build starts, so two builds cannot share one, and the
+/// `index_built` log line counts builds from outside the process.
+#[tokio::test]
+async fn concurrent_structural_calls_all_see_one_snapshot() {
+    let root = generated_corpus(200);
+    let mut client = Client::start(root.path(), "D").await;
+    let mut owed = Vec::new();
+    for file in 0..2 {
+        let name = format!("helper_{file}_4");
+        owed.push(
+            client
+                .dispatch_tool("find_symbol", json!({ "name": name }))
+                .await,
+        );
+        owed.push(
+            client
+                .dispatch_tool("find_callers", json!({ "name": name }))
+                .await,
+        );
+        owed.push(
+            client
+                .dispatch_tool("inspect_symbol", json!({ "name": name }))
+                .await,
+        );
+        owed.push(
+            client
+                .dispatch_tool(
+                    "trace_dependencies",
+                    json!({"name": name, "direction": "callers", "depth": 2}),
+                )
+                .await,
+        );
+    }
+    let answered = client.collect(&owed).await;
+    let mut snapshots = std::collections::BTreeSet::new();
+    for id in &owed {
+        let content = &answered[id]["result"]["structuredContent"];
+        assert_ne!(answered[id]["result"]["isError"], true, "{content}");
+        let coverage = &content["coverage"];
+        assert_eq!(coverage["indexed_files"], 200, "{coverage}");
+        assert_eq!(coverage["eligible_files"], 200, "{coverage}");
+        assert_eq!(coverage["budget_truncated"], false, "{coverage}");
+        snapshots.insert(coverage["snapshot_id"].as_str().unwrap().to_string());
+    }
+    assert_eq!(
+        snapshots.len(),
+        1,
+        "calls racing the lazy build saw {snapshots:?}"
+    );
+    // Racing the build is not an excuse for answering the wrong question.
+    for (file, batch) in owed.chunks(4).enumerate() {
+        let rows = |id: &u64| answered[id]["result"]["structuredContent"]["results"].clone();
+        assert_eq!(rows(&batch[0])[0]["name"], format!("helper_{file}_4"));
+        assert_eq!(rows(&batch[1])[0]["caller"], format!("caller_{file}_4"));
+        assert_eq!(
+            rows(&batch[2])[0]["symbol"],
+            format!("mod_{file}.rs::helper_{file}_4")
+        );
+        assert_eq!(rows(&batch[3])[0]["callee"], format!("helper_{file}_4"));
+    }
+    let logs = client.stop().await;
+    let builds = logs
+        .iter()
+        .filter(|line| line["fields"]["event"] == "index_built")
+        .count();
+    assert_eq!(builds, 1, "the snapshot was built {builds} times");
+}
+
+/// A client that gives up on a call must not take the session with it. The abandoned request is the
+/// first structural one, so it is cancelled while its index build is running - the expensive case -
+/// and two stale cancellations follow: one for a call already answered, one for an id that was
+/// never issued. MCP forbids answering a cancelled request, and `collect` fails on any reply it was
+/// not told to expect, so a resurrected answer for the cancelled id fails here too. `stop` allows
+/// the process five seconds to exit, so a cancelled call that leaked its in-flight count - holding
+/// `DrainingStdin` open forever - fails there.
+#[tokio::test]
+async fn a_cancelled_request_does_not_wedge_the_calls_behind_it() {
+    let root = generated_corpus(200);
+    let mut client = Client::start(root.path(), "D").await;
+    let settled = client
+        .request(
+            "tools/call",
+            json!({"name":"search_exact","arguments":{"query":"helper_1_1","limit":1}}),
+        )
+        .await;
+    assert_ne!(settled["result"]["isError"], true, "{settled}");
+    let settled_id = settled["id"].as_u64().unwrap();
+
+    let abandoned = client
+        .dispatch_tool("find_symbol", json!({"name":"helper_2_2"}))
+        .await;
+    for (request, reason) in [
+        (abandoned, "client gave up"),
+        (settled_id, "stale: already answered"),
+        (9_999, "never issued"),
+    ] {
+        client
+            .send(json!({"jsonrpc":"2.0","method":"notifications/cancelled",
+                         "params":{"requestId":request,"reason":reason}}))
+            .await;
+    }
+
+    let after = [
+        client
+            .dispatch_tool("find_symbol", json!({"name":"helper_3_3"}))
+            .await,
+        client
+            .dispatch_tool("find_callers", json!({"name":"helper_3_3"}))
+            .await,
+        client
+            .dispatch_tool("search_exact", json!({"query":"caller_4_4","limit":2}))
+            .await,
+    ];
+    let answered = client.collect(&after).await;
+    let content = |id: &u64| answered[id]["result"]["structuredContent"].clone();
+    assert_eq!(
+        content(&after[0])["results"][0]["name"],
+        "helper_3_3",
+        "{}",
+        content(&after[0])
+    );
+    assert_eq!(content(&after[1])["results"][0]["caller"], "caller_3_3");
+    assert_eq!(content(&after[2])["results"][0]["path"], "mod_4.rs");
+
+    let logs = client.stop().await;
+    let record = logs
+        .iter()
+        .find(|line| line["event"] == "tool_end" && line["request_id"] == abandoned)
+        .unwrap_or_else(|| panic!("the cancelled call left no record: {logs:?}"));
+    // Proves the cancellation reached the handler rather than the test racing past it.
+    assert!(
+        record["error"].as_str().unwrap_or_default().contains("cancelled"),
+        "{record}"
+    );
+}
+
+/// The drain in `DrainingStdin` was measured once, against a sleeping backend and a single call.
+/// Under a pipeline it has more to hold: nine requests arrive, stdin ends immediately, and the six
+/// structural ones wait on an index build that outlasts the 50 ms dispatch grace. Every accepted
+/// request is still a reply owed, and one snapshot must serve them all.
+#[tokio::test]
+async fn every_reply_survives_stdin_closing_mid_index_build() {
+    use std::io::Write;
+
+    let root = generated_corpus(200);
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"))
+        .args([
+            "--root",
+            root.path().to_str().unwrap(),
+            "--profile",
+            "D",
+            "--timeout-seconds",
+            "60",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let mut written = vec![
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}),
+        json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+    ];
+    for file in 0..6u64 {
+        written.push(json!({"jsonrpc":"2.0","id":10 + file,"method":"tools/call",
+            "params":{"name":"find_symbol","arguments":{"name": format!("helper_{file}_5")}}}));
+    }
+    for file in 0..3u64 {
+        written.push(json!({"jsonrpc":"2.0","id":20 + file,"method":"tools/call",
+            "params":{"name":"search_exact","arguments":{"query": format!("caller_{file}_6"),"limit":2}}}));
+    }
+    let mut stdin = child.stdin.take().unwrap();
+    for line in &written {
+        writeln!(stdin, "{line}").unwrap();
+    }
+    stdin.flush().unwrap();
+    drop(stdin);
+
+    let finished = child.wait_with_output().unwrap();
+    assert!(finished.status.success(), "{:?}", finished.status);
+    let replies: Vec<Value> = String::from_utf8(finished.stdout)
+        .unwrap()
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    let answer = |id: u64| {
+        replies
+            .iter()
+            .find(|reply| reply["id"] == id)
+            .unwrap_or_else(|| panic!("accepted request {id} was never answered: {replies:?}"))
+    };
+    let mut snapshots = std::collections::BTreeSet::new();
+    for file in 0..6u64 {
+        let content = &answer(10 + file)["result"]["structuredContent"];
+        assert_eq!(content["results"][0]["name"], format!("helper_{file}_5"));
+        snapshots.insert(content["coverage"]["snapshot_id"].as_str().unwrap().to_string());
+    }
+    assert_eq!(snapshots.len(), 1, "shutdown split the snapshot: {snapshots:?}");
+    for file in 0..3u64 {
+        let content = &answer(20 + file)["result"]["structuredContent"];
+        assert_eq!(content["results"][0]["path"], format!("mod_{file}.rs"), "{content}");
+    }
+    let builds = String::from_utf8(finished.stderr)
+        .unwrap()
+        .lines()
+        .filter(|line| line.contains(r#""event":"index_built""#))
+        .count();
+    assert_eq!(builds, 1, "the snapshot was built {builds} times");
 }
 
 #[cfg(unix)]
