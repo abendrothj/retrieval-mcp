@@ -2,15 +2,15 @@
   "schema_version": 1,
   "name": "retrieval-server-stratified-v1",
   "corpus_files": {
-    "Cargo.toml": "0aeedf3a49b173ec46257e9804ca0aa860654bc24876ee591805863db8083494",
-    "Cargo.lock": "bc4462086072cd81fdf170828902fa660bf661d4f3dadd2edeceded4b7cf597f",
+    "Cargo.toml": "d88aadd96125930e0ba1bc3758801ce5d85d750c3ea8ff84c4c893437e68a858",
+    "Cargo.lock": "1c3c2d703515caed5c9c1954b8ec758995a76e91bc83d57aa98b5f70bc2e7dfe",
     "src/lib.rs": "3491d7f875642a69c473c5609a14c4671f9754ff0ef9e29b6ebacb6c2257d153",
     "src/main.rs": "91420329e044b8c2316bf278a44147318df47a55b0eae6cb0a4857ab6beba1b2",
     "src/config/mod.rs": "a5984a1a3d66bfba23bb1b835eedf7e9562a007a1069c9f3264112af44b70c73",
-    "src/index/mod.rs": "e7c6322fe3aa4e9f6c84d888ed8745e1dab6fb932feafcb79769b09c649904fa",
+    "src/index/mod.rs": "2bd6f0b85876fa0c3659106953caf90181f42e662a84fd390b16131dbe64350e",
     "src/logging/mod.rs": "45cc308d50c77ead9cebae858aba354613988dcf46fb76d8f9c0088eabf3ac8e",
     "src/search/mod.rs": "b90120e8ed00b2871344807d4f914beea1edf6e2ee1d00a400dda7aad80f2e5f",
-    "src/search/lexical.rs": "7fd316cfe46dc137d16d5370d18667f3c26adfd217048fb88a03fb235f4f7c0e",
+    "src/search/lexical.rs": "87dbc11445a75715465ee4508873fe6db0e93821c7299e131efe2c939a400bd0",
     "src/search/process.rs": "e374206308a7df2ba39a1227e69b1f2749cec7cee21f63a59f8c5ef39086d770",
     "src/search/semantic.rs": "b9eca5bb6518ce260be717c8ecbc57761e9bd3ec3fe10d1fd520c12ded78f57a",
     "src/source/mod.rs": "82c7f29fd3cbcaf1803267be10f52dbe87d9f58d222d86265da27b04649bb30e",
@@ -411,11 +411,7 @@
       "question": "Assume built-in backends, a configured semantic adapter, and a fresh profile-D server. Which MCP tool execution paths can fail due to an error from src/search/process.rs::bounded_read, including lazy index construction? Ignore adapter-process internals and tests. Return the set of MCP tool names.",
       "expected_json": {
         "answer": [
-          "find_callers",
-          "find_symbol",
-          "search_exact",
-          "search_concept",
-          "trace_dependencies"
+          "search_concept"
         ]
       },
       "answer_set": true,
@@ -428,18 +424,6 @@
           ]
         },
         {
-          "path": "src/index/mod.rs",
-          "contains": [
-            "process::run(&mut command"
-          ]
-        },
-        {
-          "path": "src/search/lexical.rs",
-          "contains": [
-            "super::process::run("
-          ]
-        },
-        {
           "path": "src/search/semantic.rs",
           "contains": [
             "super::process::run("
@@ -448,11 +432,12 @@
         {
           "path": "src/tools/mod.rs",
           "contains": [
-            "StructuralIndex::build("
+            "semantic: config.semantic_command"
           ]
         }
       ],
-      "notes": "The source-read tool uses filesystem reads, not child-process capture."
+      "notes": "The source-read tool uses filesystem reads, not child-process capture.",
+      "author_notes": " REPAIRED 2026-09-13: exact search and the index walk no longer spawn a child process - ripgrep's engine and its `ignore` walker are linked in - so the only execution path that can still reach bounded_read is the configured semantic adapter behind search_concept."
     },
     {
       "id": "chain-structural-cold",
@@ -521,8 +506,6 @@
         "answer": {
           "implementation": "src/search/process.rs::run",
           "callers": [
-            "src/index/mod.rs::StructuralIndex::build",
-            "src/search/lexical.rs::Ripgrep::search",
             "src/search/semantic.rs::CommandSemantic::search"
           ]
         }
@@ -536,25 +519,14 @@
           ]
         },
         {
-          "path": "src/index/mod.rs",
-          "contains": [
-            "process::run(&mut command"
-          ]
-        },
-        {
-          "path": "src/search/lexical.rs",
-          "contains": [
-            "super::process::run("
-          ]
-        },
-        {
           "path": "src/search/semantic.rs",
           "contains": [
             "super::process::run("
           ]
         }
       ],
-      "notes": "Discover from behavior, then enumerate cross-module callers. Do not mandate a retrieval tool."
+      "notes": "Discover from behavior, then enumerate cross-module callers. Do not mandate a retrieval tool.",
+      "author_notes": " REPAIRED 2026-09-13: after the in-process search change, CommandSemantic::search is the only production caller of the bounded-child-process routine; the index walk and Ripgrep::search no longer spawn anything."
     },
     {
       "id": "mixed-lexical-validator",

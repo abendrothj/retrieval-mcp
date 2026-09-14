@@ -1,9 +1,6 @@
 use crate::{
     logging::now_ms,
-    search::{
-        lexical::{Page, pagination, validate_query},
-        process,
-    },
+    search::lexical::{Page, pagination, validate_query},
     source::{Workspace, excerpt},
 };
 use anyhow::{Context, Result, ensure};
@@ -120,7 +117,7 @@ pub struct Coverage {
     pub indexed_at_ms: u128,
     pub languages: Vec<String>,
     pub indexed_files: usize,
-    /// Supported-language files ripgrep enumerated, whether or not the budget allowed indexing
+    /// Supported-language files the walk enumerated, whether or not the budget allowed indexing
     /// them. `indexed_files` below this means the snapshot does not cover the repository.
     pub eligible_files: usize,
     pub unsupported_files: usize,
@@ -417,37 +414,40 @@ pub struct StructuralIndex {
 
 impl StructuralIndex {
     pub async fn build(workspace: Workspace, timeout: Duration, no_ignore: bool) -> Result<Self> {
-        let mut command = tokio::process::Command::new("rg");
-        command.current_dir(workspace.root()).args([
-            "--no-config",
-            "--files",
-            "--null",
-            "--sort",
-            "path",
-            "--glob",
-            "!.git/**",
-            "--glob",
-            "!target/**",
-        ]);
-        if no_ignore {
-            command.arg("--no-ignore");
-        }
-        // 16 MiB of paths is roughly 300,000 files: about 20x what saturates Budget::FILES, so
-        // budget_truncated handles every repository the index could meaningfully cover, and the
-        // hard error is reserved for listings whose truncation would silently falsify
-        // eligible_files.
-        let (status, bytes) = process::run(&mut command, None, timeout, 16 * 1024 * 1024)
-            .await
-            .context("repository file listing is too large or too slow; narrow --root")?;
-        ensure!(
-            status == 0 || status == 1,
-            "cannot list repository files with ripgrep"
-        );
-        let files: Vec<String> = bytes
-            .split(|b| *b == 0)
-            .filter(|b| !b.is_empty())
-            .map(|b| String::from_utf8(b.to_vec()).context("index requires UTF-8 file paths"))
-            .collect::<Result<_>>()?;
+        // The same walk `search_exact` uses, so both describe one corpus: ripgrep's `ignore`
+        // crate, honouring ignore files unless told otherwise, hidden files and `.git`/`target`
+        // always excluded. No subprocess and no byte ceiling on the listing, so a repository large
+        // enough to matter reaches the snapshot budget and reports `budget_truncated` rather than
+        // failing on the size of its own file list.
+        let listing = workspace.clone();
+        let files = tokio::task::spawn_blocking(move || -> Result<Vec<String>> {
+            let mut overrides = ignore::overrides::OverrideBuilder::new(listing.root());
+            overrides.add("!.git/**")?;
+            overrides.add("!target/**")?;
+            let mut walk = ignore::WalkBuilder::new(listing.root());
+            walk.overrides(overrides.build()?)
+                .hidden(true)
+                .sort_by_file_path(Path::cmp);
+            if no_ignore {
+                walk.ignore(false)
+                    .git_ignore(false)
+                    .git_global(false)
+                    .git_exclude(false)
+                    .parents(false);
+            }
+            let mut files = Vec::new();
+            for entry in walk.build() {
+                let entry = entry.context("cannot walk the repository")?;
+                if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+                    continue;
+                }
+                if let Ok(relative) = listing.relative(entry.path()) {
+                    files.push(relative);
+                }
+            }
+            Ok(files)
+        })
+        .await??;
         tokio::task::spawn_blocking(move || Self::from_files(&workspace, files, timeout)).await?
     }
 

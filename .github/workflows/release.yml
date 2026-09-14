@@ -69,16 +69,13 @@ jobs:
 
       # Proves the artifact runs on the machine that built it before anyone downloads it: one real
       # MCP handshake and one real tool call against this repository, exactly as the README shows.
+      # Nothing is installed first - the binary has no runtime dependencies.
       - name: Smoke test the packaged binary
         shell: bash
         run: |
           set -euo pipefail
           version="${{ inputs.tag || github.ref_name }}"
           binary="dist/retrieval-mcp-${version}-${{ matrix.target }}/retrieval-mcp"
-          if ! command -v rg >/dev/null; then
-            if [ "$RUNNER_OS" = "Linux" ]; then sudo apt-get update && sudo apt-get install -y ripgrep;
-            else brew install ripgrep; fi
-          fi
           printf '%s\n' \
             '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
             '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"find_callers","arguments":{"name":"build"}}}' \

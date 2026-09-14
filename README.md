@@ -14,9 +14,8 @@ cargo install retrieval-mcp
 
 Or take a prebuilt binary from [the releases page](https://github.com/abendrothj/retrieval-mcp/releases)
 — macOS and Linux, x86-64 and arm64, each a tarball with a `.sha256` beside it — and put
-`retrieval-mcp` on your `PATH`. Either way the server needs [`rg`](https://github.com/BurntSushi/ripgrep)
-on `PATH` at runtime: it shells out to ripgrep for exact search and for enumerating files, so a
-prebuilt binary removes the Rust toolchain from the install, not that one dependency.
+`retrieval-mcp` on your `PATH`. There is nothing else to install: no runtime dependency, no
+service, no API key. Search is ripgrep's own engine linked into the binary, not a `rg` subprocess.
 
 Then register it with your client. MCP servers are declared in configuration and started by the
 client on demand — you never launch this yourself, and it exits with the session:
@@ -75,7 +74,7 @@ Claude Code / Codex / OpenCode
         │ MCP over stdio
         ▼
 Rust retrieval server ── invocation events → JSONL
-        ├── search_exact       → ripgrep subprocess                          [default]
+        ├── search_exact       → ripgrep's engine, in process                 [default]
         ├── read_source        → bounded filesystem reads                    [default]
         ├── find_callers       → syntactic references + candidate definitions [default]
         ├── search_concept     → BM25 over symbol chunks, or a semantic/hybrid ranker
@@ -168,7 +167,7 @@ These are measured effects on the workloads named, not a statement that 0.1.2 is
 
 ## Build and run
 
-Requires Rust 1.90+ (tested with 1.96), a C compiler for Tree-sitter, and `rg` on `PATH`. The optional Ollama adapter also requires `curl` and a running Ollama service with an embedding model.
+Building requires Rust 1.90+ (tested with 1.96) and a C compiler for Tree-sitter. The binary itself needs nothing at runtime: ripgrep's `grep-searcher`, `grep-regex` and `ignore` crates are linked in, so there is no `rg` subprocess and no PATH dependency. The optional Ollama adapter is the one exception — it needs `curl` and a running Ollama service with an embedding model.
 
 ```sh
 cd /path/to/retrieval-mcp
@@ -249,7 +248,7 @@ The four tools a default session exposes are `search_exact`, `read_source`, `fin
 | `trace_dependencies` | Multi-hop callers, callees, or impact | `{"name":"resolve","direction":"callers","depth":3}` |
 | `search_concept` | Find behavior when the spelling is unknown | `{"query":"prevent reading files outside the repository","limit":5}` |
 
-`search_exact` is case-sensitive literal search unless `regex:true` or `case_sensitive:false` is supplied. Results represent matching lines, not individual occurrences; excerpts are centered near the first match. Matches remain in stable path/line order for an unchanged repository. It respects ripgrep ignore rules and skips hidden files during traversal; a `path` argument narrows that same traversal with a glob rather than starting a new walk, so scoping can never reach files the unscoped walk would prune. Every page reports `files_searched`: zero over a nonempty repository means ignore rules or the scope emptied the corpus, not that the text is absent. It disables ripgrep config files and excludes `.git` and `target` trees during traversal.
+`search_exact` is case-sensitive literal search unless `regex:true` or `case_sensitive:false` is supplied. Results represent matching lines, not individual occurrences; excerpts are centered near the first match. Matches remain in stable path/line order for an unchanged repository. It respects ripgrep ignore rules and skips hidden files during traversal; a `path` argument narrows that same traversal with a glob rather than starting a new walk, so scoping can never reach files the unscoped walk would prune. Every page reports `files_searched`: zero over a nonempty repository means ignore rules or the scope emptied the corpus, not that the text is absent. It excludes `.git` and `target` trees during traversal, and reads no ripgrep configuration file: the engine is linked in, so a user's `RIPGREP_CONFIG_PATH` cannot change what a tool call returns.
 
 `read_source` defaults to 100 lines, allows at most 500 per request, and returns `next_line` when more source remains. The response has a byte budget as well as a line budget. Long individual lines produce an actionable error; use exact search for an excerpt. Reads can explicitly access ignored or hidden regular files within the root.
 
@@ -261,7 +260,7 @@ The four tools a default session exposes are `search_exact`, `read_source`, `fin
 
 ## Structural indexing and its limits
 
-The first structural invocation builds a full in-memory snapshot using `rg --files` and the Rust, Python, and TypeScript/TSX Tree-sitter grammars. A definition's concept chunk also includes the contiguous comment and attribute block directly above it, since documentation carries the vocabulary questions are asked in; that one change nearly doubled offline ranking MRR on the authored coreutils suite, and it is the only one of three candidate index changes that survived measurement (see [What the experiments found](#what-the-experiments-found)). Subsequent structural calls reuse the snapshot. No background watcher, incremental update, database, or persistent index is required. Restart the server to rebuild after edits. Exact search and source reads always query current files.
+The first structural invocation builds a full in-memory snapshot by walking the repository with ripgrep's `ignore` crate — the same walk `search_exact` uses, so both describe one corpus — and parsing it with the Rust, Python, and TypeScript/TSX Tree-sitter grammars. A definition's concept chunk also includes the contiguous comment and attribute block directly above it, since documentation carries the vocabulary questions are asked in; that one change nearly doubled offline ranking MRR on the authored coreutils suite, and it is the only one of three candidate index changes that survived measurement (see [What the experiments found](#what-the-experiments-found)). Subsequent structural calls reuse the snapshot. No background watcher, incremental update, database, or persistent index is required. Restart the server to rebuild after edits. Exact search and source reads always query current files.
 
 The index records definitions, imports, function/method call syntax, and optional possible identifier references. Comments and string contents are excluded from reference extraction. Rust `mod` and simple Python imports can produce local-module candidates; Rust `use`, aliases, relative Python imports, re-exports, and unusual layouts can remain unresolved.
 

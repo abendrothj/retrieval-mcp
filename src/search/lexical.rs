@@ -1,10 +1,17 @@
 use crate::source::{Workspace, excerpt};
 use anyhow::{Context, Result, ensure};
+use grep_matcher::Matcher;
+use grep_regex::RegexMatcherBuilder;
+use grep_searcher::{BinaryDetection, SearcherBuilder, Sink, SinkMatch};
+use ignore::WalkBuilder;
+use ignore::overrides::OverrideBuilder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::{future::Future, pin::Pin, time::Duration};
-use tokio::process::Command;
+use std::{
+    future::Future,
+    pin::Pin,
+    time::{Duration, Instant},
+};
 
 pub type BackendFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'a>>;
 
@@ -46,8 +53,8 @@ pub struct ExactPage {
     pub results: Vec<ExactHit>,
     pub has_more: bool,
     pub next_offset: Option<usize>,
-    /// Files scanned by this query, from ripgrep's summary; absent when the summary was
-    /// unavailable (for example a capped output stream).
+    /// Files this query actually scanned. Zero over a nonempty repository means ignore rules or
+    /// the scope pruned the corpus, not that the text is absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub files_searched: Option<usize>,
 }
@@ -76,7 +83,7 @@ pub trait LexicalBackend: Send + Sync {
     ) -> BackendFuture<'a, ExactPage>;
 }
 
-/// Escape ripgrep glob metacharacters so a repository path is matched literally.
+/// Escape glob metacharacters so a repository path is matched literally.
 fn glob_escape(path: &str) -> String {
     let mut escaped = String::with_capacity(path.len());
     for c in path.chars() {
@@ -88,11 +95,72 @@ fn glob_escape(path: &str) -> String {
     escaped
 }
 
+/// Exact search over ripgrep's own engine, linked in rather than spawned: `grep-searcher` and
+/// `grep-regex` for matching, `ignore` for the walk. Same regex dialect, same ignore rules, and
+/// no `rg` binary on PATH for a user to install or a sandbox to withhold.
 pub struct Ripgrep {
     pub timeout: Duration,
     /// Search files that ignore files exclude. Set from `--no-ignore`; `.git`, `target` and
     /// hidden files stay excluded either way.
     pub no_ignore: bool,
+}
+
+/// Collects matching lines, skipping `offset` of them and stopping one past `limit` so the page
+/// knows whether more exist. Search continues over every eligible file either way, because
+/// `files_searched` is only worth reporting if it counts what was actually scanned.
+struct Collector<'a> {
+    matcher: &'a grep_regex::RegexMatcher,
+    path: &'a str,
+    hits: &'a mut Vec<ExactHit>,
+    seen: &'a mut usize,
+    offset: usize,
+    wanted: usize,
+    deadline: Instant,
+}
+
+impl Sink for Collector<'_> {
+    type Error = std::io::Error;
+
+    fn matched(
+        &mut self,
+        _searcher: &grep_searcher::Searcher,
+        matched: &SinkMatch<'_>,
+    ) -> Result<bool, std::io::Error> {
+        if Instant::now() >= self.deadline {
+            return Err(std::io::Error::other("timed out"));
+        }
+        if *self.seen < self.offset {
+            *self.seen += 1;
+            return Ok(true);
+        }
+        if self.hits.len() >= self.wanted {
+            // Enough for this page; keep walking so the file count stays honest.
+            return Ok(false);
+        }
+        let Ok(text) = std::str::from_utf8(matched.bytes()) else {
+            return Ok(true);
+        };
+        let text = text.trim_end_matches(['\r', '\n']);
+        let start = self
+            .matcher
+            .find(text.as_bytes())
+            .ok()
+            .flatten()
+            .map_or(0, |found| found.start());
+        let mut left = start.saturating_sub(120).min(text.len());
+        while !text.is_char_boundary(left) {
+            left -= 1;
+        }
+        let snippet = excerpt(&text[left..], 500);
+        let snippet_truncated = left > 0 || snippet.len() < text.len();
+        self.hits.push(ExactHit {
+            path: self.path.to_owned(),
+            line: matched.line_number().unwrap_or(0) as usize,
+            snippet,
+            snippet_truncated,
+        });
+        Ok(true)
+    }
 }
 
 impl LexicalBackend for Ripgrep {
@@ -119,98 +187,84 @@ impl LexicalBackend for Ripgrep {
                     Some(glob_escape(&relative))
                 }
             };
-            let mut command = Command::new("rg");
-            command.current_dir(workspace.root()).args([
-                "--no-config",
-                "--json",
-                "--sort",
-                "path",
-                "--max-filesize",
-                "2M",
-                "--glob",
-                "!.git/**",
-                "--glob",
-                "!target/**",
-            ]);
-            if self.no_ignore {
-                command.arg("--no-ignore");
-            }
-            if let Some(glob) = &scope {
-                command.arg("--glob").arg(glob);
-            }
-            if !args.regex.unwrap_or(false) {
-                command.arg("--fixed-strings");
-            }
-            if !args.case_sensitive.unwrap_or(true) {
-                command.arg("--ignore-case");
-            }
-            command.arg("--").arg(&args.query).arg(".");
-            // A bounded capture keeps v1 simple. A streaming parser can replace this for large result sets.
-            let (status, output) =
-                super::process::run(&mut command, None, self.timeout, 4 * 1024 * 1024).await?;
-            ensure!(
-                status == 0 || status == 1,
-                "ripgrep failed (exit {status}); check regex and path permissions"
-            );
-            let mut hits = Vec::new();
-            let mut seen = 0;
-            for line in output
-                .split(|b| *b == b'\n')
-                .filter(|line| !line.is_empty())
-            {
-                let event: Value = serde_json::from_slice(line).context("invalid ripgrep JSON")?;
-                if event["type"] != "match" {
-                    continue;
+            let matcher = RegexMatcherBuilder::new()
+                .fixed_strings(!args.regex.unwrap_or(false))
+                .case_insensitive(!args.case_sensitive.unwrap_or(true))
+                .line_terminator(Some(b'\n'))
+                .build(&args.query)
+                .context("invalid regular expression")?;
+            let workspace = workspace.clone();
+            let (timeout, no_ignore) = (self.timeout, self.no_ignore);
+            // Walking and searching are blocking filesystem work; keep them off the reactor.
+            tokio::task::spawn_blocking(move || {
+                let deadline = Instant::now() + timeout;
+                let mut overrides = OverrideBuilder::new(workspace.root());
+                overrides.add("!.git/**")?;
+                overrides.add("!target/**")?;
+                if let Some(glob) = &scope {
+                    overrides.add(glob)?;
                 }
-                if seen < offset {
-                    seen += 1;
-                    continue;
+                let mut walk = WalkBuilder::new(workspace.root());
+                walk.overrides(overrides.build()?)
+                    .hidden(true)
+                    .max_filesize(Some(2 * 1024 * 1024))
+                    .sort_by_file_path(std::path::Path::cmp);
+                if no_ignore {
+                    walk.ignore(false)
+                        .git_ignore(false)
+                        .git_global(false)
+                        .git_exclude(false)
+                        .parents(false);
                 }
-                let data = &event["data"];
-                let path = data["path"]["text"]
-                    .as_str()
-                    .context("non-UTF-8 paths are unsupported")?
-                    .replace('\\', "/");
-                let relative = path.strip_prefix("./").unwrap_or(&path).to_owned();
-                workspace.resolve(&relative)?;
-                let text = data["lines"]["text"]
-                    .as_str()
-                    .context("non-UTF-8 matches are unsupported")?
-                    .trim_end_matches(['\r', '\n']);
-                let start = data["submatches"][0]["start"].as_u64().unwrap_or(0) as usize;
-                let mut left = start.saturating_sub(120).min(text.len());
-                while !text.is_char_boundary(left) {
-                    left -= 1;
+                let mut searcher = SearcherBuilder::new()
+                    .binary_detection(BinaryDetection::quit(b'\x00'))
+                    .line_number(true)
+                    .build();
+                let (mut hits, mut seen, mut files_searched) = (Vec::new(), 0usize, 0usize);
+                for entry in walk.build() {
+                    ensure!(
+                        Instant::now() < deadline,
+                        "search timed out; narrow the query or increase --timeout-seconds"
+                    );
+                    let entry = entry.context("cannot walk the repository")?;
+                    if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+                        continue;
+                    }
+                    let Ok(relative) = workspace.relative(entry.path()) else {
+                        continue;
+                    };
+                    files_searched += 1;
+                    let collector = Collector {
+                        matcher: &matcher,
+                        path: &relative,
+                        hits: &mut hits,
+                        seen: &mut seen,
+                        offset,
+                        wanted: limit + 1,
+                        deadline,
+                    };
+                    match searcher.search_path(&matcher, entry.path(), collector) {
+                        Ok(()) => {}
+                        // An unreadable or undecodable file is skipped, exactly as ripgrep skips
+                        // it; only a timeout stops the search.
+                        Err(error) if error.to_string().contains("timed out") => {
+                            anyhow::bail!(
+                                "search timed out; narrow the query or increase --timeout-seconds"
+                            )
+                        }
+                        Err(_) => continue,
+                    }
                 }
-                let snippet = excerpt(&text[left..], 500);
-                let snippet_truncated = left > 0 || snippet.len() < text.len();
-                hits.push(ExactHit {
-                    path: relative,
-                    line: data["line_number"].as_u64().context("missing match line")? as usize,
-                    snippet,
-                    snippet_truncated,
-                });
-                if hits.len() > limit {
-                    break;
-                }
-            }
-            let has_more = hits.len() > limit;
-            hits.truncate(limit);
-            // Ripgrep ends the stream with one summary event; its `searches` count is the number
-            // of files scanned, which is what makes an empty page interpretable.
-            let files_searched = output
-                .rsplit(|b| *b == b'\n')
-                .find(|line| !line.is_empty())
-                .and_then(|line| serde_json::from_slice::<Value>(line).ok())
-                .filter(|event| event["type"] == "summary")
-                .and_then(|event| event["data"]["stats"]["searches"].as_u64())
-                .map(|count| count as usize);
-            Ok(ExactPage {
-                results: hits,
-                has_more,
-                next_offset: has_more.then_some(offset + limit),
-                files_searched,
+                let has_more = hits.len() > limit;
+                hits.truncate(limit);
+                Ok(ExactPage {
+                    results: hits,
+                    has_more,
+                    next_offset: has_more.then_some(offset + limit),
+                    files_searched: Some(files_searched),
+                })
             })
+            .await?
         })
     }
 }
