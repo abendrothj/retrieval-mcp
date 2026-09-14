@@ -290,7 +290,7 @@ Choosing `semantic` or `hybrid` without `--semantic-command` is a configuration 
 
 All source paths must be relative to a canonical configured directory. Parent traversal, absolute paths, and symlinks in any path component are rejected. Reads require regular UTF-8 files without NUL bytes and cap input at 2 MiB. This protects ordinary local repository use; path validation and subsequent opens are not an OS capability sandbox against a malicious concurrent filesystem replacement. Use an OS sandbox/read-only checkout for adversarial repositories. Source text is untrusted evidence, never an instruction to the agent.
 
-Structured retrieval payloads are capped at 64 KiB. MCP's text compatibility copy means wire responses can be larger; logs separately record payload bytes and serialized MCP result bytes. Requests reaching a tool handler are capped at 16 KiB; the SDK handles transport framing before that check. Overbroad regexes or huge result sets can hit the bounded capture limit before pagination; narrow the query/path. Invalid arguments and expected backend failures return `isError:true`, and every invocation reaching the handler is logged, including disabled tools and schema failures. Malformed JSON-RPC rejected by the SDK is not a tool invocation.
+Structured retrieval payloads are capped at 64 KiB. A page that would exceed it is trimmed to the rows that fit and reports `has_more` with the `next_offset` those rows stopped at, rather than refusing a request the schema allowed: on Django, `find_callers` for a name as common as `get` or `save` serialises past the cap at any generous limit, and an error with no rows is a worse answer than a short page. Only a single row that is itself too large still fails. MCP's text compatibility copy means wire responses can be larger; logs separately record payload bytes and serialized MCP result bytes. Requests reaching a tool handler are capped at 16 KiB; the SDK handles transport framing before that check. Invalid arguments and expected backend failures return `isError:true`, and every invocation reaching the handler is logged, including disabled tools and schema failures. Malformed JSON-RPC rejected by the SDK is not a tool invocation.
 
 ## Logs
 
@@ -322,7 +322,7 @@ Corpora, run artifacts, transcripts, and model answers are deliberately absent. 
 ## Testing
 
 ```sh
-cargo test --locked --all-targets            # 21 library, 8 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 21 library, 9 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
 python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 201 tests
 ```

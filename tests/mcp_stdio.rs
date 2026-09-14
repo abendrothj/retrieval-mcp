@@ -286,6 +286,51 @@ async fn concept_search_enforces_the_page_bounds_it_documents() {
     client.stop().await;
 }
 
+/// A page the schema allows must come back as a page. On Django, `find_callers("get")` with
+/// `limit: 40` serialises past the response cap, and the server used to answer a legal request
+/// with an error and no rows. It now returns as many rows as fit and says there are more.
+#[tokio::test]
+async fn an_oversized_page_is_trimmed_rather_than_refused() {
+    let root = tempfile::tempdir().unwrap();
+    // Namesakes make every row carry several candidate definitions, which is what pushes a
+    // legal page past the cap on a real repository.
+    for module in 0..6 {
+        std::fs::write(
+            root.path().join(format!("defs{module}.rs")),
+            "pub fn target(value: usize) -> usize { value }\n",
+        )
+        .unwrap();
+    }
+    let calls: String = (0..200)
+        .map(|nth| format!("    let _{nth} = target({nth});\n"))
+        .collect();
+    std::fs::write(
+        root.path().join("calls.rs"),
+        format!("fn caller() {{\n{calls}}}\n"),
+    )
+    .unwrap();
+    let mut client = Client::start(root.path(), "B").await;
+    let page = client
+        .tool("find_callers", json!({"name": "target", "limit": 100}))
+        .await;
+    assert_ne!(page["isError"], true, "{page}");
+    let rows = page["structuredContent"]["results"].as_array().unwrap();
+    assert!(!rows.is_empty() && rows.len() < 100, "{} rows", rows.len());
+    assert_eq!(page["structuredContent"]["has_more"], true);
+    let next = page["structuredContent"]["next_offset"].as_u64().unwrap() as usize;
+    assert_eq!(next, rows.len(), "paging resumes where the trimmed page stopped");
+    let second = client
+        .tool("find_callers", json!({"name": "target", "limit": 100, "offset": next}))
+        .await;
+    let more = second["structuredContent"]["results"].as_array().unwrap();
+    let line = |row: &serde_json::Value| (row["line"].as_u64(), row["column"].as_u64());
+    assert!(
+        !more.is_empty() && line(&more[0]) != line(&rows[rows.len() - 1]),
+        "the next page must continue past the trimmed one"
+    );
+    client.stop().await;
+}
+
 #[tokio::test]
 async fn an_explicit_tool_list_gates_exactly_what_it_names() {
     let root = tempfile::tempdir().unwrap();

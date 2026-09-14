@@ -350,6 +350,37 @@ fn definition<T: JsonSchema>(name: &'static str, description: &'static str) -> T
     tool
 }
 
+/// Shrink an over-sized page until it fits the response cap, instead of refusing to answer a
+/// request the schema said was legal. `find_callers("get")` with `limit: 40` on Django serialises
+/// past 64 KiB, and the old behaviour was a hard error after the work was already done: the caller
+/// learned only that it had asked for too much, with no rows and no way to page. Dropping rows
+/// from the end and setting `has_more`/`next_offset` says the same thing in the vocabulary the
+/// caller already knows how to follow. A response that is oversized with a single row left, or
+/// that has no page to shrink, still fails - there is nothing honest to return.
+fn fit_response(mut value: Value, offset: usize) -> Result<Value> {
+    let size = |value: &Value| serde_json::to_vec(value).map_or(usize::MAX, |bytes| bytes.len());
+    if size(&value) <= crate::source::MAX_RESPONSE_BYTES {
+        return Ok(value);
+    }
+    while size(&value) > crate::source::MAX_RESPONSE_BYTES {
+        let Some(results) = value.get_mut("results").and_then(Value::as_array_mut) else {
+            break;
+        };
+        if results.len() <= 1 {
+            break;
+        }
+        results.pop();
+        let kept = results.len();
+        value["has_more"] = json!(true);
+        value["next_offset"] = json!(offset + kept);
+    }
+    anyhow::ensure!(
+        size(&value) <= crate::source::MAX_RESPONSE_BYTES,
+        "response exceeds 64 KiB; lower limit or narrow the query"
+    );
+    Ok(value)
+}
+
 impl ServerHandler for RetrievalServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
@@ -376,17 +407,15 @@ impl ServerHandler for RetrievalServer {
         let args = Value::Object(request.arguments.unwrap_or_default());
         let request_id = serde_json::to_value(&context.id).unwrap_or(Value::Null);
         let log = self.log.start(&request.name, &args, &request_id);
+        let offset = args
+            .get("offset")
+            .and_then(Value::as_u64)
+            .unwrap_or_default() as usize;
         let outcome = tokio::select! {
             result = self.execute(&request.name, args) => result,
             _ = context.ct.cancelled() => Err(anyhow::anyhow!("request cancelled")),
         };
-        let outcome = outcome.and_then(|value| {
-            anyhow::ensure!(
-                serde_json::to_vec(&value)?.len() <= crate::source::MAX_RESPONSE_BYTES,
-                "response exceeds 64 KiB; lower limit or narrow the query"
-            );
-            Ok(value)
-        });
+        let outcome = outcome.and_then(|value| fit_response(value, offset));
         let (value, error) = match outcome {
             Ok(value) => (value, None),
             Err(error) => {
