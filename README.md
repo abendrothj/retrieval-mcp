@@ -161,6 +161,8 @@ Quality is a tie: the paired discordance is one to two question-repetitions. Tot
 
 **Two defects the audit found in languages that were already shipped.** `new Table(rows)` was never a call site in JavaScript or TypeScript, because a constructor invocation is a `new_expression` rather than a call expression, so asking who constructs a class returned every factory that mentions it and none of the code that builds it. And a reference-returning C++ accessor — `const BlockHandle& metaindex_handle() const {` — was no definition at all. Both are fixed and pinned by tests.
 
+**What it costs.** Four more Tree-sitter grammars make the release binary 15.9 MB instead of 11.3 MB and a clean release build 47 s instead of 37 s on an M4 Pro. A cold Django snapshot goes 3.9 s → 5.9 s, because 112 JavaScript files are now indexed that were not before; four minified vendor bundles account for about 0.7 s of that. Nothing indexes more slowly per file than it did.
+
 ## What changed in 0.1.2, and what was measured
 
 Same architecture, materially better implementation: fewer wrong facts, less wasted agent work, no architectural churn. Two of the changes carry measured deltas, and both are workload-specific results rather than whole-system performance claims.

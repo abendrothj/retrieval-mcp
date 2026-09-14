@@ -69,16 +69,27 @@ python3 experiments/check_docs.py
 
 ## Where the project stands
 
-Released `v0.1.2`. The default surface is four tools — `search_exact`, `read_source`, `find_callers`,
-`search_concept` — with the lexical ranker; the other three are un-defaulted on replicated evidence.
-Shipped after the freeze: the TypeScript caller-attribution guard (isolated: source reads −74%, calls
-−30%, total input −39.5%, worst trial −81%, quality unchanged) and doc comments in concept chunks
-(offline MRR 0.126 → 0.234, no agent-level gain claimed). Rejected on evidence: markdown chunking,
-macro-argument callers, the schema diet, container fields.
+Released `v0.1.2`; `v0.1.3` is written and unreleased. The default surface is four tools —
+`search_exact`, `read_source`, `find_callers`, `search_concept` — with the lexical ranker; the
+other three are un-defaulted on replicated evidence. Shipped after the freeze: the TypeScript
+caller-attribution guard (isolated: source reads −74%, calls −30%, total input −39.5%, worst trial
+−81%, quality unchanged), doc comments in concept chunks (offline MRR 0.126 → 0.234, no agent-level
+gain claimed), and five more languages — Go, Java, C, C++ and JavaScript — admitted only after a
+pre-registered audit against an independent reading of Cobra, Gson, Redis, LevelDB and ESLint
+(99/100 definitions, caller precision 0.92–1.00, recall 0.93–1.00). Rejected on evidence: markdown
+chunking, macro-argument callers, the schema diet, container fields, and dropping call rows from
+parser-error regions.
 
-Two open threads, neither urgent: confirm the repaired `cu-callers-02` wording (6 trials), and build
+What the new languages cost, measured on an M4 Pro: the release binary grows 11.3 → 15.9 MB, a
+clean release build 37 → 47 s, and a cold Django snapshot 3.9 → 5.9 s — the last because 112
+JavaScript files are now indexed, of which four minified vendor bundles account for about 0.7 s.
+No model has run on any of the five: there is no agent-level claim for them, and making one needs
+a pre-registered suite and `--allow-model-usage`.
+
+Three open threads, none urgent: confirm the repaired `cu-callers-02` wording (6 trials), build
 a caller suite around the `vs-callers-enter-rule-resolution` ambiguity, whose instability (3/3, 3/3,
-1/3, 0/3, 3/3, 3/3) is the only genuine decision boundary the current questions expose.
+1/3, 0/3, 3/3, 3/3) is the only genuine decision boundary the current questions expose, and decide
+whether `v0.1.3` ships before or after an end-to-end run in one of the new languages.
 
 ## The line worth remembering
 
