@@ -8,17 +8,47 @@ input tokens** and carried **34% less context** — [the numbers](#what-the-expe
 
 ## Install
 
+Two commands: get the binary, then tell your client about it.
+
+**1. Get the binary.**
+
 ```sh
-cargo install retrieval-mcp
+curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh -o install.sh
+sh install.sh
 ```
 
-Or take a prebuilt binary from [the releases page](https://github.com/abendrothj/retrieval-mcp/releases)
-— macOS and Linux, x86-64 and arm64, each a tarball with a `.sha256` beside it — and put
-`retrieval-mcp` on your `PATH`. There is nothing else to install: no runtime dependency, no
-service, no API key. Search is ripgrep's own engine linked into the binary, not a `rg` subprocess.
+Read the script first or do not; piping it —
+`curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh | sh` — runs
+the same thing, and which of those you are willing to do is your call rather than this project's.
+Either way it fetches a published checksum — the release's aggregate `SHA256SUMS`, or the
+per-archive `<archive>.tar.gz.sha256` that releases up to and including v0.1.4 carry instead —
+verifies the archive for your platform against the single record naming it, and refuses to
+extract on a mismatch, a missing record or a duplicate one.
+It then writes exactly one file — `retrieval-mcp` in `$HOME/.local/bin`, or wherever
+`RETRIEVAL_MCP_INSTALL_DIR` points — and nothing else: no shell startup file, no client
+configuration, nothing launched, nothing in your repository. It prints the registration command
+below rather than running it. `RETRIEVAL_MCP_VERSION=v0.1.4` installs a specific tag; the default is
+the latest release.
 
-Then register it with your client. MCP servers are declared in configuration and started by the
-client on demand — you never launch this yourself, and it exits with the session:
+With a Rust toolchain, or with [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall) to
+fetch the same prebuilt archive without compiling:
+
+```sh
+cargo install retrieval-mcp     # builds from source; Rust 1.90+ and a C compiler
+cargo binstall retrieval-mcp    # downloads the release archive instead
+```
+
+**2. Register it with your client**, run inside the repository you want to query:
+
+```sh
+claude mcp add --transport stdio --scope local retrieval -- retrieval-mcp --root .   # Claude Code
+codex mcp add retrieval -- retrieval-mcp --root .                                    # Codex
+```
+
+That is the installation. Start a new session and the tools are there; `/mcp` in Claude Code or
+`codex mcp list` confirms it. [Connect Claude Code](#connect-claude-code) and
+[Connect Codex](#connect-codex) cover the options — absolute roots, timeouts, invocation logs, a
+restricted tool set. Any other MCP client takes the entry directly:
 
 ```json
 {
@@ -31,18 +61,60 @@ client on demand — you never launch this yourself, and it exits with the sessi
 }
 ```
 
-`--root` is the only repository the session can read and is fixed at startup, so a server entry is
-per-project. It may be relative — it is resolved once against the working directory the client
-launches the server in, which for Claude Code and Codex is the project you opened — or absolute if
-you would rather not depend on that. [Connect Claude Code](#connect-claude-code) and
-[Connect Codex](#connect-codex) are one-liners that write this entry for you. Nothing is written to
+MCP servers are declared in configuration and started by the client on demand — you never launch
+this yourself, and it exits with the session. `--root` is the only repository the session can read
+and is fixed at startup, so a server entry is per-project. It may be relative — it is resolved once
+against the working directory the client launches the server in, which for Claude Code and Codex is
+the project you opened — or absolute if you would rather not depend on that. Nothing is written to
 your repository, no index is built ahead of time, and the first structural call builds an in-memory
 snapshot that dies with the process.
+
+**Manual download.** Prebuilt tarballs are on
+[the releases page](https://github.com/abendrothj/retrieval-mcp/releases) — macOS and Linux, x86-64
+and arm64 — each with a `.sha256` beside it and all of them together in one `SHA256SUMS`. Verify
+against that manifest by hand before extracting, with both files in the same directory:
+
+```sh
+archive=retrieval-mcp-v0.1.4-aarch64-apple-darwin.tar.gz
+grep "$archive" SHA256SUMS | shasum -a 256 -c -   # sha256sum -c - on Linux; expect "$archive: OK"
+mkdir -p ~/.local/bin && tar -xzf "$archive"
+install "${archive%.tar.gz}/retrieval-mcp" ~/.local/bin/
+```
+
+There is nothing else to install: no runtime dependency, no service, no API key. Search is
+ripgrep's own engine linked into the binary, not a `rg` subprocess.
+
+**Optional: the agent skill.** `npx skills add abendrothj/retrieval-mcp` installs
+[`skills/retrieval-mcp/SKILL.md`](skills/retrieval-mcp/SKILL.md), a one-page routing guide telling
+an agent which of the four tools a given question wants and what each response already answers. The
+server advertises the same routing in its own instructions and tool descriptions; the skill is the
+copy an agent reads before it calls anything, and nothing depends on it.
+
+### Update
+
+Re-run the installer — it verifies the new archive the same way and replaces the binary in place —
+or `cargo install --force retrieval-mcp`, or `cargo binstall retrieval-mcp`. Client entries name the
+binary rather than a version, so nothing needs re-registering. `retrieval-mcp --version` reports
+which build a client is launching.
+
+### Uninstall
+
+```sh
+rm ~/.local/bin/retrieval-mcp   # or: cargo uninstall retrieval-mcp
+claude mcp remove retrieval     # or: codex mcp remove retrieval
+```
+
+That is the entire footprint. There is no daemon to stop, no cache or state directory to clear, no
+index to delete, no file of any kind left in the repositories you queried, and no configuration
+entry to hunt down, because the only one that exists is the one you added yourself with the command
+above. The single exception is opt-in and named as such: if you ran the optional Ollama adapter, it
+caches embeddings in `<repository>/.retrieval-mcp/` unless `RETRIEVAL_SEMANTIC_CACHE_DIR` sent them
+elsewhere — see [Persistent Ollama adapter](#persistent-ollama-adapter).
 
 ## Quickstart
 
 ```sh
-# Run it against any checkout, from that checkout, with the binary cargo install put on PATH.
+# Run it against any checkout, from that checkout, with the installed binary on PATH.
 # This is the call your agent will make, and exactly what it gets back:
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
@@ -210,7 +282,7 @@ The SDK is [`rmcp` 3.3.0](https://github.com/modelcontextprotocol/rust-sdk), the
 
 ## Connect Claude Code
 
-Run this in the repository you want to query, after `cargo install retrieval-mcp`:
+Run this in the repository you want to query, once `retrieval-mcp` is on your `PATH`:
 
 ```sh
 claude mcp add --transport stdio --scope local retrieval -- retrieval-mcp --root .
@@ -344,7 +416,7 @@ Corpora, run artifacts, transcripts, and model answers are deliberately absent. 
 ```sh
 cargo test --locked --all-targets            # 29 library, 14 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 214 tests
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 215 tests
 ```
 
 All of these run offline and call no model. The Python suite exercises the harness itself: real MCP

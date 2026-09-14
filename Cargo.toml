@@ -13,6 +13,15 @@ categories = ["development-tools", "command-line-utilities"]
 # dependent builds. They stay in the repository and out of the published archive.
 exclude = ["experiments/", ".github/"]
 
+# `cargo binstall retrieval-mcp` downloads the release archive built by `.github/workflows/
+# release.yml` instead of compiling the Tree-sitter grammars. The shapes here are the real v0.1.4
+# asset names: `retrieval-mcp-v0.1.4-aarch64-apple-darwin.tar.gz`, containing
+# `retrieval-mcp-v0.1.4-aarch64-apple-darwin/retrieval-mcp`.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/retrieval-mcp-v{ version }-{ target }{ archive-suffix }"
+bin-dir = "retrieval-mcp-v{ version }-{ target }/{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
 [dependencies]
 anyhow = "1"
 rmcp = { version = "3.2.0", default-features = false, features = ["server", "transport-io"] }

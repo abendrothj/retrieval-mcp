@@ -43,6 +43,19 @@ jobs:
       - name: Python tests
         run: python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'
 
+      # The installer is the path most people take to a binary, and it is the one file here that
+      # no other check executes: it only ever runs on a user's machine. A parse error in it is a
+      # broken install command in the README, so it gets parsed on every push.
+      - name: Installer parses
+        run: |
+          set -eu
+          sh -n install.sh
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck --shell=sh install.sh
+          else
+            echo "shellcheck not on this runner; sh -n only"
+          fi
+
       # Runs last: it re-runs both suites to learn the real counts, and needs the release binary
       # above to execute the README quickstart exactly as written.
       - name: Documentation matches the code
