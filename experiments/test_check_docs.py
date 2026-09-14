@@ -1,9 +1,10 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
-from check_docs import (check_counts, check_links, check_paths, check_surface, headings,
-                        rust_constants)
+from check_docs import (check_counts, check_links, check_paths, check_quickstart, check_surface,
+                        headings, rust_constants)
 
 CONFIG = '''
 pub const TOOLS: [&str; 3] = [
@@ -123,6 +124,42 @@ class PathAndLinkTests(unittest.TestCase):
     def test_heading_slugs_drop_punctuation_the_way_github_does(self):
         self.assertIn("end-to-end-context-efficiency-three-arms-one-corpus",
                       headings("## End-to-end context efficiency: three arms, one corpus"))
+
+
+
+class QuickstartTests(unittest.TestCase):
+    """The quickstart must be run against the build, not against whatever is installed.
+
+    The check invoked `retrieval-mcp` by name. On a developer machine holding a `cargo install`
+    copy that binary answered and the check passed; CI, having none, failed on seven consecutive
+    pushes with an empty result. The binary under test is the one in `target/release`.
+    """
+
+    def test_the_built_binary_answers_even_when_another_is_on_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            (repo / "target/release").mkdir(parents=True)
+            built = repo / "target/release/retrieval-mcp"
+            built.write_text("#!/bin/sh\necho '{\"result\":{\"isError\":false}}'\n",
+                             encoding="utf-8")
+            built.chmod(0o755)
+            # An installed namesake that answers with nothing, exactly as a stale copy would.
+            elsewhere = repo / "bin"
+            elsewhere.mkdir()
+            installed = elsewhere / "retrieval-mcp"
+            installed.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+            installed.chmod(0o755)
+            (repo / "README.md").write_text(
+                "## Quickstart\n\n```sh\ncargo build --release\nretrieval-mcp --root .\n```\n",
+                encoding="utf-8")
+            problems = []
+            original = os.environ.get("PATH", "")
+            os.environ["PATH"] = f"{elsewhere}{os.pathsep}{original}"
+            try:
+                check_quickstart(repo, problems)
+            finally:
+                os.environ["PATH"] = original
+            self.assertEqual(problems, [])
 
 
 if __name__ == "__main__":

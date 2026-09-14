@@ -25,6 +25,7 @@ only when it is present on disk; CI covers the three tracked documents.
 """
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -183,7 +184,13 @@ def check_quickstart(repo, problems):
                          "detail": f"{binary} is not built; run the quickstart's cargo build first"})
         return
     script = block.group(1).replace("cargo build", ": skip cargo build", 1)
-    completed = subprocess.run(["sh", "-c", script], cwd=repo, capture_output=True, text=True)
+    # The quickstart calls `retrieval-mcp` by name, as a reader with `cargo install` would. Run it
+    # with this build first on PATH: otherwise the check asks whatever binary happens to be
+    # installed, which passed on a developer machine holding a two-day-old `~/.cargo/bin` copy
+    # while CI, having none, failed for seven consecutive pushes.
+    environment = {**os.environ, "PATH": f"{binary.parent}{os.pathsep}{os.environ.get('PATH', '')}"}
+    completed = subprocess.run(["sh", "-c", script], cwd=repo, capture_output=True, text=True,
+                               env=environment)
     line = completed.stdout.strip().splitlines()[-1] if completed.stdout.strip() else ""
     try:
         result = json.loads(line)["result"]

@@ -340,7 +340,7 @@ Corpora, run artifacts, transcripts, and model answers are deliberately absent. 
 ```sh
 cargo test --locked --all-targets            # 29 library, 13 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 213 tests
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 214 tests
 ```
 
 All of these run offline and call no model. The Python suite exercises the harness itself: real MCP
