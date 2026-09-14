@@ -29,6 +29,7 @@ artifacts, caveats, and the commands that produced it.
 | 16 | Was that the fix or the feature? | [The fix](#layers-5-and-6-isolating-the-feature-from-the-fix): isolated, the container fields move nothing and the attribution guard cuts source reads 74%, calls 30%, total tokens 39.5% and the worst trial 81%, at identical correctness |
 | 17 | Do the remaining backlog candidates earn their keep? | [Three of four do not](#four-backlog-items-measured): test down-ranking helps inside the suites and hurts outside them, a snapshot cache buys 5% of wall time for the worst defect class, concurrency was already sound; payload de-duplication measured −52.8% offline and is pre-registered |
 | 18 | Does de-duplicating the caller payload reach the model? | [Yes, on Codex](#layer-7-the-de-duplication-run-on-the-other-client): context_token_turns -18.6% median and -32% on per-question medians, input tokens -11.1%, quality identical at 16/18, and 3.1x more call sites fit under the response cap |
+| 19 | Does the index really work in five more languages? | [Yes, after five defects](#adding-five-languages): pre-registered audit of Go, Java, C, C++ and JavaScript against an independent reader — 99/100 definitions found, caller precision 0.92–1.00, recall 0.93–1.00, with constructor calls and C++ reference accessors fixed on the way |
 
 **The result in one line.** On a sealed 30-question held-out set, this server matched zvec-grep at
 29/30 on the same 78 tool calls while spending 24% fewer input tokens and carrying 34% less
@@ -85,11 +86,13 @@ any of the four features it was found underneath.
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. SeventeenSeventeen defects in it have produced or nearly
+The harness is the second experimental subject. Twenty-two defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
-some penalised it, one was found inside its own single held-out loss, and the last would have made
-every brace-language caller question unauthorable, while the last scored three arms to zero on questions they had answered exactly right. Each is pinned by a test. This table is the
-authoritative list; prose below refers to it rather than to ordinals.
+some penalised it, one was found inside its own single held-out loss, one would have made every
+brace-language caller question unauthorable, one scored three arms to zero on questions they had
+answered exactly right, and the five newest were found by an audit built to admit five new
+languages — three of them in the evaluator, two in the server. Each is pinned by a test. This
+table is the authoritative list; prose below refers to it rather than to ordinals.
 
 | Defect | Would have shown |
 |---|---|
@@ -110,6 +113,11 @@ authoritative list; prose below refers to it rather than to ordinals.
 | Grader scored a keyed object naming the gold identities as zero | This server's only held-out loss, which had named both correct symbols |
 | `credit()` scored a bare list naming exactly the gold identities as zero against a single-key gold object | Three arms failing both coreutils caller questions, reading as a structural-retrieval weakness where the grader was judging the container |
 | `enclosing()` implemented only its Python branch, and its first brace-language replacement named frames from call syntax | On Rust and TypeScript corpora `true_callers()` returned nothing, so every correct caller gold failed validation as unverifiable; the first fix then attributed call sites to `Ok`, `Err` and, worst, to a real function defined elsewhere — a caller set that looks plausible and is fiction |
+| `find_callers` reported no call site for any constructor in JavaScript, TypeScript or C++ | `new Table(rows)` is `new_expression`, not a call expression, so "who constructs this class" answered with the factories that mention it and none of the code that builds it |
+| The C++ symbol index skipped every reference-returning accessor | `const BlockHandle& metaindex_handle() const {` wraps its name in a `reference_declarator`, so LevelDB's accessors were no definitions at all |
+| `enclosing()` named a frame for C macro blocks, initialiser lists and one-line definitions wrongly | Redis' `TEST("...") { ... }` credited calls to `TEST`, LevelDB's `cache_(NewLRUCache(entries)) {}` credited them to the namespace, and three one-line Redis wrappers were credited to nobody at all |
+| `true_callers()` counted declarations and annotations as calls | A C prototype, a Java interface signature, a `.d.ts` method signature and LevelDB's `EXCLUSIVE_LOCKS_REQUIRED(mutex_)` each demanded a caller no system reports; `WriteBatchInternal::SetSequence(batch, seq)` was then read as a prototype and lost real callers |
+| `quality_pass.definitions()` indexed C call sites and plain bindings as definitions | `if (!ReadBlock(rep_->file, ...)) {` claimed ReadBlock was defined at its own call site, and `const both = context.options[0] === "both";` became an answerable identity that no structural index defines |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
 
@@ -932,6 +940,81 @@ A stopping rule that looked like a free 22% saving, a treatment loss that looked
 stop, an arm whose payload metrics read zero, two tools that agreed on nine helpers and disagreed on
 five, a 0.40 that looked like over-listing: each was a measurement bug, and each would have become a
 published architectural finding under the opposite habit.
+
+## Adding five languages
+
+The surface had been measured on Rust, Python and TypeScript only. Adding Go, Java, C, C++ and the
+JavaScript half of the ECMAScript family is a capability change, so it was measured rather than
+asserted — and the reason to distrust the obvious approach is already in the ledger: on TypeScript,
+the index parsed the corpus, answered every question with a confident shape, and silently dropped
+every `this.method()` call site. Nothing in its own output said so.
+
+**One family, not eight extensions.** Candidate matching had compared file extensions, so a `.js`
+call site could not resolve against a `.ts` definition. Languages are now a family: `.js`, `.jsx`,
+`.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts` and `.cts` are one, `.c` and the C++ suffixes are one, and a
+relative ESM specifier written `./util.js` resolves to `util.ts`, which is what every TypeScript
+build emits.
+
+**The instrument.** `language_audit.py` asks the server and reads the corpus separately. For each
+sampled symbol it compares `find_symbol` against an independent ripgrep definition index and
+`find_callers` against `audit_failures.true_callers`, which enumerates call sites by ripgrep and
+attributes each to its enclosing definition by reading the file. It also cross-checks the oracle
+itself against universal-ctags, which parses independently and reports definition line ranges.
+ctags emits those ranges for C, C++, Go, Java and Python but **not** for Rust or
+JavaScript/TypeScript, which is exactly why it is a cross-check and not the oracle: no available
+parser-backed tool answers "which definition encloses this line" in every family this server
+indexes.
+
+**Pre-registered**, in `runs/language-support-20260914/preregistration.json`: five arms, 20 symbols
+each, seed 2 — deliberately not the seed the instrument was developed against — with pass criteria
+of 18 of 20 definitions found and 0.90 caller precision and recall per arm, and the decision rule
+that a family missing any criterion is not advertised until the defect behind it is fixed and the
+arm re-run. The first confirmatory run missed it: LevelDB recall was 0.696.
+
+| Corpus | Family | Definitions found | Caller precision | Caller recall | Oracle vs ctags |
+|---|---|---:|---:|---:|---:|
+| Cobra | Go | 20/20 | 1.000 | 0.988 | 150/150 |
+| Gson | Java | 20/20 | 0.917 | 0.929 | 142/150 |
+| Redis | C | 19/20 | 0.979 | 0.931 | 147/150 |
+| LevelDB | C++ | 20/20 | 0.941 | 1.000 | 145/150 |
+| ESLint | JavaScript | 20/20 | 0.981 | 1.000 | — |
+
+**What the audit found before it agreed.** Five [ledger](#harness-defect-ledger) entries, three in
+the evaluator and two in the server. The server reported no call site for any constructor —
+`new Table(rows)` is a `new_expression`, not a call expression — and skipped every
+reference-returning C++ accessor, because `const BlockHandle& metaindex_handle() const {` hides its
+name inside a `reference_declarator`. The evaluator credited Redis' `TEST("...") { ... }` macro
+blocks with the calls inside them, credited a C++ constructor's initialiser list to the member
+rather than the constructor, missed one-line definitions entirely, and counted prototypes, Java
+interface signatures, `.d.ts` method signatures and LevelDB's `EXCLUSIVE_LOCKS_REQUIRED(mutex_)`
+annotations as call sites. Each is pinned by a test in `test_audit_failures.py`.
+
+**What still disagrees, and why it is not a defect.** Rows the server reports and the oracle misses
+are real calls a line-based reader cannot attribute — `(*func)(reader.LastRecordOffset(), record,
+dst);` in LevelDB, a default argument `const Slice& msg2 = Slice()`. Rows the oracle reports and
+the server does not are chained-call continuation lines in Gson's tests and macro-expanded contexts
+in Redis' vendored dependencies, where the oracle names a frame the index does not define. None is
+a construct class: no shape of definition or call is systematically absent in any family.
+
+**The honest weak spot is macro-heavy C.** 355 of 841 indexed Redis files contain a region
+Tree-sitter cannot parse. Those files still answer — precision 0.979, recall 0.931 on that corpus —
+and `coverage.parse_error_files` reports the count on every response. Parsing the same files with
+the C++ grammar instead was measured and changed nothing (45 against 46 files with errors), so `.c`
+keeps the C grammar.
+
+**And a C++ shape no guard fixed.** A macro between `class` and its name —
+`class LEVELDB_EXPORT WriteBatch {`, which 15 of LevelDB's 132 headers write — defeats the C++
+grammar, and inside the wreckage the constructor declaration `WriteBatch();` parses as a call of
+itself, reported against the namespace. The obvious repair was to drop call rows salvaged from
+regions the parser marked as errors. It was built and measured: LevelDB was unchanged at precision
+0.941, Redis lost a real caller row (recall 0.931 → 0.921), because the mis-parse is local and does
+not always raise an ERROR node where the bogus row sits. **Reverted** — the fifth post-freeze
+optimisation to be refused by its own run. The file is still reported as partly parsed through
+`coverage.parse_error_files`.
+
+**Not claimed.** This is an offline correctness study, not an agent-level one: no model ran, so
+nothing here says a Go or Java question is answered in fewer turns or less context. The end-to-end
+evidence in this file remains Rust, Python and TypeScript.
 
 ## Three index changes, one survivor
 

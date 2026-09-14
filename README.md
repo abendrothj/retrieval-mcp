@@ -80,7 +80,7 @@ Rust retrieval server ── invocation events → JSONL
         ├── search_concept     → BM25 over symbol chunks, or a semantic/hybrid ranker
         │                          └── optional: local Ollama embeddings     [default]
         ├── inspect_symbol     → one-hop neighbourhood, both directions, capped
-        ├── find_symbol        → Tree-sitter snapshot (Rust/Python/TypeScript)
+        ├── find_symbol        → Tree-sitter snapshot (Rust, Python, JS/TS, Go, Java, C/C++)
         └── trace_dependencies → bounded transitive call traversal
 ```
 
@@ -154,6 +154,12 @@ Quality is a tie: the paired discordance is one to two question-repetitions. Tot
 **The 9 KB of advertised output schema was never a token tax.** The four default tools serialise to 14,831 bytes, 9,029 of them generated output schemas re-sent, in principle, on every turn — about 29% of median input tokens by arithmetic, and the first optimisation in this project whose accounting looked overwhelming before implementation. It was pre-registered at a ≥15% context reduction with no quality, reliability or grounding regression, and measured on the same 30 questions with one expression changed and nothing else: **median input tokens moved −0.1%**. The cached prompt prefix was 4,374 tokens before and 4,253 after, where the bytes predicted 2,240 fewer, because Claude Code does not forward `outputSchema` to the model at all. The same measurement corrected the premise in the other direction: model-facing prefixes are 6,053 tokens for zvec-grep against 4,600 for this server, so its advertised surface is roughly 1,450 tokens *smaller* than the competitor's. `tools/list` bytes are not model-facing tokens; the diet was not shipped. [Detail](experiments/README.md#layer-3-the-schema-diet-and-the-saving-that-was-not-there).
 
 **A false caller identity was costing a third of the context on caller questions.** Driving the server to test an enclosing-container feature found that `owner()` accepted a TypeScript `variable_declarator` the symbol index itself refuses to index, so a call written into a local binding was attributed to the binding: every caller row for `getEnterAction` named `enterAction`, `r` or `expectedEnterAction`, and both rows for `guessIndentation` named `guessedIndentation`. The model was recovering by reading source. Isolated over 36 trials with the seed held equal, fixing it cut `read_source` calls per trial 0.83 → 0.22, mean calls 3.67 → 2.56, total input tokens by 39.5%, and the worst trial from 158 k to 30 k, at identical correctness (15/18 both arms) and zero unsupported answers. The container fields that motivated the search moved nothing against a corrected baseline and were not shipped. A correct row is worth more than a richer one. [Detail](experiments/README.md#layers-5-and-6-isolating-the-feature-from-the-fix).
+
+## What is new in 0.1.3
+
+**Five more languages, audited rather than announced.** The structural index now parses Go, Java, C, C++ and the JavaScript half of the ECMAScript family alongside Rust, Python and TypeScript, and languages are matched as families rather than by file extension — a `.js` call site resolves against a `.ts` definition, and an ESM specifier written `./util.js` resolves to `util.ts`. Each family was measured against an independent reading of a real corpus before being advertised: 20 symbols each from Cobra, Gson, Redis, LevelDB and ESLint, 99 of 100 definitions found, caller precision 0.92–1.00 and recall 0.93–1.00, under a pre-registered pass criterion the first run failed. [Protocol and artifacts](experiments/README.md#adding-five-languages).
+
+**Two defects the audit found in languages that were already shipped.** `new Table(rows)` was never a call site in JavaScript or TypeScript, because a constructor invocation is a `new_expression` rather than a call expression, so asking who constructs a class returned every factory that mentions it and none of the code that builds it. And a reference-returning C++ accessor — `const BlockHandle& metaindex_handle() const {` — was no definition at all. Both are fixed and pinned by tests.
 
 ## What changed in 0.1.2, and what was measured
 
@@ -245,7 +251,7 @@ The four tools a default session exposes are `search_exact`, `read_source`, `fin
 | `search_exact` | Known text, identifiers, errors, or regex patterns | `{"query":"timeout","path":"src","limit":10}` |
 | `read_source` | Inspect or verify a known source location | `{"path":"src/main.rs","start_line":1,"end_line":50}` |
 | `inspect_symbol` | Both sides of one symbol at a single hop, before choosing a direction | `{"name":"resolve"}` |
-| `find_symbol` | Locate exact-name declarations in Rust/Python/TypeScript | `{"name":"Workspace","limit":10}` |
+| `find_symbol` | Locate exact-name declarations in any indexed language | `{"name":"Workspace","limit":10}` |
 | `find_callers` | Find direct calls or possible references | `{"name":"resolve","include_references":true,"limit":10}` |
 | `trace_dependencies` | Multi-hop callers, callees, or impact | `{"name":"resolve","direction":"callers","depth":3}` |
 | `search_concept` | Find behavior when the spelling is unknown | `{"query":"prevent reading files outside the repository","limit":5}` |
@@ -262,9 +268,15 @@ The four tools a default session exposes are `search_exact`, `read_source`, `fin
 
 ## Structural indexing and its limits
 
-The first structural invocation builds a full in-memory snapshot by walking the repository with ripgrep's `ignore` crate — the same walk `search_exact` uses, so both describe one corpus — and parsing it with the Rust, Python, and TypeScript/TSX Tree-sitter grammars. A definition's concept chunk also includes the contiguous comment and attribute block directly above it, since documentation carries the vocabulary questions are asked in; that one change nearly doubled offline ranking MRR on the authored coreutils suite, and it is the only one of three candidate index changes that survived measurement (see [What the experiments found](#what-the-experiments-found)). Subsequent structural calls reuse the snapshot. No background watcher, incremental update, database, or persistent index is required. Restart the server to rebuild after edits. Exact search and source reads always query current files.
+The first structural invocation builds a full in-memory snapshot by walking the repository with ripgrep's `ignore` crate — the same walk `search_exact` uses, so both describe one corpus — and parsing it with the Rust, Python, TypeScript/TSX, Go, Java, C and C++ Tree-sitter grammars. JavaScript and TypeScript are one language family: `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts` and `.cts` are indexed together, a `.js` call site resolves against a `.ts` definition, and an ESM specifier written `./util.js` resolves to `util.ts`. A definition's concept chunk also includes the contiguous comment and attribute block directly above it, since documentation carries the vocabulary questions are asked in; that one change nearly doubled offline ranking MRR on the authored coreutils suite.
 
-The index records definitions, imports, function/method call syntax, and optional possible identifier references. Comments and string contents are excluded from reference extraction. Rust `mod` and simple Python imports can produce local-module candidates; Rust `use`, aliases, relative Python imports, re-exports, and unusual layouts can remain unresolved.
+The index records definitions, imports, function/method call syntax, and optional possible identifier references. Comments and string contents are excluded from reference extraction. A constructor invocation is a call site — `new Table(rows)` in JavaScript or C++, `new Table(rows)` in Java — and so is a function-like C macro, because nothing else defines one. A Go method is owned by its receiver type and a C++ method defined out of line by the class in its qualified name, so `Table::Format` and `Engine::render` read as members rather than as free functions. Rust `mod`, simple Python imports, relative ECMAScript specifiers (including `./util.js` for `util.ts`), Java package paths and quoted `#include`s can produce local-module candidates; Rust `use`, aliases, relative Python imports, re-exports, Go package paths, angle-bracket includes and unusual layouts remain unresolved.
+
+Language coverage is measured, not asserted. Twenty symbols per corpus were sampled from Cobra (Go), Gson (Java), Redis (C), LevelDB (C++) and ESLint (JavaScript), and every `find_symbol` and `find_callers` row was compared with an independent ripgrep enumeration attributed by reading the file: definitions found 99 of 100, caller precision 0.92–1.00, caller recall 0.93–1.00. The protocol, the pre-registration and what each remaining disagreement was are in [Adding five languages](experiments/README.md#adding-five-languages).
+
+Macro-heavy C is the one corpus where parsing is visibly partial: 355 of 841 indexed Redis files contain a region Tree-sitter cannot parse, and `coverage.parse_error_files` reports it on every response. Those files still contribute — caller precision and recall there are 0.979 and 0.931 — and parsing them with the C++ grammar instead was measured and changed nothing.
+
+C++ has one shape the grammar cannot read: a macro between `class` and its name, as in `class LEVELDB_EXPORT WriteBatch {`. Such a file is reported through `coverage.parse_error_files`, and inside it a constructor declaration can be reported as a call of itself. Dropping rows from unparsed regions was built and measured — it fixed nothing on LevelDB and lost a real caller row on Redis — so it was not shipped.
 
 Resolution is intentionally conservative: same-language spelling matches produce **candidates**, even if only one definition has that name. Receiver types, scopes/shadowing, package/module lookup, macro expansion, conditional compilation, foreign-language bindings, and runtime dispatch are not resolved. Optional references may include variable bindings and other non-call identifiers. Complex callee expressions can be missed. A name with no matching definition remains `unresolved`; multiple namesakes remain `ambiguous`. No candidate is promoted to a confirmed edge.
 
@@ -324,9 +336,9 @@ Corpora, run artifacts, transcripts, and model answers are deliberately absent. 
 ## Testing
 
 ```sh
-cargo test --locked --all-targets            # 24 library, 13 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 29 library, 13 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 201 tests
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 213 tests
 ```
 
 All of these run offline and call no model. The Python suite exercises the harness itself: real MCP

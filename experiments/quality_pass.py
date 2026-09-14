@@ -21,13 +21,50 @@ TS_DEFINITION = re.compile(
     r"^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?"
     r"(?:class|interface|enum|type)\s+([A-Za-z_$][\w$]*)"
     r"|^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)"
-    r"|^\s*(?:export\s+)?(?:declare\s+)?const\s+([A-Za-z_$][\w$]*)\s*[:=]"
+    # A `const` is a definition only when it binds a callable or a class. `const both =
+    # context.options[0] === "both";` is a local value, and indexing it made a plain binding an
+    # answerable identity that no structural index defines.
+    r"|^\s*(?:export\s+)?(?:declare\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::[^=]*)?="
+    r"\s*(?:async\s+)?(?:function\b|class\b|\([^()]*\)\s*(?::[^=]*)?=>|[A-Za-z_$][\w$]*\s*=>)"
     # A method may carry several modifiers: `private async request(`. Requiring exactly one
     # dropped every such method from the index, and with it the golds that named them.
     r"|^\s*(?:(?:public|private|protected|static|readonly|abstract|override|async)\s+)+\*?\s*"
     r"([A-Za-z_$][\w$]*)\s*[(<]")
-SOURCE_SUFFIXES = (".rs", ".py", ".ts", ".tsx")
-PATH_TOKEN = re.compile(r"[\w./$-]+\.(?:rs|py|ts|tsx)\b")
+# Go declares a callable with `func`, optionally behind a receiver, and a type with `type`.
+GO_DEFINITION = re.compile(
+    r"^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)"
+    r"|^\s*type\s+([A-Za-z_]\w*)")
+# Java's modifiers precede a return type, which precedes the name; a constructor has no return
+# type, and a record, enum or annotation type declares exactly as a class does.
+JAVA_DEFINITION = re.compile(
+    r"^\s*(?:@\w+(?:\([^)]*\))?\s+)*"
+    r"(?:(?:public|protected|private|static|final|abstract|sealed|non-sealed|strictfp)\s+)*"
+    r"(?:class|interface|enum|record|@interface)\s+([A-Za-z_$][\w$]*)"
+    r"|^\s*(?:@\w+(?:\([^)]*\))?\s+)*"
+    r"(?:(?:public|protected|private|static|final|abstract|synchronized|native|default|"
+    r"strictfp)\s+)+(?:<[^>]*>\s*)?(?:[\w$.<>\[\],?]+(?:\.\.\.)?\s+)?([A-Za-z_$][\w$]*)\s*\(")
+# C and C++ name a function in a declarator rather than after a keyword, so the name is the
+# identifier that opens the parameter list; `Engine::render` is named by its member half. A
+# function-like macro is a definition too, because nothing else defines it.
+C_DEFINITION = re.compile(
+    r"^\s*(?:typedef\s+)?(?:struct|union|enum|class|namespace)\s+([A-Za-z_]\w*)"
+    r"|^\s*#\s*define\s+([A-Za-z_]\w*)\("
+    r"|^\s*typedef\s+[^;]*?\(\s*\*\s*([A-Za-z_]\w*)\s*\)"
+    r"|^\s*typedef\s+[^;()]*?\b([A-Za-z_]\w*)\s*;"
+    # A definition opens a body, so the line ends in `{`, in the `}` of a one-line body, or in
+    # the `)` of a signature whose brace is on the next line; a prototype ends in `;`. It also
+    # names a return type, or a `Class::` qualifier, before the name, and opens no parenthesis
+    # before it. Without both guards `if (!ReadBlock(rep_->file, opt, ...)) {` indexed ReadBlock
+    # as defined at its own call site, and `direction_(kForward) {` indexed a constructor's
+    # initialiser member as a function. Control keywords are refused by name.
+    r"|^[^=;/(!]*[\w>&*\]]\s+\**(?:[A-Za-z_]\w*::)?"
+    r"(?!(?:if|for|while|switch|catch|return|sizeof|new|delete|else|do|case|defined)\b)"
+    r"([A-Za-z_]\w*)\s*\(.*[{})]\s*$"
+    r"|^\s*(?:[A-Za-z_]\w*::)+(~?[A-Za-z_]\w*)\s*\(.*[{:)]\s*$")
+SOURCE_SUFFIXES = (".rs", ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts",
+                   ".go", ".java", ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx")
+PATH_TOKEN = re.compile(
+    r"[\w./$-]+\.(?:rs|py|ts|tsx|js|jsx|mjs|cjs|mts|cts|go|java|c|h|cc|cpp|cxx|hh|hpp|hxx)\b")
 IDENTIFIER = re.compile(r"[A-Za-z_$][\w$]*")
 DECLINE = re.compile(r"\b(cannot|can't|could not|couldn't|unable|do not have|don't have|no reliable|not able)\b", re.I)
 
@@ -46,7 +83,18 @@ def definitions(corpus):
           r"^\s*(export\s+)?(default\s+)?(declare\s+)?(async\s+)?function\s*\*?\s*[A-Za-z_$]",
           r"^\s*(export\s+)?(declare\s+)?const\s+[A-Za-z_$][\w$]*\s*[:=]",
           r"^\s*((public|private|protected|static|readonly|abstract|override|async)\s+)+\*?\s*[A-Za-z_$][\w$]*\s*[(<]"],
-         ["-g", "*.ts", "-g", "*.tsx"], TS_DEFINITION),
+         ["-g", "*.ts", "-g", "*.tsx", "-g", "*.js", "-g", "*.jsx", "-g", "*.mjs", "-g", "*.cjs",
+          "-g", "*.mts", "-g", "*.cts"], TS_DEFINITION),
+        ([r"^\s*func\s+", r"^\s*type\s+[A-Za-z_]"], ["-g", "*.go"], GO_DEFINITION),
+        ([r"^\s*((public|protected|private|static|final|abstract|sealed|non-sealed|strictfp)\s+)*(class|interface|enum|record|@interface)\s+[A-Za-z_$]",
+          r"^\s*((public|protected|private|static|final|abstract|synchronized|native|default|strictfp)\s+)+"],
+         ["-g", "*.java"], JAVA_DEFINITION),
+        ([r"^\s*(typedef\s+)?(struct|union|enum|class|namespace)\s+[A-Za-z_]",
+          r"^\s*#\s*define\s+[A-Za-z_]\w*\(",
+          r"^\s*typedef\s+",
+          r"^[^=;/]*\b[A-Za-z_]\w*\s*\(.*[{})]\s*$"],
+         ["-g", "*.c", "-g", "*.h", "-g", "*.cc", "-g", "*.cpp", "-g", "*.cxx", "-g", "*.hh",
+          "-g", "*.hpp", "-g", "*.hxx"], C_DEFINITION),
     )
     for patterns, globs, expression in passes:
         command = ["rg", "--no-config", "-n", "--no-heading"]

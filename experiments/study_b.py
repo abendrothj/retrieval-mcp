@@ -110,6 +110,13 @@ def leading_declaration(path, text):
         if name is None and path.suffix == ".rs":
             name = next((match.group(1) for match in
                          (expression.match(text) for expression in RUST_ITEMS) if match), None)
+        # `enclosing()` refuses a binding that holds no callable, because a call written into a
+        # local const belongs to the function around it. A retrieved *chunk* is a different
+        # question: `export const DEFAULT_TAB_SIZE = 4;` at module level is what an arm returned
+        # and what a gold may name, so a binding that starts its own line is credited here.
+        if name is None and path.suffix in audit_failures.SCRIPT_SUFFIXES and text[:1].strip():
+            match = audit_failures.SCRIPT_BINDING.match(text)
+            name = match.group(1) if match else None
         return name
     match = quality_pass.DEFINITION.match(text)
     return next((group for group in match.groups() if group), None) if match else None

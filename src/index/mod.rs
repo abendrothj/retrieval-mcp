@@ -16,7 +16,7 @@ use tree_sitter::{Node, ParseOptions, Parser};
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SymbolArgs {
-    /// Exact, case-sensitive definition name (for example parse_config). Rust and Python only.
+    /// Exact, case-sensitive definition name (for example parse_config).
     pub name: String,
     /// Optional repository-relative file or directory to restrict definitions.
     pub path: Option<String>,
@@ -474,7 +474,14 @@ impl StructuralIndex {
             coverage: Coverage {
                 snapshot_id: timestamp.to_string(),
                 indexed_at_ms: timestamp,
-                languages: vec!["Rust".into(), "Python".into(), "TypeScript".into()],
+                languages: vec![
+                    "Rust".into(),
+                    "Python".into(),
+                    "JavaScript/TypeScript".into(),
+                    "Go".into(),
+                    "Java".into(),
+                    "C/C++".into(),
+                ],
                 indexed_files: 0,
                 eligible_files: 0,
                 unsupported_files: 0,
@@ -496,9 +503,10 @@ impl StructuralIndex {
         // snapshot is what a single-threaded build produces and only the wall clock changes.
         let mut eligible = Vec::new();
         for file in files {
-            match Path::new(&file).extension().and_then(|s| s.to_str()) {
-                Some("rs" | "py" | "ts" | "tsx") => eligible.push(file),
-                _ => index.coverage.unsupported_files += 1,
+            if source_language(&file).is_some() {
+                eligible.push(file);
+            } else {
+                index.coverage.unsupported_files += 1;
             }
         }
         index.coverage.eligible_files = eligible.len();
@@ -536,8 +544,14 @@ impl StructuralIndex {
                         parsed.symbols.len() + parsed.references.len() + parsed.imports.len();
                     let lines: Vec<_> = source.lines().collect();
                     for symbol in parsed.symbols {
-                        // Containers would re-index every member they hold; keep leaf definitions.
-                        if !matches!(symbol.kind.as_str(), "mod_item" | "impl_item") {
+                        // Containers would re-index every member they hold; keep leaf
+                        // definitions. A C++ namespace is the widest of them - one `namespace
+                        // detail { ... }` can span a whole file - so it is excluded for the same
+                        // reason a Rust `mod` is.
+                        if !matches!(
+                            symbol.kind.as_str(),
+                            "mod_item" | "impl_item" | "namespace_definition"
+                        ) {
                             let end = symbol.end_line.min(lines.len());
                             // Documentation sits above a definition, not inside it, and carries
                             // the vocabulary concept queries use. Include the contiguous comment
@@ -873,9 +887,7 @@ impl StructuralBackend for StructuralIndex {
             .map(|reference| {
                 let candidates: Vec<_> = candidates
                     .iter()
-                    .filter(|s| {
-                        Path::new(&s.path).extension() == Path::new(&reference.path).extension()
-                    })
+                    .filter(|symbol| same_language_family(&symbol.path, &reference.path))
                     .cloned()
                     .collect();
                 CallerHit {
@@ -1025,9 +1037,8 @@ impl StructuralBackend for StructuralIndex {
             .flatten()
             .filter(|symbol| symbol.path == path && (symbol.line..=symbol.end_line).contains(&line))
             .min_by_key(|symbol| symbol.end_line - symbol.line)?;
-        let same_language = |reference: &Reference| {
-            Path::new(&reference.path).extension() == Path::new(&symbol.path).extension()
-        };
+        let same_language =
+            |reference: &Reference| same_language_family(&reference.path, &symbol.path);
         let name_candidate_callers =
             self.references_by_name
                 .get(&symbol.name)
@@ -1202,43 +1213,148 @@ struct ParsedFile {
     has_error: bool,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LanguageFamily {
+    Rust,
+    Python,
+    EcmaScript,
+    Go,
+    Java,
+    CFamily,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SourceLanguage {
+    Rust,
+    Python,
+    TypeScript,
+    Tsx,
+    Go,
+    Java,
+    C,
+    Cpp,
+}
+
+impl SourceLanguage {
+    fn family(self) -> LanguageFamily {
+        match self {
+            Self::Rust => LanguageFamily::Rust,
+            Self::Python => LanguageFamily::Python,
+            Self::TypeScript | Self::Tsx => LanguageFamily::EcmaScript,
+            Self::Go => LanguageFamily::Go,
+            Self::Java => LanguageFamily::Java,
+            Self::C | Self::Cpp => LanguageFamily::CFamily,
+        }
+    }
+
+    fn grammar(self) -> tree_sitter::Language {
+        match self {
+            Self::Rust => tree_sitter_rust::LANGUAGE.into(),
+            Self::Python => tree_sitter_python::LANGUAGE.into(),
+            Self::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+            Self::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
+            Self::Go => tree_sitter_go::LANGUAGE.into(),
+            Self::Java => tree_sitter_java::LANGUAGE.into(),
+            Self::C => tree_sitter_c::LANGUAGE.into(),
+            Self::Cpp => tree_sitter_cpp::LANGUAGE.into(),
+        }
+    }
+}
+
+fn source_language(path: &str) -> Option<SourceLanguage> {
+    match Path::new(path).extension().and_then(|extension| extension.to_str()) {
+        Some("rs") => Some(SourceLanguage::Rust),
+        Some("py") => Some(SourceLanguage::Python),
+        Some("js" | "mjs" | "cjs" | "ts" | "mts" | "cts") => Some(SourceLanguage::TypeScript),
+        Some("jsx" | "tsx") => Some(SourceLanguage::Tsx),
+        Some("go") => Some(SourceLanguage::Go),
+        Some("java") => Some(SourceLanguage::Java),
+        Some("c") => Some(SourceLanguage::C),
+        Some("h" | "cc" | "cpp" | "cxx" | "c++" | "hh" | "hpp" | "hxx" | "h++" | "ipp"
+        | "tpp") => Some(SourceLanguage::Cpp),
+        _ => None,
+    }
+}
+
+fn same_language_family(left: &str, right: &str) -> bool {
+    source_language(left).map(SourceLanguage::family)
+        == source_language(right).map(SourceLanguage::family)
+}
+
 fn node_text<'a>(node: Node<'_>, source: &'a str) -> &'a str {
     &source[node.byte_range()]
 }
-fn is_definition(kind: &str) -> bool {
-    matches!(
-        kind,
-        // Rust
-        "function_item"
-            | "function_signature_item"
-            | "struct_item"
-            | "enum_item"
-            | "trait_item"
-            | "type_item"
-            | "mod_item"
-            | "const_item"
-            | "static_item"
-            // Python
-            | "function_definition"
-            | "class_definition"
-            // TypeScript: an arrow function bound to a const is a definition in practice, and it
-            // is named by its variable_declarator rather than by the function node.
-            | "function_declaration"
-            | "generator_function_declaration"
-            | "method_definition"
-            | "class_declaration"
-            | "abstract_class_declaration"
-            | "interface_declaration"
-            | "type_alias_declaration"
-            | "enum_declaration"
-            | "variable_declarator"
-    )
+fn is_definition(language: SourceLanguage, kind: &str) -> bool {
+    match language.family() {
+        LanguageFamily::Rust => matches!(
+            kind,
+            "function_item"
+                | "function_signature_item"
+                | "struct_item"
+                | "enum_item"
+                | "trait_item"
+                | "type_item"
+                | "mod_item"
+                | "const_item"
+                | "static_item"
+        ),
+        LanguageFamily::Python => matches!(kind, "function_definition" | "class_definition"),
+        LanguageFamily::EcmaScript => matches!(
+            kind,
+            "function_declaration"
+                | "generator_function_declaration"
+                | "method_definition"
+                | "class_declaration"
+                | "abstract_class_declaration"
+                | "interface_declaration"
+                | "type_alias_declaration"
+                | "enum_declaration"
+                | "variable_declarator"
+        ),
+        LanguageFamily::Go => matches!(
+            kind,
+            "function_declaration"
+                | "method_declaration"
+                | "method_elem"
+                | "type_spec"
+                | "type_alias"
+        ),
+        LanguageFamily::Java => matches!(
+            kind,
+            "method_declaration"
+                | "constructor_declaration"
+                | "compact_constructor_declaration"
+                | "class_declaration"
+                | "interface_declaration"
+                | "enum_declaration"
+                | "record_declaration"
+                | "annotation_type_declaration"
+                | "annotation_type_element_declaration"
+        ),
+        LanguageFamily::CFamily => matches!(
+            kind,
+            "function_definition"
+                | "struct_specifier"
+                | "class_specifier"
+                | "union_specifier"
+                | "enum_specifier"
+                | "type_definition"
+                | "namespace_definition"
+                | "alias_declaration"
+                | "concept_definition"
+                // A function-like macro is what a C caller actually invokes; `#define MAX(a, b)`
+                // has no other definition anywhere, so without it every `MAX(...)` call site
+                // resolves to nothing. Object-like macros stay out, as plain constants do.
+                | "preproc_function_def"
+        ),
+    }
 }
 
-/// `const x = 5` is not a definition worth indexing; `const run = () => {}` is. Only a declarator
-/// bound to a function shape counts, so TypeScript does not flood the index with every constant.
-fn holds_definition(node: Node<'_>) -> bool {
-    if node.kind() != "variable_declarator" {
+/// `const x = 5` is not a definition worth indexing; `const run = () => {}` is. Only an
+/// ECMAScript-family declarator bound to a function shape counts, so ordinary local bindings do
+/// not flood the index or become fictional caller owners.
+fn holds_definition(language: SourceLanguage, node: Node<'_>) -> bool {
+    if language.family() != LanguageFamily::EcmaScript || node.kind() != "variable_declarator" {
         return true;
     }
     node.child_by_field_name("value").is_some_and(|value| {
@@ -1248,68 +1364,196 @@ fn holds_definition(node: Node<'_>) -> bool {
         )
     })
 }
-fn is_import(kind: &str) -> bool {
-    matches!(
-        kind,
-        "use_declaration" | "import_statement" | "import_from_statement"
-    )
+
+fn terminal_name(mut node: Node<'_>) -> Option<Node<'_>> {
+    for _ in 0..32 {
+        if matches!(
+            node.kind(),
+            "identifier"
+                | "field_identifier"
+                | "type_identifier"
+                | "property_identifier"
+                | "namespace_identifier"
+                | "destructor_name"
+                | "operator_name"
+        ) {
+            return Some(node);
+        }
+        // Several C and C++ declarators hold the thing they decorate as an ordinary child rather
+        // than under a field: `typedef int (*Callback)(int)` parenthesises it, and
+        // `const BlockHandle& metaindex_handle() const {` wraps it in a reference declarator. A
+        // field-only descent stops at those and loses every function-pointer typedef and every
+        // reference-returning accessor in a C++ corpus.
+        let mut cursor = node.walk();
+        node = node
+            .child_by_field_name("name")
+            .or_else(|| node.child_by_field_name("declarator"))
+            .or_else(|| node.child_by_field_name("field"))
+            .or_else(|| node.child_by_field_name("attribute"))
+            .or_else(|| node.child_by_field_name("property"))
+            .or_else(|| node.child_by_field_name("function"))
+            .or_else(|| node.child_by_field_name("type"))
+            .or_else(|| {
+                matches!(
+                    node.kind(),
+                    "parenthesized_declarator"
+                        | "reference_declarator"
+                        | "attributed_declarator"
+                        | "structured_binding_declarator"
+                )
+                .then(|| node.named_children(&mut cursor).next())
+                .flatten()
+            })?;
+    }
+    None
 }
 
-fn owner(mut node: Node<'_>, source: &str) -> Option<String> {
+fn definition_name(language: SourceLanguage, node: Node<'_>) -> Option<Node<'_>> {
+    node.child_by_field_name("name")
+        .or_else(|| {
+            matches!(language.family(), LanguageFamily::CFamily)
+                .then(|| node.child_by_field_name("declarator"))
+                .flatten()
+        })
+        .and_then(terminal_name)
+}
+
+fn first_descendant<'tree>(node: Node<'tree>, kinds: &[&str]) -> Option<Node<'tree>> {
+    if kinds.contains(&node.kind()) {
+        return Some(node);
+    }
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor)
+        .find_map(|child| first_descendant(child, kinds))
+}
+
+fn enclosing_definition(
+    language: SourceLanguage,
+    mut node: Node<'_>,
+    source: &str,
+) -> Option<String> {
     while let Some(parent) = node.parent() {
-        // A call inside `const enterAction = getEnterAction(...)` sits in the function that holds
-        // the binding, not in the binding: the symbol index already refuses to index a declarator
-        // that is not a function, and attributing a caller to one asserts a definition that this
-        // index does not believe exists. Measured on VS Code 1.96, the three call sites of
-        // getEnterAction were reported as `enterAction`, `r` and `expectedEnterAction`.
-        if (is_definition(parent.kind()) || parent.kind() == "impl_item")
-            && holds_definition(parent)
-            && let Some(name) = parent
-                .child_by_field_name("name")
-                .or_else(|| parent.child_by_field_name("type"))
+        // A call inside `const value = helper()` belongs to the function holding the binding, not
+        // to `value`. Only function-valued declarators pass the same definition predicate used by
+        // the symbol index.
+        if (is_definition(language, parent.kind())
+            || (language == SourceLanguage::Rust && parent.kind() == "impl_item"))
+            && holds_definition(language, parent)
         {
-            return Some(excerpt(node_text(name, source), 200));
+            let name = definition_name(language, parent)
+                .or_else(|| parent.child_by_field_name("type").and_then(terminal_name));
+            if let Some(name) = name {
+                return Some(excerpt(node_text(name, source), 200));
+            }
         }
         node = parent;
     }
     None
 }
 
-/// The identifier a call expression is calling. Each language names the part differently, and a
-/// field this does not know is a call site silently dropped: TypeScript's `member_expression`
-/// keeps the callee under `property` as a `property_identifier`, so before that was listed here
-/// every `this.method()` and `obj.method()` in a TypeScript corpus was invisible to `find_callers`
-/// while free-function calls looked fine - 14 real call sites of `getEdits` reported as none.
-fn call_name(mut node: Node<'_>) -> Option<Node<'_>> {
-    // `factory()()` contains two call nodes, but only the inner one directly calls `factory`.
-    // Descending through the outer call would report the same source position twice.
-    if matches!(node.kind(), "call_expression" | "call") {
-        return None;
+fn definition_container(
+    language: SourceLanguage,
+    node: Node<'_>,
+    source: &str,
+) -> Option<String> {
+    if language == SourceLanguage::Go
+        && node.kind() == "method_declaration"
+        && let Some(receiver) = node.child_by_field_name("receiver")
+        && let Some(receiver_type) = first_descendant(receiver, &["type_identifier"])
+    {
+        return Some(excerpt(node_text(receiver_type, source), 200));
     }
+    if language == SourceLanguage::Cpp
+        && node.kind() == "function_definition"
+        && let Some(declarator) = node.child_by_field_name("declarator")
+        && let Some(qualified) = first_descendant(declarator, &["qualified_identifier"])
+        && let Some((container, _)) = node_text(qualified, source).rsplit_once("::")
+    {
+        return Some(excerpt(container, 200));
+    }
+    enclosing_definition(language, node, source)
+}
+
+fn is_import(language: SourceLanguage, kind: &str) -> bool {
+    match language.family() {
+        LanguageFamily::Rust => kind == "use_declaration",
+        LanguageFamily::Python => matches!(kind, "import_statement" | "import_from_statement"),
+        LanguageFamily::EcmaScript => kind == "import_statement",
+        LanguageFamily::Go | LanguageFamily::Java => kind == "import_declaration",
+        // `#include` is the C-family import, and only its quoted form names a file in this
+        // repository; the angle-bracket form names a toolchain path that no corpus-relative
+        // candidate can honestly claim.
+        LanguageFamily::CFamily => kind == "preproc_include",
+    }
+}
+
+/// The simple type a `new` expression constructs: the head of a generic type, the tail of a
+/// scoped one.
+fn constructed_name(mut node: Node<'_>) -> Option<Node<'_>> {
     for _ in 0..32 {
-        if matches!(
-            node.kind(),
-            "identifier" | "field_identifier" | "type_identifier" | "property_identifier"
-        ) {
-            return Some(node);
-        }
-        node = node
-            .child_by_field_name("field")
-            .or_else(|| node.child_by_field_name("attribute"))
-            .or_else(|| node.child_by_field_name("property"))
-            .or_else(|| node.child_by_field_name("name"))
-            .or_else(|| node.child_by_field_name("function"))?;
+        let mut cursor = node.walk();
+        node = match node.kind() {
+            "type_identifier" => return Some(node),
+            "generic_type" => node.named_children(&mut cursor).next()?,
+            "scoped_type_identifier" => node.named_children(&mut cursor).last()?,
+            _ => return terminal_name(node),
+        };
     }
     None
 }
 
+/// The identifier a call expression is calling. Each grammar stores the final name under
+/// different fields; descending through another call node is forbidden because `factory()()`
+/// contains one direct call to `factory`, not two.
+fn call_name(node: Node<'_>) -> Option<Node<'_>> {
+    if matches!(node.kind(), "call_expression" | "call") {
+        None
+    } else {
+        terminal_name(node)
+    }
+}
+
+fn call_nodes(language: SourceLanguage, node: Node<'_>) -> Option<(Node<'_>, Node<'_>)> {
+    if language == SourceLanguage::Java {
+        return match node.kind() {
+            "method_invocation" => {
+                let name = node.child_by_field_name("name")?;
+                Some((name, name))
+            }
+            // `new java.util.ArrayList<String>()` is a call to `ArrayList`. A generic type keeps
+            // the constructed type first and its arguments after it, and a scoped type keeps the
+            // simple name last, so neither can be reached by taking a fixed child.
+            "object_creation_expression" => {
+                let expression = node.child_by_field_name("type")?;
+                Some((constructed_name(expression)?, expression))
+            }
+            _ => None,
+        };
+    }
+    // `new Engine(8)`, `new Table(rows)`: a constructor call is a call site, and the grammars
+    // keep it under `new_expression` rather than under a call expression. Without this, asking
+    // who calls a class returns every factory that mentions it and none of the code that
+    // actually constructs it - the same shape of silence as the TypeScript member calls that
+    // once resolved to nothing.
+    if matches!(language.family(), LanguageFamily::CFamily | LanguageFamily::EcmaScript)
+        && node.kind() == "new_expression"
+        && let Some(expression) = node
+            .child_by_field_name("type")
+            .or_else(|| node.child_by_field_name("constructor"))
+    {
+        return Some((terminal_name(expression)?, expression));
+    }
+    if !matches!(node.kind(), "call_expression" | "call") {
+        return None;
+    }
+    let expression = node.child_by_field_name("function")?;
+    Some((call_name(expression)?, expression))
+}
+
 fn parse_file(path: &str, source: &str, timeout: Duration) -> Result<ParsedFile> {
-    let language = match Path::new(path).extension().and_then(|s| s.to_str()) {
-        Some("rs") => tree_sitter_rust::LANGUAGE.into(),
-        Some("py") => tree_sitter_python::LANGUAGE.into(),
-        Some("tsx") => tree_sitter_typescript::LANGUAGE_TSX.into(),
-        _ => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
-    };
+    let source_language =
+        source_language(path).with_context(|| format!("unsupported source language: {path}"))?;
+    let language = source_language.grammar();
     let mut parser = Parser::new();
     parser.set_language(&language)?;
     let start = Instant::now();
@@ -1335,8 +1579,10 @@ fn parse_file(path: &str, source: &str, timeout: Duration) -> Result<ParsedFile>
         has_error: tree.root_node().has_error(),
     };
     let lines: Vec<_> = source.lines().collect();
+    let file = FileText { language: source_language, path, source, lines: &lines };
     let mut definitions = BTreeSet::new();
     let mut call_names = BTreeSet::new();
+    let mut spans = BTreeSet::new();
     let mut nodes = Vec::new();
     let mut cursor = tree.walk();
     let mut depth = 0;
@@ -1368,42 +1614,46 @@ fn parse_file(path: &str, source: &str, timeout: Duration) -> Result<ParsedFile>
     }
     for node in &nodes {
         ensure!(start.elapsed() < timeout, "syntax budget exceeded");
-        if is_definition(node.kind())
-            && holds_definition(*node)
-            && let Some(name) = node.child_by_field_name("name")
+        if is_definition(source_language, node.kind())
+            && holds_definition(source_language, *node)
+            && let Some(name) = definition_name(source_language, *node)
         {
             definitions.insert(name.id());
             let line = node.start_position().row + 1;
-            parsed.symbols.push(Symbol {
-                id: format!("{path}:{line}:{}", name.start_position().column + 1),
-                name: excerpt(node_text(name, source), 200),
-                kind: node.kind().into(),
-                path: path.into(),
-                line,
-                end_line: node.end_position().row + 1,
-                container: owner(*node, source),
-                excerpt: excerpt(lines.get(line - 1).unwrap_or(&""), 300),
-            });
+            let end_line = node.end_position().row + 1;
+            let text = excerpt(node_text(name, source), 200);
+            // `typedef struct Table { ... } Table;` is one definition written twice: the typedef
+            // and the struct it names occupy the same span under the same name, and reporting
+            // both makes a unique C type read as an ambiguous namesake.
+            if spans.insert((text.clone(), line, end_line)) {
+                parsed.symbols.push(Symbol {
+                    id: format!("{path}:{line}:{}", name.start_position().column + 1),
+                    name: text,
+                    kind: node.kind().into(),
+                    path: path.into(),
+                    line,
+                    end_line,
+                    container: definition_container(source_language, *node, source),
+                    excerpt: excerpt(lines.get(line - 1).unwrap_or(&""), 300),
+                });
+            }
         }
-        if matches!(node.kind(), "call_expression" | "call")
-            && let Some(callee) = node.child_by_field_name("function")
-            && let Some(name) = call_name(callee)
-        {
+        if let Some((name, expression)) = call_nodes(source_language, *node) {
             call_names.insert(name.id());
             parsed.references.push(reference(
-                path,
-                source,
-                &lines,
+                &file,
                 *node,
                 name,
                 "call",
-                node_text(callee, source),
+                node_text(expression, source),
             ));
         }
-        if is_import(node.kind())
-            || (node.kind() == "mod_item" && node.child_by_field_name("body").is_none())
+        if is_import(source_language, node.kind())
+            || (source_language == SourceLanguage::Rust
+                && node.kind() == "mod_item"
+                && node.child_by_field_name("body").is_none())
         {
-            parsed.imports.push(import(path, source, *node));
+            parsed.imports.push(import(&file, *node));
         }
     }
     for node in nodes {
@@ -1419,25 +1669,27 @@ fn parse_file(path: &str, source: &str, timeout: Duration) -> Result<ParsedFile>
         let mut parent = node.parent();
         let mut excluded = false;
         while let Some(ancestor) = parent {
-            if is_import(ancestor.kind())
+            if is_import(source_language, ancestor.kind())
                 || matches!(
                     ancestor.kind(),
-                    "parameters" | "parameter" | "type_parameters"
+                    "parameters"
+                        | "parameter"
+                        | "type_parameters"
+                        | "parameter_list"
+                        | "formal_parameters"
                 )
             {
                 excluded = true;
                 break;
             }
-            if is_definition(ancestor.kind()) {
+            if is_definition(source_language, ancestor.kind()) {
                 break;
             }
             parent = ancestor.parent();
         }
         if !excluded {
             parsed.references.push(reference(
-                path,
-                source,
-                &lines,
+                &file,
                 node,
                 node,
                 "possible_reference",
@@ -1449,10 +1701,16 @@ fn parse_file(path: &str, source: &str, timeout: Duration) -> Result<ParsedFile>
     Ok(parsed)
 }
 
+/// The file being parsed, so the row builders take a context rather than five loose arguments.
+struct FileText<'a> {
+    language: SourceLanguage,
+    path: &'a str,
+    source: &'a str,
+    lines: &'a [&'a str],
+}
+
 fn reference(
-    path: &str,
-    source: &str,
-    lines: &[&str],
+    file: &FileText<'_>,
     node: Node<'_>,
     name: Node<'_>,
     kind: &str,
@@ -1460,27 +1718,82 @@ fn reference(
 ) -> Reference {
     let line = node.start_position().row + 1;
     Reference {
-        name: excerpt(node_text(name, source), 200),
+        name: excerpt(node_text(name, file.source), 200),
         kind: kind.into(),
-        path: path.into(),
+        path: file.path.into(),
         line,
         column: node.start_position().column + 1,
-        caller: owner(node, source),
+        caller: enclosing_definition(file.language, node, file.source),
         expression: excerpt(expression, 200),
-        excerpt: excerpt(lines.get(line - 1).unwrap_or(&""), 300),
+        excerpt: excerpt(file.lines.get(line - 1).unwrap_or(&""), 300),
     }
 }
 
-fn import(path: &str, source: &str, node: Node<'_>) -> Import {
+fn lexical_relative(parent: &Path, relative: &str) -> Option<std::path::PathBuf> {
+    let mut resolved = parent.to_path_buf();
+    for component in Path::new(relative).components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                resolved.pop().then_some(())?;
+            }
+            std::path::Component::Normal(part) => resolved.push(part),
+            _ => return None,
+        }
+    }
+    Some(resolved)
+}
+
+fn ecmascript_import_candidates(parent: &Path, specifier: &str, candidates: &mut Vec<String>) {
+    if !specifier.starts_with('.') {
+        return;
+    }
+    let Some(base) = lexical_relative(parent, specifier) else {
+        return;
+    };
+    let mut add = |path: std::path::PathBuf| {
+        candidates.push(path.to_string_lossy().replace('\\', "/"));
+    };
+    match base.extension().and_then(|extension| extension.to_str()) {
+        Some("js") => {
+            add(base.clone());
+            add(base.with_extension("ts"));
+            add(base.with_extension("tsx"));
+        }
+        Some("jsx") => {
+            add(base.clone());
+            add(base.with_extension("tsx"));
+        }
+        Some("mjs") => {
+            add(base.clone());
+            add(base.with_extension("mts"));
+        }
+        Some("cjs") => {
+            add(base.clone());
+            add(base.with_extension("cts"));
+        }
+        Some(_) => add(base),
+        None => {
+            for extension in ["js", "jsx", "mjs", "cjs", "ts", "tsx", "mts", "cts"] {
+                add(base.with_extension(extension));
+                add(base.join("index").with_extension(extension));
+            }
+        }
+    }
+}
+
+fn import(file: &FileText<'_>, node: Node<'_>) -> Import {
+    let (language, path, source) = (file.language, file.path, file.source);
     let mut candidates = Vec::new();
     let parent = Path::new(path).parent().unwrap_or(Path::new(""));
-    if node.kind() == "mod_item"
+    if language == SourceLanguage::Rust
+        && node.kind() == "mod_item"
         && let Some(name) = node.child_by_field_name("name")
     {
         let name = node_text(name, source);
         // Rust's sibling module convention only; #[path], inline modules, and crate layout remain unresolved.
         let base = if matches!(
-            Path::new(path).file_name().and_then(|p| p.to_str()),
+            Path::new(path).file_name().and_then(|file| file.to_str()),
             Some("lib.rs" | "main.rs" | "mod.rs")
         ) {
             parent.to_path_buf()
@@ -1498,7 +1811,8 @@ fn import(path: &str, source: &str, node: Node<'_>) -> Import {
                 .to_string_lossy()
                 .into_owned(),
         );
-    } else if node.kind() == "import_from_statement"
+    } else if language == SourceLanguage::Python
+        && node.kind() == "import_from_statement"
         && let Some(module) = node.child_by_field_name("module_name")
     {
         let name = node_text(module, source);
@@ -1507,13 +1821,42 @@ fn import(path: &str, source: &str, node: Node<'_>) -> Import {
             candidates.push(format!("{name}.py"));
             candidates.push(format!("{name}/__init__.py"));
         }
-    } else if node.kind() == "import_statement" {
+    } else if language == SourceLanguage::Python && node.kind() == "import_statement" {
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
             let child = child.child_by_field_name("name").unwrap_or(child);
             let name = node_text(child, source).replace('.', "/");
             candidates.push(format!("{name}.py"));
             candidates.push(format!("{name}/__init__.py"));
+        }
+    } else if language.family() == LanguageFamily::EcmaScript
+        && let Some(specifier) = node.child_by_field_name("source")
+    {
+        ecmascript_import_candidates(
+            parent,
+            node_text(specifier, source).trim_matches(['\'', '"']),
+            &mut candidates,
+        );
+    } else if language == SourceLanguage::Java {
+        // `import com.example.Tool;` names a path relative to a source root the syntax does not
+        // state. The bare package path and the conventional Maven/Gradle root are offered as
+        // candidates; both are dropped later unless the file is really there.
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            let name = node_text(child, source).replace('.', "/");
+            if name.contains('/') {
+                candidates.push(format!("{name}.java"));
+                candidates.push(format!("src/main/java/{name}.java"));
+            }
+        }
+    } else if language.family() == LanguageFamily::CFamily
+        && let Some(included) = node.child_by_field_name("path")
+        && included.kind() == "string_literal"
+    {
+        let name = node_text(included, source).trim_matches('"');
+        candidates.push(name.replace('\\', "/"));
+        if let Some(relative) = lexical_relative(parent, name) {
+            candidates.push(relative.to_string_lossy().replace('\\', "/"));
         }
     }
     Import {
@@ -2223,6 +2566,382 @@ mod tests {
             outbound.orientation.note.as_deref().unwrap().contains("also called from"),
             "{:?}",
             outbound.orientation.note
+        );
+    }
+
+    /// Build a snapshot over a written corpus, so a language test reads as the source it is about.
+    fn snapshot(files: &[(&str, &str)]) -> (tempfile::TempDir, Workspace, StructuralIndex) {
+        let dir = tempfile::tempdir().unwrap();
+        let mut paths = Vec::new();
+        for (path, source) in files {
+            let full = dir.path().join(path);
+            std::fs::create_dir_all(full.parent().unwrap()).unwrap();
+            std::fs::write(full, source).unwrap();
+            paths.push((*path).to_string());
+        }
+        paths.sort();
+        let workspace = Workspace::new(dir.path()).unwrap();
+        let index =
+            StructuralIndex::from_files(&workspace, paths, Duration::from_secs(5)).unwrap();
+        (dir, workspace, index)
+    }
+
+    fn caller_rows(index: &StructuralIndex, workspace: &Workspace, name: &str) -> Vec<String> {
+        let found = index
+            .find_callers(
+                workspace,
+                CallerArgs {
+                    name: name.into(),
+                    path: None,
+                    include_references: None,
+                    limit: None,
+                    offset: None,
+                },
+            )
+            .unwrap();
+        let mut rows: Vec<_> = found
+            .retrieval
+            .page
+            .results
+            .iter()
+            .map(|hit| {
+                format!(
+                    "{}::{}:{}",
+                    hit.reference.path,
+                    hit.reference.caller.clone().unwrap_or_default(),
+                    hit.resolution
+                )
+            })
+            .collect();
+        rows.sort();
+        rows
+    }
+
+    /// JavaScript and TypeScript are one language, written in eight extensions. Matching a call
+    /// to a candidate definition by file extension would make a `.js` caller of a `.ts` helper
+    /// unresolvable, and a specifier written `./util.js` - which every ESM build emits for a
+    /// TypeScript source - would resolve to nothing.
+    #[test]
+    fn javascript_and_typescript_resolve_as_one_language_family() {
+        let (_dir, workspace, index) = snapshot(&[
+            (
+                "src/util.ts",
+                "export function formatRow(row: string): string { return row.trim(); }\n",
+            ),
+            (
+                "src/app.js",
+                "import { formatRow } from './util.js';\n\
+                 export class Table {\n\
+                 \trender(rows) { return rows.map((row) => formatRow(row)); }\n\
+                 }\n\
+                 export const build = (rows) => new Table(rows);\n",
+            ),
+            (
+                "src/view.jsx",
+                "export default function view(rows) { return rows.map(formatRow); }\n",
+            ),
+            (
+                "other/format.rs",
+                "fn formatRow() {}\nfn rust_caller() { formatRow(); }\n",
+            ),
+        ]);
+        // A .js call site resolves against the .ts definition; the Rust namesake is a different
+        // language and must not be offered as its candidate.
+        assert_eq!(
+            caller_rows(&index, &workspace, "formatRow"),
+            vec![
+                "other/format.rs::rust_caller:unique_name_candidate".to_string(),
+                "src/app.js::render:unique_name_candidate".to_string(),
+            ]
+        );
+        let names: BTreeSet<_> = index.symbols.keys().cloned().collect();
+        assert!(names.contains("view"), "a .jsx module is indexed: {names:?}");
+        let specifier = index
+            .imports
+            .iter()
+            .find(|import| import.path == "src/app.js")
+            .unwrap();
+        assert_eq!(specifier.candidate_files, vec!["src/util.ts".to_string()]);
+        assert_eq!(specifier.resolution, "possible_local_module");
+        // `new Table(rows)` constructs the class, and a caller question about a class is almost
+        // always about exactly that. Reading only call expressions left every constructor
+        // invocation in a JavaScript or TypeScript corpus invisible.
+        assert_eq!(
+            caller_rows(&index, &workspace, "Table"),
+            vec!["src/app.js::build:unique_name_candidate".to_string()]
+        );
+    }
+
+    /// A Go method belongs to its receiver type, not to the file: `func (t *Table) Format(...)`
+    /// is `Table::Format`, and an interface method belongs to the interface. Without the
+    /// receiver, every method in a package reads as a free function and namesakes across types
+    /// cannot be told apart.
+    #[test]
+    fn go_methods_are_owned_by_their_receiver_and_interface() {
+        let (_dir, workspace, index) = snapshot(&[(
+            "service.go",
+            "package service\n\n\
+             import \"strings\"\n\n\
+             type Formatter interface {\n\
+             \tFormat(row string) string\n\
+             }\n\n\
+             type Table struct{ Rows []string }\n\n\
+             func (t *Table) Format(row string) string { return strings.TrimSpace(row) }\n\n\
+             func (t Table) Render() []string {\n\
+             \tout := []string{}\n\
+             \tfor _, row := range t.Rows {\n\
+             \t\tout = append(out, t.Format(row))\n\
+             \t}\n\
+             \treturn out\n\
+             }\n\n\
+             func NewTable(rows []string) *Table { return &Table{Rows: rows} }\n\n\
+             func Report(rows []string) []string {\n\
+             \ttable := NewTable(rows)\n\
+             \tgo func() { _ = table.Format(\"x\") }()\n\
+             \treturn table.Render()\n\
+             }\n",
+        )]);
+        let containers: Vec<_> = index
+            .symbols
+            .get("Format")
+            .unwrap()
+            .iter()
+            .map(|symbol| symbol.container.clone().unwrap_or_default())
+            .collect();
+        assert_eq!(containers, vec!["Formatter".to_string(), "Table".to_string()]);
+        // A call inside a goroutine literal belongs to the function that launched it.
+        assert_eq!(
+            caller_rows(&index, &workspace, "Format"),
+            vec![
+                "service.go::Render:ambiguous".to_string(),
+                "service.go::Report:ambiguous".to_string(),
+            ]
+        );
+        assert_eq!(
+            caller_rows(&index, &workspace, "NewTable"),
+            vec!["service.go::Report:unique_name_candidate".to_string()]
+        );
+        // A package path is not a repository file, so no candidate is invented for it.
+        let import = index.imports.first().unwrap();
+        assert!(import.candidate_files.is_empty(), "{import:?}");
+        assert_eq!(import.resolution, "unresolved");
+    }
+
+    /// Java invokes through `method_invocation` and constructs through `object_creation_expression`,
+    /// neither of which is a `call_expression`. Reading only call expressions would report zero
+    /// call sites for an entire Java corpus, and a constructed type written
+    /// `new java.util.ArrayList<>()` names `ArrayList`, not `java`.
+    #[test]
+    fn java_invocations_and_constructions_are_call_sites() {
+        let (_dir, workspace, index) = snapshot(&[
+            (
+                "com/example/Table.java",
+                "package com.example;\n\n\
+                 import java.util.ArrayList;\n\n\
+                 public class Table {\n\
+                 \tpublic Table(java.util.List<String> rows) { this.rows = rows; }\n\
+                 \tpublic String format(String row) { return row.trim(); }\n\
+                 \tpublic java.util.List<String> render() {\n\
+                 \t\tjava.util.List<String> out = new java.util.ArrayList<>();\n\
+                 \t\tout.add(format(\"row\"));\n\
+                 \t\treturn out;\n\
+                 \t}\n\
+                 \tprivate java.util.List<String> rows;\n\
+                 }\n",
+            ),
+            (
+                "com/example/Report.java",
+                "package com.example;\n\n\
+                 import com.example.Table;\n\n\
+                 public record Report(String title) {\n\
+                 \tpublic Report {\n\
+                 \t\ttitle = title.trim();\n\
+                 \t}\n\
+                 \tpublic java.util.List<String> lines() {\n\
+                 \t\treturn new Table(new java.util.ArrayList<>()).render();\n\
+                 \t}\n\
+                 }\n",
+            ),
+        ]);
+        assert_eq!(
+            caller_rows(&index, &workspace, "render"),
+            vec!["com/example/Report.java::lines:unique_name_candidate".to_string()]
+        );
+        assert_eq!(
+            caller_rows(&index, &workspace, "format"),
+            vec!["com/example/Table.java::render:unique_name_candidate".to_string()]
+        );
+        assert_eq!(
+            caller_rows(&index, &workspace, "ArrayList"),
+            vec![
+                "com/example/Report.java::lines:unresolved".to_string(),
+                "com/example/Table.java::render:unresolved".to_string(),
+            ]
+        );
+        // A record, its compact constructor and a class constructor are definitions; the
+        // constructor is owned by the type it builds.
+        let constructors: Vec<_> = index
+            .symbols
+            .get("Report")
+            .unwrap()
+            .iter()
+            .map(|symbol| (symbol.kind.as_str(), symbol.container.as_deref()))
+            .collect();
+        assert_eq!(
+            constructors,
+            vec![
+                ("record_declaration", None),
+                ("compact_constructor_declaration", Some("Report")),
+            ]
+        );
+        // `import com.example.Table;` names a file this corpus really holds.
+        let import = index
+            .imports
+            .iter()
+            .find(|import| import.statement.contains("com.example.Table"))
+            .unwrap();
+        assert_eq!(
+            import.candidate_files,
+            vec!["com/example/Table.java".to_string()]
+        );
+    }
+
+    /// C names a function through a declarator rather than a `name` field, wraps a
+    /// function-pointer typedef in parentheses, and calls function-like macros that have no
+    /// other definition. A typedef'd struct is also one definition written twice, and reporting
+    /// both halves makes a unique type read as an ambiguous namesake.
+    #[test]
+    fn c_definitions_cover_declarators_macros_and_typedefs_once() {
+        let (_dir, workspace, index) = snapshot(&[
+            (
+                "src/table.h",
+                "typedef struct Table {\n\tint size;\n} Table;\n\
+                 typedef int (*Callback)(int);\n\
+                 int table_size(const Table *table);\n",
+            ),
+            (
+                "src/table.c",
+                "#include \"table.h\"\n\
+                 #include <stdio.h>\n\n\
+                 #define DOUBLE(value) ((value) * 2)\n\n\
+                 static int normalize(int value) { return value < 0 ? 0 : value; }\n\n\
+                 int table_size(const Table *table) { return normalize(table->size); }\n\n\
+                 char *table_label(const Table *table) {\n\
+                 \tprintf(\"%d\", DOUBLE(table_size(table)));\n\
+                 \treturn 0;\n\
+                 }\n",
+            ),
+        ]);
+        let table: Vec<_> = index
+            .symbols
+            .get("Table")
+            .unwrap()
+            .iter()
+            .map(|symbol| (symbol.path.as_str(), symbol.kind.as_str()))
+            .collect();
+        assert_eq!(
+            table,
+            vec![("src/table.h", "type_definition")],
+            "the typedef and the struct it names are one definition"
+        );
+        let names: BTreeSet<_> = index.symbols.keys().cloned().collect();
+        assert!(names.contains("Callback"), "{names:?}");
+        assert!(names.contains("table_label") && names.contains("normalize"), "{names:?}");
+        // A macro call site resolves, because the macro itself is the definition.
+        assert_eq!(
+            caller_rows(&index, &workspace, "DOUBLE"),
+            vec!["src/table.c::table_label:unique_name_candidate".to_string()]
+        );
+        assert_eq!(
+            caller_rows(&index, &workspace, "normalize"),
+            vec!["src/table.c::table_size:unique_name_candidate".to_string()]
+        );
+        // A quoted include names a file in this repository; an angle-bracket include names a
+        // toolchain path no corpus-relative candidate can honestly claim.
+        let quoted = index
+            .imports
+            .iter()
+            .find(|import| import.statement.contains("table.h"))
+            .unwrap();
+        assert_eq!(quoted.candidate_files, vec!["src/table.h".to_string()]);
+        let angled = index
+            .imports
+            .iter()
+            .find(|import| import.statement.contains("stdio.h"))
+            .unwrap();
+        assert!(angled.candidate_files.is_empty(), "{angled:?}");
+    }
+
+    /// A C++ method defined out of line carries its class in the declarator, not in an enclosing
+    /// node: `std::string Engine::render(...)` sits at file scope, so without reading the
+    /// qualified name the row names a method with no owner at all. `new Engine(8)` is a call
+    /// site under `new_expression`, which is not a call expression.
+    #[test]
+    fn cpp_out_of_line_methods_keep_their_class_and_new_is_a_call() {
+        let (_dir, workspace, index) = snapshot(&[
+            (
+                "engine.hpp",
+                "#pragma once\n\
+                 namespace report {\n\
+                 class Engine {\n\
+                 public:\n\
+                 \texplicit Engine(int width);\n\
+                 \tint width() const { return width_; }\n\
+                 \tconst Options &options() const { return options_; }\n\
+                 \tint render(int row) const;\n\
+                 private:\n\
+                 \tint width_;\n\
+                 };\n\
+                 template <typename T> T clampWidth(T value) { return value; }\n\
+                 }\n",
+            ),
+            (
+                "engine.cpp",
+                "#include \"engine.hpp\"\n\
+                 namespace report {\n\
+                 Engine::Engine(int width) : width_(clampWidth(width)) {}\n\n\
+                 int Engine::render(int row) const { return row + width(); }\n\n\
+                 Engine *make() { return new Engine(8); }\n\
+                 }\n",
+            ),
+        ]);
+        let render = index.symbols.get("render").unwrap();
+        assert_eq!(render.len(), 1);
+        assert_eq!(render[0].path, "engine.cpp");
+        assert_eq!(render[0].container.as_deref(), Some("Engine"));
+        // The inline method is owned by the class body that holds it.
+        assert_eq!(
+            index.symbols.get("width").unwrap()[0].container.as_deref(),
+            Some("Engine")
+        );
+        // A reference-returning accessor wraps its declarator in a `reference_declarator`, which
+        // holds the name as an ordinary child rather than under a field: LevelDB's
+        // `const BlockHandle& metaindex_handle() const {` was indexed as no definition at all.
+        assert_eq!(
+            index.symbols.get("options").unwrap()[0].container.as_deref(),
+            Some("Engine")
+        );
+        assert_eq!(
+            caller_rows(&index, &workspace, "Engine"),
+            vec!["engine.cpp::make:ambiguous".to_string()]
+        );
+        assert_eq!(
+            caller_rows(&index, &workspace, "clampWidth"),
+            vec!["engine.cpp::Engine:unique_name_candidate".to_string()]
+        );
+        assert_eq!(
+            caller_rows(&index, &workspace, "width"),
+            vec!["engine.cpp::render:unique_name_candidate".to_string()]
+        );
+        // A namespace can span a whole file; chunking it would re-index every member it holds,
+        // so the concept ranker answers with the definition, never the namespace around it.
+        let hits = index
+            .search_concept(&workspace, "clamp a width value", None, 3)
+            .unwrap();
+        assert_eq!(index.locate(&hits[0].path, hits[0].start_line).unwrap().name, "clampWidth");
+        assert!(
+            index.symbols.contains_key("report"),
+            "the namespace itself stays indexed as a definition"
         );
     }
 }

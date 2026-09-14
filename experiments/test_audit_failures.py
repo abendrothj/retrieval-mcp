@@ -234,5 +234,166 @@ class CallSiteTests(unittest.TestCase):
         self.assertEqual(callers, ["user.py::handle_merge", "user.py::write_migration_files"])
 
 
+GO = '''package service
+
+type Table struct{ Rows []string }
+
+func (t *Table) Render() []string {
+\tout := []string{}
+\tfor _, row := range t.Rows {
+\t\tout = append(out, normalize(row))
+\t}
+\treturn &Table{Rows: out}.Rows
+}
+
+func (t Table) Label() string { return normalize("label") }
+
+func Report(rows []string) {
+\tgo func() { _ = normalize("async") }()
+}
+'''
+
+JAVA = '''package com.example;
+
+public class Report {
+  private final String title = normalize("t");
+
+  @Override
+  public String render(String row) {
+    return normalize(row);
+  }
+
+  public java.util.List<String> lines(
+      java.util.List<String> rows) {
+    return java.util.List.of(normalize("x"));
+  }
+}
+'''
+
+CPP = '''#include "engine.h"
+
+namespace report {
+
+TableCache::TableCache(const std::string& name,
+                       int entries)
+    : name_(name),
+      cache_(normalize(entries)) {}
+
+int Engine::render(int row) const { return normalize(row); }
+
+void drive() {
+  TEST("a macro block is not a definition") {
+    normalize(1);
+  }
+}
+
+}  // namespace report
+'''
+
+JAVASCRIPT = '''const { normalize } = require("./util");
+
+module.exports = {
+    create(context) {
+        return {
+            ReturnStatement(node) {
+                context.report({
+                    node,
+                    fix(fixer) {
+                        return normalize(fixer);
+                    }
+                });
+            }
+        };
+    }
+};
+'''
+
+
+class LanguageFamilyAttributionTests(unittest.TestCase):
+    """Attribution in the families added after Rust, Python and TypeScript.
+
+    Each case here was a wrong answer first, found by `language_audit.py` comparing these rows
+    with the server's on Cobra, Gson, LevelDB, Redis and ESLint. Every one of them would have
+    made a correct caller gold unverifiable, which is how a real capability gets recorded as a
+    failure.
+    """
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.files = {}
+        for name, text in (("service.go", GO), ("Report.java", JAVA), ("engine.cc", CPP),
+                           ("rule.js", JAVASCRIPT)):
+            path = self.root / name
+            path.write_text(text, encoding="utf-8")
+            self.files[name] = (path, {line.strip(): number for number, line
+                                       in enumerate(text.splitlines(), 1)})
+
+    def tearDown(self):
+        self.directory.cleanup()
+
+    def at(self, name, text):
+        path, lines = self.files[name]
+        return audit_failures.enclosing(path, lines[text])
+
+    def test_a_go_method_owns_its_body_and_a_struct_literal_owns_nothing(self):
+        self.assertEqual(self.at("service.go", "out = append(out, normalize(row))"), "Render")
+        self.assertEqual(self.at("service.go", "return &Table{Rows: out}.Rows"), "Render")
+
+    def test_a_go_one_line_method_is_the_caller_of_the_call_on_its_own_line(self):
+        self.assertEqual(self.at("service.go", 'func (t Table) Label() string { return normalize("label") }'),
+                         "Label")
+
+    def test_a_goroutine_literal_belongs_to_the_function_that_launched_it(self):
+        self.assertEqual(self.at("service.go", 'go func() { _ = normalize("async") }()'), "Report")
+
+    def test_an_annotated_java_method_owns_its_body(self):
+        self.assertEqual(self.at("Report.java", "return normalize(row);"), "render")
+
+    def test_a_java_field_initialiser_belongs_to_its_class(self):
+        self.assertEqual(self.at("Report.java", 'private final String title = normalize("t");'),
+                         "Report")
+
+    def test_a_wrapped_java_signature_still_owns_its_body(self):
+        self.assertEqual(self.at("Report.java", 'return java.util.List.of(normalize("x"));'),
+                         "lines")
+
+    def test_a_cpp_initialiser_list_names_the_constructor_not_the_member(self):
+        self.assertEqual(self.at("engine.cc", ": name_(name),"), "TableCache")
+        self.assertEqual(self.at("engine.cc", "cache_(normalize(entries)) {}"), "TableCache")
+
+    def test_a_cpp_one_line_method_owns_the_call_beside_it(self):
+        self.assertEqual(self.at("engine.cc", "int Engine::render(int row) const { return normalize(row); }"),
+                         "render")
+
+    def test_a_macro_block_inside_a_function_is_not_a_definition(self):
+        self.assertEqual(self.at("engine.cc", "normalize(1);"), "drive")
+
+    def test_a_shorthand_method_in_an_object_literal_is_the_caller(self):
+        self.assertEqual(self.at("rule.js", "return normalize(fixer);"), "fix")
+
+    def test_callers_are_enumerated_in_every_family(self):
+        (self.root / "util.js").write_text("function normalize(v) { return v; }\n",
+                                           encoding="utf-8")
+        callers = audit_failures.true_callers(self.root, "normalize", "util.js")
+        self.assertEqual(callers, [
+            "Report.java::Report", "Report.java::lines", "Report.java::render",
+            "engine.cc::TableCache", "engine.cc::drive", "engine.cc::render",
+            "rule.js::fix",
+            "service.go::Label", "service.go::Render", "service.go::Report",
+        ])
+
+    def test_a_qualified_static_call_is_not_read_as_a_prototype(self):
+        (self.root / "batch.h").write_text(
+            "class WriteBatchInternal {\n public:\n  static void SetSequence(int seq);\n};\n",
+            encoding="utf-8")
+        (self.root / "db.cc").write_text(
+            "#include \"batch.h\"\n"
+            "void Write(int seq) {\n  WriteBatchInternal::SetSequence(seq);\n}\n",
+            encoding="utf-8")
+        callers = audit_failures.true_callers(self.root, "SetSequence", "batch.cc")
+        self.assertEqual(callers, ["db.cc::Write"])
+
+
 if __name__ == "__main__":
     unittest.main()
