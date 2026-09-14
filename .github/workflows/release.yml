@@ -3,7 +3,12 @@
 #
 # Every target is built on its own native runner rather than cross-compiled, because the
 # Tree-sitter grammars need a working C compiler for the target and a native runner is the one
-# configuration that is certain to have it.
+# configuration that is certain to have it - and because the packaged binary is then executed on
+# the machine that built it before anyone downloads it. Intel macOS uses `macos-15-intel`:
+# `macos-13` was retired on 2025-12-04 and a job asking for it now queues forever, which is how
+# v0.1.3's first release run sat unstarted for eight hours. That label is supported until
+# August 2027; after it, this target either cross-compiles without an executed smoke test or goes
+# the way of Windows below.
 #
 # Windows is deliberately absent: the server has Unix-specific paths (log-file mode 0600, process
 # group handling in the tests) that have never been exercised there, and an untested binary is a
@@ -33,7 +38,7 @@ jobs:
           - target: aarch64-apple-darwin
             runner: macos-latest
           - target: x86_64-apple-darwin
-            runner: macos-13
+            runner: macos-15-intel
           - target: x86_64-unknown-linux-gnu
             runner: ubuntu-latest
           - target: aarch64-unknown-linux-gnu
@@ -105,7 +110,20 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Attach the binaries to the release
+      # `gh release upload` needs a release object, and a pushed tag does not create one: v0.1.2
+      # and v0.1.3 were tagged with no release behind them, so the binaries had nowhere to go.
+      # Create it from the annotated tag's own message when it is missing, then upload.
+      - name: Publish the release and attach the binaries
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ inputs.tag || github.ref_name }}" dist/* --clobber --repo "${{ github.repository }}"
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.tag || github.ref_name }}"
+          repository="${{ github.repository }}"
+          if ! gh release view "$tag" --repo "$repository" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$repository" --title "$tag" --verify-tag --notes-from-tag
+          fi
+          gh release upload "$tag" dist/* --clobber --repo "$repository"
+          gh release view "$tag" --repo "$repository" --json assets \
+            --jq '.assets[] | "\(.name) \(.size)"'
