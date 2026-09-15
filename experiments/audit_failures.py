@@ -257,7 +257,13 @@ def declaration(text, suffix=".ts"):
         # can also stand immediately *before* the name - `return normalize(row);` reads as a
         # method declaration named `normalize` to any pattern that allows a return type - so the
         # word in front of the name is refused the same way.
-        if rules is not RUST_DECLARATIONS:
+        # Go and Rust both reach a name only through a keyword of their own - `func`, `fn` - so a
+        # control word cannot stand where the name stands, and refusing it by name only loses real
+        # definitions: `func (tw *storeTxnWrite) delete(key []byte)` is a method whose name is a
+        # JavaScript operator, and dropping it dropped every call site inside its body from the
+        # oracle's caller sets. Every other family here writes `if (`, `for (` and `catch (` in the
+        # position a declaration writes its name, and must still refuse them.
+        if rules not in (RUST_DECLARATIONS, GO_DECLARATIONS):
             if name in CONTROL_WORDS:
                 return None, False
             before = re.findall(r"[A-Za-z_$][\w$]*", text[:match.start(1)])

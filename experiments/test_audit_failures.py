@@ -452,5 +452,23 @@ class ScopeAndLiteralTests(unittest.TestCase):
             ["other.go::remote", "util.go::local"])
 
 
+
+class GoKeywordNameTests(unittest.TestCase):
+    """`func (tw *storeTxnWrite) delete(...)` is a method whose name is a JavaScript operator."""
+
+    def test_a_go_method_named_after_a_control_word_still_owns_its_body(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "store.go").write_text(
+                "package p\n\n"
+                "func newKey(rev int64) string { return \"\" }\n\n"
+                "func (t *txn) delete(key []byte) {\n"
+                "\t_ = newKey(1)\n"
+                "}\n", encoding="utf-8")
+            self.assertEqual(
+                audit_failures.true_callers(root, "newKey", "other.go"),
+                ["store.go::delete"])
+
+
 if __name__ == "__main__":
     unittest.main()

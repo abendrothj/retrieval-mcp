@@ -86,7 +86,7 @@ any of the four features it was found underneath.
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Twenty-seven defects in it have produced or nearly
+The harness is the second experimental subject. Twenty-eight defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
 some penalised it, one was found inside its own single held-out loss, one would have made every
 brace-language caller question unauthorable, one scored three arms to zero on questions they had
@@ -124,6 +124,7 @@ ordinals.
 | A caller set named identities its own grader cannot distinguish | Four Go methods called `GetRequestMetadata` on four receivers in one file collapse to one `path::name` gold entry, so all three arms enumerated them correctly and all three scored 0.571 — every arm docked for being right |
 | Grader read `Server.method` but not `(*Server).method` | A Go caller list spelled the way Go spells it scored 0.33 - two misses and two extras - and the arm that wrote the source's own notation lost two trials to notation, not retrieval |
 | Oracle counted a helper named inside a format string as a call | An exhaustive gold demanding `server.go::register` as a caller of `RegisterService`, when the line is `s.printf("RegisterService(%q)", …)` |
+| Oracle refused any definition whose name is a control word in another language | `func (tw *storeTxnWrite) delete(...)` owned nothing, so every call inside a Go method named `delete` disappeared from the gold and the arms that found it were scored as inventing it |
 | A caller question excluded "the file that defines it" while that file's test twin called the helper | Every arm skipped `http_util_test.go` when told to skip `http_util.go` - 14 of 19 missing identities in one study, 6 of 6 for one arm - and the loss read as a retrieval difference |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
@@ -953,7 +954,7 @@ it then prints the exact validate/prepare/run/score commands. It calls no model.
 
 ### The habit that made the numbers trustworthy
 
-The twenty-seven entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
+The twenty-eight entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
 flattered this server, some penalised it, and the last was found inside its own single held-out loss.
 None was found by auditing on a schedule. Every one came from the same rule, which is the methodological
 claim this project would actually defend:
@@ -1178,6 +1179,39 @@ that defines it"* — carries `include_defining_file`, regolds to the full verif
 identities moved), compiles clean, and remains resistant to `lexical_oracle.py` at budget 25. It is
 a third wording, so it is again incomparable with what came before; the point is that it is the
 last one, because there is no longer a convention for a reader to guess.
+
+### A suite built to separate the arms: etcd, 28 questions, attribution-hard by construction
+
+The gRPC-Go study saturated - three arms within two answers of each other, every residual loss an
+enclosing-definition disagreement rather than a retrieval failure - so the next suite was mined for
+that property instead of stumbling onto it.
+
+Corpus: `runs/etcd-suite/corpus`, 306 Go files cut from etcd at `0da1b60a` (`server/etcdserver`,
+`server/lease`, `server/mvcc`, `server/storage`), fingerprinted in `corpus-manifest.json`. No
+question set in this repository has been authored against etcd, so it is unspent by construction,
+and it is concurrency-heavy in a way gRPC-Go's scoped cut is not.
+
+The miner keeps a helper only when at least one of its callers is *attribution-hard*: the call sits
+more than 25 lines below its enclosing header and the owner's name appears nowhere in a ±10-line
+window, so a local text crawl cannot read the answer off the screen. 50 helpers qualified; 28 were
+authored, in four parallel batches, against caller sets the oracle had already verified.
+
+What that yields: **115 gold identities, 105 of them at attribution-hard sites**, median gold size 4,
+worst case a call 142 lines below its header inside a `sendLoop` goroutine. `validate_suite.py`
+compiles it clean, and `lexical_oracle.py` dissolves none of the 28 at budget 25. `find_callers`
+returns all 115 in one default call per question, so the suite is answerable - the open question is
+whether an agent driving text tools attributes them correctly, which is exactly what the previous
+suite could no longer ask.
+
+**Two oracle defects fell out of building it**, both found by disbelieving a disagreement rather
+than by reading code. A name inside a format string counted as a call. And `declaration()` refused
+any name in its control-word list for every language, so `func (tw *storeTxnWrite) delete(...)` -
+a Go method whose name is a JavaScript operator - owned nothing, and every call site in its body
+vanished from the oracle's caller sets. Go and Rust reach a name only through `func` and `fn`, so
+the refusal is now limited to the families that write `if (` where a declaration writes its name.
+Re-running all five pre-registered language audits after both repairs reproduces the published
+numbers exactly: Cobra 1.000/0.988, Gson 0.917/0.929, Redis 0.979/0.931, LevelDB 0.941/1.000,
+ESLint 0.981/1.000.
 
 ## Three index changes, one survivor
 
