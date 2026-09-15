@@ -6,14 +6,19 @@
 # Environment:
 #   RETRIEVAL_MCP_VERSION      tag to install (default: latest release)
 #   RETRIEVAL_MCP_INSTALL_DIR  install directory (default: ~/.local/bin)
+#   RETRIEVAL_MCP_REGISTER     register with these clients after installing: claude, codex, or
+#                              both comma-separated (default: none, the commands are printed)
+#   RETRIEVAL_MCP_SCOPE        local (this repository, the default) or user (every project)
 #
 # No Rust toolchain, no `jq` and no GitHub token required. Unsupported platforms are reported
 # instead of silently falling back.
 #
-# What this script does not do, by design: it copies one binary into one directory and prints the
-# two client-registration commands. It does not edit shell startup files, does not write any MCP
+# What this script does by default: it copies one binary into one directory and prints the two
+# client-registration commands. It does not edit shell startup files, does not write any MCP
 # client configuration, does not create anything inside your repositories and does not start
-# anything. The server has no config file, no data directory and no index to install.
+# anything. `RETRIEVAL_MCP_REGISTER` opts into the registration step and runs each client's own
+# `mcp add`; nothing here is ever interactive, because a piped installer cannot prompt.
+# The server has no config file, no data directory and no index to install.
 
 set -eu
 
@@ -23,6 +28,16 @@ INSTALL_DIR="${RETRIEVAL_MCP_INSTALL_DIR:-$HOME/.local/bin}"
 RELEASES="https://github.com/${REPO}/releases"
 TARGETS="aarch64-apple-darwin, x86_64-apple-darwin, aarch64-unknown-linux-gnu,
          x86_64-unknown-linux-gnu, aarch64-unknown-linux-musl, x86_64-unknown-linux-musl"
+
+REGISTER="${RETRIEVAL_MCP_REGISTER:-}"
+SCOPE="${RETRIEVAL_MCP_SCOPE:-local}"
+case "$SCOPE" in
+local | user) ;;
+*)
+	printf 'retrieval-mcp: RETRIEVAL_MCP_SCOPE understands local and user, not: %s\n' "$SCOPE" >&2
+	exit 1
+	;;
+esac
 
 die() {
 	printf 'retrieval-mcp: %s\n' "$1" >&2
@@ -279,10 +294,61 @@ case ":${PATH:-}:" in
 	;;
 esac
 
-# Registration is per project because `--root` is fixed at startup, so this prints the commands
-# rather than running them: nothing was written to any client configuration.
-printf 'retrieval-mcp: register it from a repository you want it to read (--root is fixed at startup, so this is per project):\n\n'
+# Registration is opt-in and never interactive. `curl | sh` makes the script itself this shell's
+# stdin, so a prompt would eat its own remaining lines rather than ask anyone anything; an
+# installer that registers only when told to, by name, works the same piped, in CI and under an
+# agent. It shells out to each client's own CLI rather than editing its configuration file,
+# because that file's format belongs to the client.
+register_claude() {
+	command -v claude >/dev/null 2>&1 ||
+		die "RETRIEVAL_MCP_REGISTER names claude, but the claude CLI is not on PATH"
+	claude mcp add --transport stdio --scope "$1" retrieval -- \
+		"$INSTALL_DIR/retrieval-mcp" --root . ||
+		die "claude mcp add failed; register by hand with the command printed above"
+	printf 'retrieval-mcp: registered with Claude Code at %s scope\n' "$1"
+}
+
+register_codex() {
+	command -v codex >/dev/null 2>&1 ||
+		die "RETRIEVAL_MCP_REGISTER names codex, but the codex CLI is not on PATH"
+	# Codex keeps one server list in ~/.codex/config.toml; it has no project scope to choose.
+	codex mcp add retrieval -- "$INSTALL_DIR/retrieval-mcp" --root . ||
+		die "codex mcp add failed; register by hand with the command printed above"
+	printf 'retrieval-mcp: registered with Codex (user configuration)\n'
+}
+
+printf 'retrieval-mcp: register it from a repository you want it to read (--root is fixed at startup, so a local entry is per project):\n\n'
 printf '    claude mcp add --transport stdio --scope local retrieval -- retrieval-mcp --root .\n'
 printf '    codex mcp add retrieval -- retrieval-mcp --root .\n\n'
-printf 'retrieval-mcp: no configuration file was written and nothing was started. This installer\n'
-printf '               copied one binary into %s; that is all it did.\n' "$INSTALL_DIR"
+
+if [ -z "$REGISTER" ]; then
+	printf 'retrieval-mcp: no configuration file was written and nothing was started. This installer\n'
+	printf '               copied one binary into %s; that is all it did.\n' "$INSTALL_DIR"
+	printf '               Pass RETRIEVAL_MCP_REGISTER=claude,codex to run those commands for you,\n'
+	printf '               and RETRIEVAL_MCP_SCOPE=user for an entry every project sees.\n'
+	exit 0
+fi
+
+# A local entry names this directory, so refuse to write one from somewhere that is not a
+# checkout: a registration rooted at $HOME indexes a home directory, which nobody asked for.
+if [ "$SCOPE" = local ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+	die "RETRIEVAL_MCP_SCOPE=local registers the current directory, which is not a git work tree;
+       run this from a repository, or pass RETRIEVAL_MCP_SCOPE=user"
+fi
+
+# `--root .` is resolved once against the directory the client launches the server in, so one user
+# entry still reads whichever project is open. That is what makes a global registration coherent
+# for a server whose root is fixed at startup.
+printf 'retrieval-mcp: registering %s at %s scope, from %s\n' "$REGISTER" "$SCOPE" "$PWD"
+saved_ifs=$IFS
+IFS=,
+for client in $REGISTER; do
+	IFS=$saved_ifs
+	case "$client" in
+	claude) register_claude "$SCOPE" ;;
+	codex) register_codex ;;
+	*) die "RETRIEVAL_MCP_REGISTER understands claude and codex, not: $client" ;;
+	esac
+	IFS=,
+done
+IFS=$saved_ifs

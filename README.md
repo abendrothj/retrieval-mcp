@@ -26,7 +26,18 @@ verifies the archive for your platform against the single record naming it, and 
 on a mismatch, a missing record or a duplicate one. It then writes exactly one file —
 `retrieval-mcp` in `$HOME/.local/bin`, or wherever `RETRIEVAL_MCP_INSTALL_DIR` points — and nothing
 else: no shell startup file, no client configuration, nothing launched, nothing in your repository.
-`RETRIEVAL_MCP_VERSION=v0.1.4` installs a specific tag; the default is the latest release.
+`RETRIEVAL_MCP_VERSION=v0.1.5` installs a specific tag; the default is the latest release.
+
+It registers nothing unless asked. `RETRIEVAL_MCP_REGISTER=claude,codex` runs each client's own
+`mcp add` after installing — never an edit to their configuration files, and never a prompt,
+because a piped installer's stdin is the script itself and a prompt would silently consume it.
+`RETRIEVAL_MCP_SCOPE` picks `local` (this repository, the default, refused outside a git work
+tree) or `user` (one entry every project sees). A user-scope entry still reads whichever project
+is open, because `--root .` resolves against the directory the client launches the server in:
+
+```sh
+RETRIEVAL_MCP_REGISTER=claude,codex RETRIEVAL_MCP_SCOPE=user sh install.sh
+```
 
 With a Rust toolchain, or with [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall) to
 fetch the same prebuilt archive without compiling:
