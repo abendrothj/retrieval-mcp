@@ -86,7 +86,7 @@ any of the four features it was found underneath.
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Twenty-five defects in it have produced or nearly
+The harness is the second experimental subject. Twenty-seven defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
 some penalised it, one was found inside its own single held-out loss, one would have made every
 brace-language caller question unauthorable, one scored three arms to zero on questions they had
@@ -123,6 +123,8 @@ ordinals.
 | `quality_pass.definitions()` indexed C call sites and plain bindings as definitions | `if (!ReadBlock(rep_->file, ...)) {` claimed ReadBlock was defined at its own call site, and `const both = context.options[0] === "both";` became an answerable identity that no structural index defines |
 | A caller set named identities its own grader cannot distinguish | Four Go methods called `GetRequestMetadata` on four receivers in one file collapse to one `path::name` gold entry, so all three arms enumerated them correctly and all three scored 0.571 — every arm docked for being right |
 | Grader read `Server.method` but not `(*Server).method` | A Go caller list spelled the way Go spells it scored 0.33 - two misses and two extras - and the arm that wrote the source's own notation lost two trials to notation, not retrieval |
+| Oracle counted a helper named inside a format string as a call | An exhaustive gold demanding `server.go::register` as a caller of `RegisterService`, when the line is `s.printf("RegisterService(%q)", …)` |
+| A caller question excluded "the file that defines it" while that file's test twin called the helper | Every arm skipped `http_util_test.go` when told to skip `http_util.go` - 14 of 19 missing identities in one study, 6 of 6 for one arm - and the loss read as a retrieval difference |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
 
@@ -951,7 +953,7 @@ it then prints the exact validate/prepare/run/score commands. It calls no model.
 
 ### The habit that made the numbers trustworthy
 
-The twenty-five entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
+The twenty-seven entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
 flattered this server, some penalised it, and the last was found inside its own single held-out loss.
 None was found by auditing on a schedule. Every one came from the same rule, which is the methodological
 claim this project would actually defend:
@@ -1136,6 +1138,46 @@ pointer-receiver method — and were scored as two misses plus two extras, 0.33 
 receiver's parentheses and `*` as the notation they are, `regrade.py` applied the repair to all
 three repetitions symmetrically, and it moved exactly two cells, both in the arm it had been
 penalising. The table above is the regraded one; unrepaired, native scored 58.
+
+### The exclusion was an artifact, and it cost more than it hid
+
+Two studies in a row lost quality to a sentence about which files do not count, so the sentence was
+measured rather than reworded again.
+
+`audit_failures.true_callers` skipped the helper's own defining file, so every caller question had
+to explain that policy to the model — and no user asking "who calls this" would ever say it. Run
+with the exclusion removed across all 22 helpers, the whole corpus holds **three** in-file callers.
+One of the three was a false positive: `s.printf("RegisterService(%q)", …)` names the helper inside
+a format string, which the oracle read as a call and the server correctly ignored. Of the two real
+ones, the server reports both. The clause that cost six trials was protecting the gold from two
+identities.
+
+Why it cost them: told to count calls "from outside the file that defines it", every arm also
+skipped the defining file's `_test.go` twin, because in Go `http_util.go` and `http_util_test.go`
+are one unit to a reader. Fourteen of the nineteen missing identities in the study are twins, and
+six of six for `retrieval-mcp`, which had the rows in front of it — re-probed with the arm's own
+arguments, every dropped caller was in a complete unpaginated page, and the same answers named
+other test callers. The model was not filtering tests; it was applying the exclusion the way a Go
+programmer would.
+
+Three repairs, all offline:
+
+- `true_callers` no longer counts a name inside a string literal. Re-running the five pre-registered
+  language audits with the repaired oracle moves nothing — Cobra 1.000/0.988, Gson 0.917/0.929,
+  Redis 0.979/0.931, LevelDB 0.941/1.000, ESLint 0.981/1.000, identical to the published run.
+- `true_callers(..., include_defining_file=True)` lets a suite ask the question a user asks. The
+  default stays the repository convention every earlier gold was authored under.
+- A definition is not a caller of itself: `ClientHandshakeInfoFromContext` calls the internal
+  namesake `icredentials.ClientHandshakeInfoFromContext` on its own second line, which would
+  otherwise make its gold non-exhaustive forever.
+
+And one refusal: `validate_suite.py` rejects a caller question that excludes a file while that
+file's test twin calls the helper, unless the question names the twin. The 22-question suite now
+asks plainly — *"Count every call in the corpus, including callers in test files and in the file
+that defines it"* — carries `include_defining_file`, regolds to the full verified set (two
+identities moved), compiles clean, and remains resistant to `lexical_oracle.py` at budget 25. It is
+a third wording, so it is again incomparable with what came before; the point is that it is the
+last one, because there is no longer a convention for a reader to guess.
 
 ## Three index changes, one survivor
 

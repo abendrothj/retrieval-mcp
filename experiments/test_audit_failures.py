@@ -417,5 +417,40 @@ class LanguageFamilyAttributionTests(unittest.TestCase):
         self.assertEqual(callers, ["db.cc::Write"])
 
 
+
+class ScopeAndLiteralTests(unittest.TestCase):
+    """The two rules that let a caller question be asked the way a user asks it."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.addCleanup(self.directory.cleanup)
+
+    def test_a_name_inside_a_format_string_is_not_a_call(self):
+        (self.root / "server.go").write_text(
+            "package p\n\n"
+            "func RegisterService(d *D) {}\n\n"
+            "func register(d *D) {\n"
+            "\tlogf(\"RegisterService(%q)\", d.Name)\n"
+            "}\n", encoding="utf-8")
+        self.assertEqual(
+            audit_failures.true_callers(self.root, "RegisterService", "server.go",
+                                        include_defining_file=True), [])
+
+    def test_the_defining_file_is_excluded_by_default_and_included_on_request(self):
+        (self.root / "util.go").write_text(
+            "package p\n\n"
+            "func normalize(s string) string { return s }\n\n"
+            "func local(s string) string { return normalize(s) }\n", encoding="utf-8")
+        (self.root / "other.go").write_text(
+            "package p\n\nfunc remote(s string) string { return normalize(s) }\n", encoding="utf-8")
+        self.assertEqual(audit_failures.true_callers(self.root, "normalize", "util.go"),
+                         ["other.go::remote"])
+        self.assertEqual(
+            audit_failures.true_callers(self.root, "normalize", "util.go",
+                                        include_defining_file=True),
+            ["other.go::remote", "util.go::local"])
+
+
 if __name__ == "__main__":
     unittest.main()

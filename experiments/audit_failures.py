@@ -454,8 +454,30 @@ def annotation(statement, declared, name):
     return depth == 0
 
 
-def true_callers(corpus, name, defining_path):
-    """Every enclosing definition that calls `name` outside its own module, from source alone."""
+def in_literal(line, name):
+    """Whether every `name(` on this line sits inside a string literal.
+
+    Quotes are counted before the match rather than parsed: a line that opens a string and does
+    not close it before the call is a format string, and one that has closed it is code. Escaped
+    quotes are rare inside a call and cost a false negative, never a false positive, because a
+    line with any call outside a literal is kept.
+    """
+    for match in re.finditer(rf"\b{re.escape(name)}\s*\(", line):
+        before = line[:match.start()]
+        quoted = before.count('"') - before.count('\\"')
+        if quoted % 2 == 0 and before.count("`") % 2 == 0 and before.count("'") % 2 == 0:
+            return False
+    return True
+
+
+def true_callers(corpus, name, defining_path, include_defining_file=False):
+    """Every enclosing definition that calls `name`, from source alone.
+
+    Calls written inside the helper's own defining file are excluded by default: that is the
+    convention every caller gold in this repository was authored under and that `language_audit`
+    compares against. A suite that wants the question a user actually asks - "who calls this" -
+    passes `include_defining_file=True` and states no exclusion in its prose.
+    """
     globs = []
     for suffix in (".py", *BRACE_SUFFIXES):
         globs += ["-g", f"*{suffix}"]
@@ -471,7 +493,12 @@ def true_callers(corpus, name, defining_path):
         path, _, rest = line.partition(":")
         number, _, body = rest.partition(":")
         path = path.lstrip("./")
-        if path == defining_path or not number.isdigit():
+        if (path == defining_path and not include_defining_file) or not number.isdigit():
+            continue
+        # Nor is a format string. `s.printf("RegisterService(%q)", ...)` names the helper inside a
+        # string literal, and counting it demands that an exhaustive gold name a caller that does
+        # not call anything. It was invisible while the defining file was always excluded.
+        if in_literal(body, name):
             continue
         # A declaration is not a call site. Python, Rust and the scripts say so with a keyword;
         # C, C++ and Java write a definition header or a member prototype in the same shape as a

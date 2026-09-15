@@ -179,19 +179,27 @@ def check_question(task, index, counts, corpus):
         helper_leaf = name.split("::")[-1]
         if path not in index.get(helper_leaf, set()):
             report("gold", f"helper places {helper_leaf} in {path}, but the corpus does not")
-        direct = audit_failures.true_callers(corpus, helper_leaf, path)
+        # A suite may ask the question a user actually asks - "who calls this" - by declaring
+        # `include_defining_file`, in which case nothing is excluded and the prose has no
+        # convention to explain. The default stays the repository's convention.
+        whole = bool(task.get("include_defining_file"))
+        direct = audit_failures.true_callers(corpus, helper_leaf, path, include_defining_file=whole)
+        # A definition is not a caller of itself. `claimed` has always dropped the helper, so
+        # `verified` drops it too: with the defining file in scope, `ClientHandshakeInfoFromContext`
+        # calling the internal namesake `icredentials.ClientHandshakeInfoFromContext` on its own
+        # second line would otherwise make every gold for it non-exhaustive.
         if hops == 1:
-            verified = {leafwise(entry) for entry in direct}
+            verified = {leafwise(entry) for entry in direct} - {leafwise(helper)}
         else:
             # A transitive claim is verified one independent hop at a time: everything that calls
             # something that calls the helper, each hop enumerated by ripgrep and attributed to its
-            # enclosing definition, each excluding its own defining module exactly as hop one does.
+            # enclosing definition, each scoped exactly as hop one is.
             verified = set()
             for entry in direct:
                 caller_path, caller_name = entry.split("::", 1)
                 verified |= {leafwise(reached) for reached in
                              audit_failures.true_callers(corpus, caller_name.split("::")[-1],
-                                                         caller_path)}
+                                                         caller_path, include_defining_file=whole)}
         # A caller set is a set of identities, and `path::name` is the only identity the frozen
         # grader can compare. Where one file defines that name several times - four methods called
         # `GetRequestMetadata` on four receivers in one Go file - the distinct callers collapse into
@@ -215,6 +223,26 @@ def check_question(task, index, counts, corpus):
             report("answerability",
                    f"callers of {name} include test files and the question does not say whether "
                    f"they count; the gold decides silently and every arm is graded on a guess")
+        # An exclusion clause is read through the reader's own conventions, and in Go `foo.go` and
+        # `foo_test.go` are one unit: told to skip "the file that defines it", every arm skipped
+        # the twin as well, which is fourteen of the nineteen missing identities in the
+        # 2026-09-15 study and six of six for one arm. A question that excludes a file while its
+        # callers include that file's test twin has to name the twin, or exclude nothing.
+        twins = {entry.split("::")[0] for entry in direct
+                 if Path(entry.split("::")[0]).name.startswith(Path(path).stem + "_test.")
+                 or Path(entry.split("::")[0]).name == "test_" + Path(path).name}
+        excludes = re.search(r"outside (of )?(the|its own) file|exclud\w+ the file|only calls .{0,40}outside",
+                             task["question"], re.I)
+        if whole and excludes:
+            report("answerability",
+                   "the gold counts callers in the defining file, but the question excludes that "
+                   "file; one of the two is wrong")
+        missing_twin = sorted(name for name in twins if name not in task["question"])
+        if excludes and missing_twin:
+            report("answerability",
+                   f"the question excludes the defining file while {missing_twin[0]} calls "
+                   f"{name}; a Go reader counts the twin as part of the file, so the question "
+                   f"must name it or exclude nothing")
         claimed = {leafwise(identity) for identity in caller_identities if identity != helper}
         missing = claimed - verified
         if missing:
