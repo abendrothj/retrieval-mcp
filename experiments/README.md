@@ -86,7 +86,7 @@ any of the four features it was found underneath.
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Twenty-four defects in it have produced or nearly
+The harness is the second experimental subject. Twenty-five defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
 some penalised it, one was found inside its own single held-out loss, one would have made every
 brace-language caller question unauthorable, one scored three arms to zero on questions they had
@@ -122,6 +122,7 @@ ordinals.
 | The documentation check ran the quickstart against whatever `retrieval-mcp` was on PATH | A two-day-old `cargo install` copy answered on the developer machine and the check passed, while CI — which has none — failed on seven consecutive pushes with an empty result; the check was validating a binary that was not the build under test |
 | `quality_pass.definitions()` indexed C call sites and plain bindings as definitions | `if (!ReadBlock(rep_->file, ...)) {` claimed ReadBlock was defined at its own call site, and `const both = context.options[0] === "both";` became an answerable identity that no structural index defines |
 | A caller set named identities its own grader cannot distinguish | Four Go methods called `GetRequestMetadata` on four receivers in one file collapse to one `path::name` gold entry, so all three arms enumerated them correctly and all three scored 0.571 — every arm docked for being right |
+| Grader read `Server.method` but not `(*Server).method` | A Go caller list spelled the way Go spells it scored 0.33 - two misses and two extras - and the arm that wrote the source's own notation lost two trials to notation, not retrieval |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
 
@@ -950,7 +951,7 @@ it then prints the exact validate/prepare/run/score commands. It calls no model.
 
 ### The habit that made the numbers trustworthy
 
-The twenty-four entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
+The twenty-five entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
 flattered this server, some penalised it, and the last was found inside its own single held-out loss.
 None was found by auditing on a schedule. Every one came from the same rule, which is the methodological
 claim this project would actually defend:
@@ -1097,6 +1098,44 @@ release build had been overwritten. The guard was right and rep-2 was clean — 
 written six minutes before the rebuild — so HEAD was built in a separate worktree, reproduced the
 registered hash byte for byte, and rep-3 ran against that. Without the check, a repetition would
 have silently measured a different server.
+
+### The restatement, re-run: three repetitions, and the criterion still missed by one
+
+Pre-registered in `runs/go-caller-restated-20260915/preregistration.json`, superseding the
+2026-09-14 registration because the restated wording makes the suites incomparable: same corpus,
+same binary `6b026c7b`, 22 questions whose prose now settles the test-caller convention, three
+repetitions at seeds 21, 22 and 23, 198 trials, no failed or aborted cells.
+
+| | native control | zvec-grep | retrieval-mcp |
+|---|---:|---:|---:|
+| Resolved correct / 66 | 60 | **62** | 60 |
+| Graded credit | 0.965 | **0.980** | 0.975 |
+| Input tokens | 27.55 M | 22.72 M | **13.41 M** |
+| Retrieval calls | 384 | 379 | **222** |
+| Persistent context (tok·turns) | 4,789 k | 6,344 k | **964 k** |
+| Median calls to first evidence | 2 | 3 | **2** |
+| Answered without evidence | 0 | 0 | **0** |
+
+Efficiency **passes** and replicates tightly: −50.4%, −52.3% and −51.3% input tokens against the
+native control in the three repetitions, −42% calls, −80% persistent context. Safety **passes** for
+every arm. Quality **misses** by exactly one answer — 60 against the best arm's 62, where the
+criterion was within one — so for the second study running the claim is published as a miss.
+
+**Stating the convention worked, and the remainder is noise.** Test-caller retention rose from 89%
+for every arm under the silent wording to 96% native, 97% zvec-grep and 94% retrieval-mcp. What is
+left is not a stable failure anywhere: all thirteen losing cells in the study are questions an arm
+answers correctly in some repetitions and not others — five for native, four each for the other two
+— and no arm has a question it fails in all three. A 60-60-62 spread over 66 trials is that
+instability, not a retrieval difference, and this project has watched a cell swing 1/3 to 3/3 on an
+identical binary before.
+
+**One grader defect, found by disbelieving a loss.** Two native trials had named
+`(*Server).handleStream` and `(*http2Client).operateHeaders` — how Go, godoc and the source spell a
+pointer-receiver method — and were scored as two misses plus two extras, 0.33 each, while
+`Server.handleStream` had always graded correct. `quality_pass.context_segments` now reads the
+receiver's parentheses and `*` as the notation they are, `regrade.py` applied the repair to all
+three repetitions symmetrically, and it moved exactly two cells, both in the arm it had been
+penalising. The table above is the regraded one; unrepaired, native scored 58.
 
 ## Three index changes, one survivor
 

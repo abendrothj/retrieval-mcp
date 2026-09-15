@@ -147,7 +147,12 @@ def context_segments(written):
     for chunk in re.split(r"::|:|/", written.strip()):
         if not chunk or chunk.endswith(SOURCE_SUFFIXES):
             continue
-        segments.extend(piece for piece in chunk.split(".") if piece)
+        # A Go method is spelled `(*Server).handleStream` by the language, by godoc and by every
+        # reader of the source; `Server.handleStream` is the same definition written by someone
+        # who dropped the pointer. Parentheses and the receiver's `*` are notation, so they are
+        # removed rather than allowed to make the owner unparseable.
+        chunk = chunk.replace("(", "").replace(")", "")
+        segments.extend(piece.lstrip("*&") for piece in chunk.split(".") if piece.strip("*&"))
     return segments
 
 

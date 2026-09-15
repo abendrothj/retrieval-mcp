@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from quality_pass import (DECLINE, answer_json, credit, definitions, mentions, parse_symbol,
-                          resolve)
+                          resolve, same)
 
 INDEX = {"break_lines": {"src/uu/fmt/src/linebreak.rs"},
          "render": {"src/uu/dd/src/diagnostics.rs", "src/uu/ls/src/render.rs"},
@@ -19,6 +19,17 @@ class ResolverTests(unittest.TestCase):
     def test_an_ambiguous_name_needs_the_context_the_answer_supplied(self):
         self.assertIsNone(resolve("render", INDEX), "a name in two files must not resolve on its own")
         self.assertEqual(resolve("uu_dd::diagnostics::render", INDEX)[0], "src/uu/dd/src/diagnostics.rs")
+
+    def test_a_go_pointer_receiver_names_the_same_method_as_its_value_receiver(self):
+        """`(*Server).handleStream` is how Go, godoc and the source spell it; the grader read
+        only `Server.handleStream`, so a correct Go caller list was scored as misses plus extras."""
+        index = {"handleStream": {"server.go"}, "Server": {"server.go"},
+                 "newAttemptLocked": {"stream.go"}}
+        for written in ("server.go::(*Server).handleStream", "server.go::Server.handleStream",
+                        "server.go::handleStream"):
+            self.assertTrue(same(written, "server.go::handleStream", index), written)
+        self.assertFalse(same("server.go::(*Server).handleStream", "stream.go::newAttemptLocked",
+                              index))
 
     def test_a_type_qualifier_is_kept(self):
         self.assertEqual(parse_symbol("uucore::diagnostics::Snapshot::locate_operand"),
