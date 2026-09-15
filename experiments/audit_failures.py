@@ -460,6 +460,44 @@ def annotation(statement, declared, name):
     return depth == 0
 
 
+IMPORT_LINE = re.compile(r'(?m)^\s*(?:(\w+)\s+)?"([^"]+)"')
+
+
+def package_name(path):
+    """The package a Go file declares, or None for any other family."""
+    if path.suffix != ".go":
+        return None
+    for line in path.read_text(errors="ignore").splitlines():
+        match = re.match(r"package\s+(\w+)", line)
+        if match:
+            return match.group(1)
+    return None
+
+
+def foreign_call(line, name, caller_path, defining_path):
+    """Whether `pkg.name(` on this line names a *different* package's symbol.
+
+    `runtime.HTTPError(...)` in a generated gateway file calls grpc-gateway's function, not the
+    `HTTPError` this corpus defines, and `probing.NewHandler()` calls the probing package's
+    constructor rather than the lease one. Counting them makes an exhaustive gold demand callers
+    that call nothing of the kind, and penalises exactly the tools that resolve a call properly.
+    A qualifier that is not an import of the calling file - a receiver, a local variable - is left
+    alone, because this reads text and must not guess at types.
+    """
+    match = re.search(rf"(\w+)\s*\.\s*{re.escape(name)}\s*\(", line)
+    if not match or caller_path.suffix != ".go":
+        return False
+    qualifier = match.group(1)
+    imports = {}
+    for alias, target in IMPORT_LINE.findall(caller_path.read_text(errors="ignore")):
+        imports[alias or target.split("/")[-1]] = target
+    target = imports.get(qualifier)
+    if target is None:
+        return False
+    package = package_name(defining_path)
+    return not (target.split("/")[-1] == package or target.endswith(str(defining_path.parent)))
+
+
 def in_literal(line, name):
     """Whether every `name(` on this line sits inside a string literal.
 
@@ -505,6 +543,8 @@ def true_callers(corpus, name, defining_path, include_defining_file=False):
         # string literal, and counting it demands that an exhaustive gold name a caller that does
         # not call anything. It was invisible while the defining file was always excluded.
         if in_literal(body, name):
+            continue
+        if foreign_call(body, name, Path(corpus) / path, Path(corpus) / defining_path):
             continue
         # A declaration is not a call site. Python, Rust and the scripts say so with a keyword;
         # C, C++ and Java write a definition header or a member prototype in the same shape as a

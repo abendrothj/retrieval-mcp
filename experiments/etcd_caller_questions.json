@@ -1,43 +1,5 @@
 [
   {
-    "id": "etcd-gateway-error-writer-callers",
-    "category": "direct_caller_lookup",
-    "set": "dev",
-    "question": "The corpus carries a small package of value types shared by the server's REST-facing endpoints. One declaration there is a struct that pairs a human-readable message string -- the only field emitted when the value is marshalled to JSON -- with an integer status code deliberately excluded from that JSON payload; the value exposes the message as its error text and can serialise itself onto a response writer using the stored code. The very same identifier is also the error-emitting entry point of the gRPC REST-gateway runtime package, and the generated gateway glue in this corpus invokes it -- handing it the request context, the multiplexer, the outbound marshaller, the response writer and the failing request -- whenever context annotation fails or a forwarded unary or streaming call returns an error. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
-    "expected_json": {
-      "answer": [
-        "server/etcdserver/api/v3election/v3electionpb/gw/v3election.pb.gw.go::RegisterElectionHandlerClient",
-        "server/etcdserver/api/v3election/v3electionpb/gw/v3election.pb.gw.go::RegisterElectionHandlerServer",
-        "server/etcdserver/api/v3lock/v3lockpb/gw/v3lock.pb.gw.go::RegisterLockHandlerClient",
-        "server/etcdserver/api/v3lock/v3lockpb/gw/v3lock.pb.gw.go::RegisterLockHandlerServer"
-      ]
-    },
-    "helper": "server/etcdserver/api/etcdhttp/types/errors.go::HTTPError",
-    "hops": 1,
-    "exhaustive": true,
-    "include_defining_file": true,
-    "rejected_alternates": [
-      "server/etcdserver/api/v3election/v3electionpb/gw/v3election.pb.gw.go::RegisterElectionHandler",
-      "server/etcdserver/api/v3lock/v3lockpb/gw/v3lock.pb.gw.go::RegisterLockHandlerFromEndpoint",
-      "server/etcdserver/api/etcdhttp/types/errors.go::NewHTTPError"
-    ],
-    "evidence": [
-      {
-        "path": "server/etcdserver/api/etcdhttp/types/errors.go",
-        "contains": "// Code is the HTTP status code"
-      },
-      {
-        "path": "server/etcdserver/api/v3election/v3electionpb/gw/v3election.pb.gw.go",
-        "contains": "runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)"
-      },
-      {
-        "path": "server/etcdserver/api/v3lock/v3lockpb/gw/v3lock.pb.gw.go",
-        "contains": "runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)"
-      }
-    ],
-    "author_notes": "Every call sits inside an anonymous func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) literal passed to mux.Handle, so the nearest enclosing 'func' token is the closure, not the owner. In RegisterElectionHandlerClient the later pattern registrations put calls 30, 41 and 47 lines below the function header (lines 332, 343, 349 vs header 302), each in a different closure. The thin wrapper RegisterElectionHandler (line 293) sits immediately above and forwards to the client registrar without calling the helper, which is the natural over-inclusion. The defining file declares the identifier as a struct type, so the calls actually resolve to the gateway runtime function of the same name: an agent that only searches near the struct finds zero call sites."
-  },
-  {
     "id": "etcd-status-endpoint-wiring-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
@@ -75,7 +37,8 @@
         "contains": "HandleHealth(zaptest.NewLogger(t), mux, &fakeHealthServer{"
       }
     ],
-    "author_notes": "All six call sites live inside t.Run(tt.name, func(t *testing.T) {...}) subtest closures at the bottom of long table-driven tests: 72 lines below the header in TestHealthHandler (159 vs 87), 45 in TestDataCorruptionCheck (262 vs 217), 35 in TestHTTPSubPath (208 vs 173). The intervening table literals are dozens of lines of struct entries, so attributing by nearest preceding 'func' lands on the subtest closure rather than the Test function. NewHealthHandler is defined directly below the helper and takes the same logger, the obvious wrong answer."
+    "author_notes": "All six call sites live inside t.Run(tt.name, func(t *testing.T) {...}) subtest closures at the bottom of long table-driven tests: 72 lines below the header in TestHealthHandler (159 vs 87), 45 in TestDataCorruptionCheck (262 vs 217), 35 in TestHTTPSubPath (208 vs 173). The intervening table literals are dozens of lines of struct entries, so attributing by nearest preceding 'func' lands on the subtest closure rather than the Test function. NewHealthHandler is defined directly below the helper and takes the same logger, the obvious wrong answer.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-wal-offset-record-writer-callers",
@@ -112,7 +75,8 @@
         "contains": "w.encoder, err = newFileEncoder(w.tail().File, prevCrc)"
       }
     ],
-    "author_notes": "The three call sites are deep inside very long methods of wal.go: 61 lines below the header of Create (162 vs 101), 115 lines below the header of ReadAll (587 vs 472), and in the tail-swap section of cut (811 vs 785). ReadAll is the hard one: the call is guarded by 'if w.tail() != nil' near the very end of the method, after a large switch over w.tail() and several func literals in the surrounding region, so nearest-header attribution drifts. Open and Save are the plausible wrong owners, being the neighbouring exported WAL entry points that also touch w.encoder."
+    "author_notes": "The three call sites are deep inside very long methods of wal.go: 61 lines below the header of Create (162 vs 101), 115 lines below the header of ReadAll (587 vs 472), and in the tail-swap section of cut (811 vs 785). ReadAll is the hard one: the call is guarded by 'if w.tail() != nil' near the very end of the method, after a large switch over w.tail() and several func literals in the surrounding region, so nearest-header attribution drifts. Open and Save are the plausible wrong owners, being the neighbouring exported WAL entry points that also touch w.encoder.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-meta-bucket-format-stamp-callers",
@@ -152,7 +116,8 @@
         "contains": "v := UnsafeReadStorageVersion(tx)"
       }
     ],
-    "author_notes": "The defining file is itself a caller (ReadStorageVersion at line 29, five lines above the definition at 34), which trips agents that skip the defining file. The two hard sites are tests: in TestMigrationStepExecute the call is 102 lines below the header (194 vs 92), inside a t.Run(tc.name, func(t *testing.T) {...}) closure that follows a ~65-line case table; in TestMigrateIsReversible it is 46 lines below the header, nested in a t.Run closure and passed as an argument to assert.Equal rather than being a statement of its own. DetectSchemaVersion is the natural false positive: it delegates to UnsafeDetectSchemaVersion, which is the real caller."
+    "author_notes": "The defining file is itself a caller (ReadStorageVersion at line 29, five lines above the definition at 34), which trips agents that skip the defining file. The two hard sites are tests: in TestMigrationStepExecute the call is 102 lines below the header (194 vs 92), inside a t.Run(tc.name, func(t *testing.T) {...}) closure that follows a ~65-line case table; in TestMigrateIsReversible it is 46 lines below the header, nested in a t.Run closure and passed as an argument to assert.Equal rather than being a statement of its own. DetectSchemaVersion is the natural false positive: it delegates to UnsafeDetectSchemaVersion, which is the real caller.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-version-transition-predicate-callers",
@@ -189,7 +154,8 @@
         "contains": "!serverversion.IsValidClusterVersionChange(curVersion, v)"
       }
     ],
-    "author_notes": "In downgrade_test.go the single call is 61 lines below the header of TestIsVersionChangable (184 vs 123), inside a t.Run(tt.name, func(t *testing.T) {...}) closure that follows a 55-line case table -- and the preceding test, TestIsValidDowngrade, exercises the unexported one-minor-step check with an almost identical closure, which is the trap. In monitor.go the call is 33 lines below the header of decideClusterVersion, after four early-return blocks and two nested logging calls. The api/capability.go call is qualified through the 'serverversion' package alias, so a name-only search restricted to the version package misses it."
+    "author_notes": "In downgrade_test.go the single call is 61 lines below the header of TestIsVersionChangable (184 vs 123), inside a t.Run(tt.name, func(t *testing.T) {...}) closure that follows a 55-line case table -- and the preceding test, TestIsValidDowngrade, exercises the unexported one-minor-step check with an almost identical closure, which is the trap. In monitor.go the call is 33 lines below the header of decideClusterVersion, after four early-return blocks and two nested logging calls. The api/capability.go call is qualified through the 'serverversion' package alias, so a name-only search restricted to the version package misses it.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-deletion-marked-revision-key-callers",
@@ -228,7 +194,8 @@
         "contains": "if isTombstone(revs[i]) {"
       }
     ],
-    "author_notes": "The worst site is restoreIntoIndex: its entire body is a 'go func() {...}()' goroutine literal opened on the line after the header, so both calls (472 and 480, i.e. 38 and 46 lines below the header at 434) are lexically owned by an anonymous goroutine, with a further verify.Verify(..., func() (bool, map[string]any) {...}) closure ten lines above the first call pulling attribution further off. The defining file is a caller twice (BytesToBucketKey at 115 and the exported wrapper at 125). BytesToRev sits four lines away and delegates to BytesToBucketKey without touching the predicate itself."
+    "author_notes": "The worst site is restoreIntoIndex: its entire body is a 'go func() {...}()' goroutine literal opened on the line after the header, so both calls (472 and 480, i.e. 38 and 46 lines below the header at 434) are lexically owned by an anonymous goroutine, with a further verify.Verify(..., func() (bool, map[string]any) {...}) closure ten lines above the first call pulling attribution further off. The defining file is a caller twice (BytesToBucketKey at 115 and the exported wrapper at 125). BytesToRev sits four lines away and delegates to BytesToBucketKey without touching the predicate itself.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-truncated-tail-segment-salvage-callers",
@@ -265,7 +232,8 @@
         "contains": "require.True(t, Repair(lg, p))"
       }
     ],
-    "author_notes": "The test callers are helper-shaped, not Test-shaped: the real work lives in the unexported testRepair (call 31 lines below its header at 49), while TestRepairTruncate, TestRepairWriteTearLast and TestRepairWriteTearMiddle only pass a corruptFunc closure into it and never call the helper themselves, so the tempting answer set is exactly wrong. TestRepairFailDeleteDir does call it, 43 lines below its own header, on the very last line of the function and wrapped inside require.Falsef so the call is an argument rather than a statement. In bootstrap.go the call is 21 lines into openWALFromSnapshot, nested inside a 'for {}' retry loop and an error branch."
+    "author_notes": "The test callers are helper-shaped, not Test-shaped: the real work lives in the unexported testRepair (call 31 lines below its header at 49), while TestRepairTruncate, TestRepairWriteTearLast and TestRepairWriteTearMiddle only pass a corruptFunc closure into it and never call the helper themselves, so the tempting answer set is exactly wrong. TestRepairFailDeleteDir does call it, 43 lines below its own header, on the very last line of the function and wrapped inside require.Falsef so the call is an argument rather than a statement. In bootstrap.go the call is 21 lines into openWALFromSnapshot, nested inside a 'for {}' retry loop and an error branch.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-urlpicker-rotate-on-failure-callers",
@@ -303,7 +271,8 @@
         "contains": "cr.picker.unreachable(u)"
       }
     ],
-    "author_notes": "Three of the four call sites sit deep in error branches far below their function header. In pipeline.go the enclosing method starts at 134 and the calls are at 154/160/166, with an anonymous `go func() { select { case <-done: ... } }()` goroutine literal at 141-149 sitting between the header and every call, so the nearest function-ish token above a call is the closure, not the owner. In stream.go the owning method starts at 569 and the calls are 39 and 47 lines below it (608, 616), separated by a mutex/select block; the file's neighbouring methods (run, decodeLoop) make mis-attribution easy. snapshot_sender.go's call at 116 is 40+ lines into a long method that also contains a deferred closure at 92-94, and that same file defines its own lower-level post method that is a tempting wrong answer."
+    "author_notes": "Three of the four call sites sit deep in error branches far below their function header. In pipeline.go the enclosing method starts at 134 and the calls are at 154/160/166, with an anonymous `go func() { select { case <-done: ... } }()` goroutine literal at 141-149 sitting between the header and every call, so the nearest function-ish token above a call is the closure, not the owner. In stream.go the owning method starts at 569 and the calls are 39 and 47 lines below it (608, 616), separated by a mutex/select block; the file's neighbouring methods (run, decodeLoop) make mis-attribution easy. snapshot_sender.go's call at 116 is 40+ lines into a long method that also contains a deferred closure at 92-94, and that same file defines its own lower-level post method that is a tempting wrong answer.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-grpc-client-side-stream-error-predicate-callers",
@@ -340,7 +309,8 @@
         "contains": "if isClientCtxErr(sws.gRPCStream.Context().Err(), serr) {"
       }
     ],
-    "author_notes": "The watch.go call at 201 is inside the second bare `go func() { if rerr := sws.recvLoop(); err != nil { ... } }()` goroutine started by the exported streaming method whose header is 38 lines above; the textually nearest identifier is recvLoop, which is called on the line immediately above but is NOT the owner. The sendLoop call at 494 is 83 lines below its header, buried in a select case inside a for loop that itself follows a long deferred cleanup closure at 420-431. In lease.go the owning method (header 111) is unexported and is itself only ever started from a goroutine inside the exported wrapper at 93-97, so the exported wrapper is the obvious wrong answer; its second call at 149 is 38 lines below the header."
+    "author_notes": "The watch.go call at 201 is inside the second bare `go func() { if rerr := sws.recvLoop(); err != nil { ... } }()` goroutine started by the exported streaming method whose header is 38 lines above; the textually nearest identifier is recvLoop, which is called on the line immediately above but is NOT the owner. The sendLoop call at 494 is 83 lines below its header, buried in a select case inside a for loop that itself follows a long deferred cleanup closure at 420-431. In lease.go the owning method (header 111) is unexported and is itself only ever started from a goroutine inside the exported wrapper at 93-97, so the exported wrapper is the obvious wrong answer; its second call at 149 is 38 lines below the header.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-stream-writer-msgchan-accessor-callers",
@@ -379,7 +349,8 @@
         "contains": "} else if writec, ok = p.msgAppV2Writer.writec(); ok && isMsgApp(m) {"
       }
     ],
-    "author_notes": "Five distinct owners, and the test-file sites are the hard ones. In stream_test.go the call at 329 is 62 lines below its test header, inside a `for i, tt := range tests` loop and then inside a nested unbounded `for { ... }` spin loop, with two `defer` statements and a fakeStreamHandler construction in between; the nearest preceding func-looking token is the anonymous httptest server setup. TestStreamWriterAttachOutgoingConn calls it four times (44, 67, 76, 83), three of them 26-42 lines below the header inside a repeat loop containing select blocks. The production owner in peer.go is a one-line else-if chain that also calls the same accessor twice on two different fields, which tempts a reader into naming the field owner or peer.send instead."
+    "author_notes": "Five distinct owners, and the test-file sites are the hard ones. In stream_test.go the call at 329 is 62 lines below its test header, inside a `for i, tt := range tests` loop and then inside a nested unbounded `for { ... }` spin loop, with two `defer` statements and a fakeStreamHandler construction in between; the nearest preceding func-looking token is the anonymous httptest server setup. TestStreamWriterAttachOutgoingConn calls it four times (44, 67, 76, 83), three of them 26-42 lines below the header inside a repeat loop containing select blocks. The production owner in peer.go is a one-line else-if chain that also calls the same accessor twice on two different fields, which tempts a reader into naming the field owner or peer.send instead.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-rafthttp-stream-endpoint-constructor-callers",
@@ -416,7 +387,8 @@
         "contains": "streamHandler := newStreamHandler(t, t, t.Raft, t.ID, t.ClusterID)"
       }
     ],
-    "author_notes": "The production caller is a short method, but the two test callers are attribution traps. In http_test.go the call at 201 is 26 lines below its test header, inside a `for i, tt := range tests` loop, and the very next statement is `go h.ServeHTTP(rw, req)` - a goroutine whose target method lives in the defining file and is the single most likely wrong attribution. The second test's call at 317 is 95 lines below its header, on the far side of an 80-line table literal, so nothing near the call names its owner. Naming the result variable `streamHandler` in the production caller also invites confusion between the constructor, the struct type and the mux-building method."
+    "author_notes": "The production caller is a short method, but the two test callers are attribution traps. In http_test.go the call at 201 is 26 lines below its test header, inside a `for i, tt := range tests` loop, and the very next statement is `go h.ServeHTTP(rw, req)` - a goroutine whose target method lives in the defining file and is the single most likely wrong attribution. The second test's call at 317 is 95 lines below its header, on the far side of an 80-line table literal, so nothing near the call names its owner. Naming the result variable `streamHandler` in the production caller also invites confusion between the constructor, the struct type and the mux-building method.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-schema-membership-confstate-reader-callers",
@@ -453,7 +425,8 @@
         "contains": "assert.Nil(t, UnsafeConfStateFromBackend(lg, tx))"
       }
     ],
-    "author_notes": "Every hard site is inside a subtest closure. The server_test.go call at 477 is 59 lines below its test header and sits inside `t.Run(\"verify-backend\", func(t *testing.T) { ... })`, so the enclosing definition is the outer test, not the anonymous subtest function that literally contains the call. In confstate_test.go the calls at 59 and 76 are likewise inside `t.Run(\"missing\", ...)` and `t.Run(\"read\", ...)` closures 15 and 32 lines below the owning test header, while the same test's other statements sit at top level - a reader who anchors on the nearest `func` keyword lands on an anonymous literal. The neighbouring writer in the same file has an almost identical name and is the natural false positive."
+    "author_notes": "Every hard site is inside a subtest closure. The server_test.go call at 477 is 59 lines below its test header and sits inside `t.Run(\"verify-backend\", func(t *testing.T) { ... })`, so the enclosing definition is the outer test, not the anonymous subtest function that literally contains the call. In confstate_test.go the calls at 59 and 76 are likewise inside `t.Run(\"missing\", ...)` and `t.Run(\"read\", ...)` closures 15 and 32 lines below the owning test header, while the same test's other statements sit at top level - a reader who anchors on the nearest `func` keyword lands on an anonymous literal. The neighbouring writer in the same file has an almost identical name and is the natural false positive.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-version-monitor-schema-sync-callers",
@@ -490,7 +463,8 @@
         "contains": "\t\t\t\tmonitor.UpdateStorageVersionIfNeeded()"
       }
     ],
-    "author_notes": "Both test callers wrap the call in `t.Run(tt.name, func(t *testing.T) { ... })`, 41 and 44 lines below their respective headers and on the far side of a five-entry table literal; in the second the call is nested one level deeper still, inside a `for i := 0; i < 3; i++` loop within the subtest closure. Worse, the two tests are near-duplicates with the same table and the same assertion, so a retriever that finds one easily stops there and misses the other. The production caller is an unexported goroutine-run loop method whose call sits after a select with three cases, and the sibling loop method directly above it looks almost identical."
+    "author_notes": "Both test callers wrap the call in `t.Run(tt.name, func(t *testing.T) { ... })`, 41 and 44 lines below their respective headers and on the far side of a five-entry table literal; in the second the call is nested one level deeper still, inside a `for i := 0; i < 3; i++` loop within the subtest closure. Worse, the two tests are near-duplicates with the same table and the same assertion, so a retriever that finds one easily stops there and misses the other. The production caller is an unexported goroutine-run loop method whose call sits after a select with three cases, and the sibling loop method directly above it looks almost identical.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-mvcc-bucketkey-constructor-callers",
@@ -529,7 +503,8 @@
         "contains": "newTestBucketKeyBytes(newBucketKey(3, 0, true)),"
       }
     ],
-    "author_notes": "The call at kvstore_test.go:529 is 41 lines below its test header and inside a `t.Run(test, func(t *testing.T) { ... })` subtest closure that is itself inside a `for _, test := range tests` loop, so the syntactically enclosing function literal is anonymous. The call at 286 is stranger still: it is not a statement at all but a field value inside an element of a table-literal slice, 30 lines below the test header, with no call-like context around it. Both of those sites are wrapped in the test-local byte-encoding helper defined at line 911, which is the obvious wrong owner, as is the exported encoder that the one production caller delegates to on the same line."
+    "author_notes": "The call at kvstore_test.go:529 is 41 lines below its test header and inside a `t.Run(test, func(t *testing.T) { ... })` subtest closure that is itself inside a `for _, test := range tests` loop, so the syntactically enclosing function literal is anonymous. The call at 286 is stranger still: it is not a statement at all but a field value inside an element of a table-literal slice, 30 lines below the test header, with no call-like context around it. Both of those sites are wrapped in the test-local byte-encoding helper defined at line 911, which is the obvious wrong owner, as is the exported encoder that the one production caller delegates to on the same line.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-mvcc-watch-stream-id-type-callers",
@@ -563,7 +538,8 @@
         "contains": "wid := mvcc.WatchID(c.WatchId)"
       }
     ],
-    "author_notes": "Both gRPC-side conversions sit deep inside the two long stream pump methods of serverWatchStream: the create-request conversion at watch.go:340 is 91 lines below the `func (sws *serverWatchStream) recvLoop() error` header, buried in a `switch uv := req.RequestUnion.(type)` case inside an infinite for loop, and the conversion at watch.go:530 is 119 lines below the `sendLoop` header, inside a select case on the control channel and after a `defer func()` closure at line 420 that visually breaks the body. The nearest preceding `func` token for both is a closure, so header-free chunk retrieval easily attributes them to `watchServer.Watch` (which merely spawns the goroutines) or to the deferred closure."
+    "author_notes": "Both gRPC-side conversions sit deep inside the two long stream pump methods of serverWatchStream: the create-request conversion at watch.go:340 is 91 lines below the `func (sws *serverWatchStream) recvLoop() error` header, buried in a `switch uv := req.RequestUnion.(type)` case inside an infinite for loop, and the conversion at watch.go:530 is 119 lines below the `sendLoop` header, inside a select case on the control channel and after a `defer func()` closure at line 420 that visually breaks the body. The nearest preceding `func` token for both is a closure, so header-free chunk retrieval easily attributes them to `watchServer.Watch` (which merely spawns the goroutines) or to the deferred closure.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-v3compactor-periodic-retry-step-callers",
@@ -599,7 +575,8 @@
         "contains": "fc.Advance(tb.getRetryInterval())"
       }
     ],
-    "author_notes": "The production call at periodic.go:102 is in `Run`, whose body is almost entirely a `go func() { ... }()` goroutine spanning lines 105-161; the call itself is above the goroutine but the surrounding text is dominated by it, and the nearest `func` token below is the closure. The test call sites are worse: in periodic_test.go the invocations at lines 49, 68, 100, 118, 148 and 163 all sit inside nested `for` loops 30-40 lines below their `func TestPeriodic...(t *testing.T)` headers, e.g. line 68 is 37 lines below the TestPeriodicHourly header inside a doubly nested loop, so a retriever that returns the loop body alone has no header to attribute it to. Also easy to misattribute to `getRetentions`, which is a one-line caller that itself looks like a definition-site artifact."
+    "author_notes": "The production call at periodic.go:102 is in `Run`, whose body is almost entirely a `go func() { ... }()` goroutine spanning lines 105-161; the call itself is above the goroutine but the surrounding text is dominated by it, and the nearest `func` token below is the closure. The test call sites are worse: in periodic_test.go the invocations at lines 49, 68, 100, 118, 148 and 163 all sit inside nested `for` loops 30-40 lines below their `func TestPeriodic...(t *testing.T)` headers, e.g. line 68 is 37 lines below the TestPeriodicHourly header inside a doubly nested loop, so a retriever that returns the loop body alone has no header to attribute it to. Also easy to misattribute to `getRetentions`, which is a one-line caller that itself looks like a definition-site artifact.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-wal-decoder-crc-reseed-callers",
@@ -633,7 +610,8 @@
         "contains": "decoder.UpdateCRC(rec.GetCrc())"
       }
     ],
-    "author_notes": "All four call sites are textually identical (`decoder.UpdateCRC(rec.GetCrc())`), each nested two or three levels inside a `for` loop and a type `switch` on the record type, far from any header: repair.go:59 is 27 lines below `func Repair`, wal.go:523 is 51 lines below the `ReadAll` header, wal.go:676 is 68 lines below the unexported `validSnapshotEntries` header, and wal.go:749 is 45 lines below `Verify`. Three of the four live in the same file with the same surrounding comment block, so a chunk retrieved without its header is impossible to attribute by content; note also that the wal.go:676 owner is the lowercase scan function, not the exported wrapper right above it."
+    "author_notes": "All four call sites are textually identical (`decoder.UpdateCRC(rec.GetCrc())`), each nested two or three levels inside a `for` loop and a type `switch` on the record type, far from any header: repair.go:59 is 27 lines below `func Repair`, wal.go:523 is 51 lines below the `ReadAll` header, wal.go:676 is 68 lines below the unexported `validSnapshotEntries` header, and wal.go:749 is 45 lines below `Verify`. Three of the four live in the same file with the same surrounding comment block, so a chunk retrieved without its header is impossible to attribute by content; note also that the wal.go:676 owner is the lowercase scan function, not the exported wrapper right above it.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-mvcc-finished-compact-marker-read-callers",
@@ -667,7 +645,8 @@
         "contains": "v, found := UnsafeReadFinishedCompact(b.BatchTx())"
       }
     ],
-    "author_notes": "The two test call sites are the hard ones. store_test.go:102 sits inside a `t.Run(fmt.Sprint(tc.value), func(t *testing.T) {` subtest closure 31 lines below the `func TestFinishedCompact` header, so the nearest enclosing `func` token is an anonymous subtest literal, not the test. kvstore_compaction_test.go:99 is 69 lines below `func TestScheduleCompaction`, inside a table-driven `for i, tt := range tests` loop after a nested `for _, rev := range tt.wrevs` block. The sibling accessor for the queued marker is called on the adjacent line in two of the four callers, which invites answers built from the wrong function."
+    "author_notes": "The two test call sites are the hard ones. store_test.go:102 sits inside a `t.Run(fmt.Sprint(tc.value), func(t *testing.T) {` subtest closure 31 lines below the `func TestFinishedCompact` header, so the nearest enclosing `func` token is an anonymous subtest literal, not the test. kvstore_compaction_test.go:99 is 69 lines below `func TestScheduleCompaction`, inside a table-driven `for i, tt := range tests` loop after a nested `for _, rev := range tt.wrevs` block. The sibling accessor for the queued marker is called on the adjacent line in two of the four callers, which invites answers built from the wrong function.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-rafthttp-nonblocking-error-channel-callers",
@@ -700,7 +679,8 @@
         "contains": "reportCriticalError(errMemberRemoved, cr.errorc)"
       }
     ],
-    "author_notes": "pipeline.go:170 is 36 lines below its method header and, critically, 24 lines below a `go func() { select { ... } }()` goroutine literal at line 141, so the nearest preceding `func` token is that closure; the enclosing method is also invoked from a goroutine in `handle`, making that a tempting wrong owner. stream.go:624 is 55 lines below the `streamReader.dial` header, inside a `switch resp.StatusCode` case, and the only method that reaches it is `run`, which is the usual misattribution. The third site is 46 lines below the lowercase `send` method header inside an `if errors.Is(...)` block in a large error-handling arm, easily confused with the `post` method further down the same file."
+    "author_notes": "pipeline.go:170 is 36 lines below its method header and, critically, 24 lines below a `go func() { select { ... } }()` goroutine literal at line 141, so the nearest preceding `func` token is that closure; the enclosing method is also invoked from a goroutine in `handle`, making that a tempting wrong owner. stream.go:624 is 55 lines below the `streamReader.dial` header, inside a `switch resp.StatusCode` case, and the only method that reaches it is `run`, which is the usual misattribution. The third site is 46 lines below the lowercase `send` method header inside an `if errors.Is(...)` block in a large error-handling arm, easily confused with the `post` method further down the same file.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-wal-snapshot-entry-scan-retry-callers",
@@ -735,7 +715,8 @@
         "contains": "walSnaps, err := wal.ValidSnapshotEntries(cfg.Logger, cfg.WALDir())"
       }
     ],
-    "author_notes": "The exported wrapper and the lowercase worker differ by one capital letter and sit 19 lines apart in the same file, so the defining file itself is a trap: the worker is the callee, never a caller. Two test call sites are far from their headers and separated from them by immediately-invoked `func() { ... }()` literals: wal_test.go:1124 is 44 lines below `func TestValidSnapshotEntriesAfterPurgeWal` and directly follows a large closure that closes over the WAL writer, and wal_test.go:1169 is 39 lines below its header, after a `t.Cleanup(func() {...})` and a full replacement `openWALFilesFn = func(...) {...}` fault-injection closure, so the nearest `func` token is that injected function value. The production caller is also one hop below `bootstrapBackend`."
+    "author_notes": "The exported wrapper and the lowercase worker differ by one capital letter and sit 19 lines apart in the same file, so the defining file itself is a trap: the worker is the callee, never a caller. Two test call sites are far from their headers and separated from them by immediately-invoked `func() { ... }()` literals: wal_test.go:1124 is 44 lines below `func TestValidSnapshotEntriesAfterPurgeWal` and directly follows a large closure that closes over the WAL writer, and wal_test.go:1169 is 39 lines below its header, after a `t.Cleanup(func() {...})` and a full replacement `openWALFilesFn = func(...) {...}` fault-injection closure, so the nearest `func` token is that injected function value. The production caller is also one hop below `bootstrapBackend`.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-mvcc-key-index-delete-marker-callers",
@@ -769,7 +750,8 @@
         "contains": "if err := ki.tombstone(lg, rev.Main, rev.Sub); err != nil {"
       }
     ],
-    "author_notes": "kvstore.go:473 is 39 lines below `func restoreIntoIndex(lg *zap.Logger, idx index)` and, decisively, 37 lines inside the `go func() { ... }()` goroutine that starts on line 436, nested in a `for rkv := range rkvc` loop and an `if ok { if isTombstone(...) {` pair; the enclosing named function is the one that returns the channels, and the obvious wrong answer is the store method that spawns it. The test file supplies a second trap: one call is 12 lines below `func TestKeyIndexTombstone` and a second is 38 lines below the same header, past an intervening composite literal, while three more calls sit inside the shared fixture builder at the bottom of the file, whose own callers are many unrelated tests."
+    "author_notes": "kvstore.go:473 is 39 lines below `func restoreIntoIndex(lg *zap.Logger, idx index)` and, decisively, 37 lines inside the `go func() { ... }()` goroutine that starts on line 436, nested in a `for rkv := range rkvc` loop and an `if ok { if isTombstone(...) {` pair; the enclosing named function is the one that returns the channels, and the obvious wrong answer is the store method that spawns it. The test file supplies a second trap: one call is 12 lines below `func TestKeyIndexTombstone` and a second is 38 lines below the same header, past an intervening composite literal, while three more calls sit inside the shared fixture builder at the bottom of the file, whose own callers are many unrelated tests.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-auth-bucket-init-callers",
@@ -805,7 +787,8 @@
         "contains": "abe.CreateAuthBuckets()"
       }
     ],
-    "author_notes": "Every call site sits inside the `t.Run(tc.name, func(t *testing.T) {...})` subtest closure of a table-driven test, 85 lines below the enclosing test function header in auth_roles_test.go (the table literal with four cases and their setup func literals occupies everything in between), 77 lines below it in the second roles test, and 29 lines below in auth_test.go. A retriever that attributes the call to the nearest enclosing func literal answers `func1` instead of the test function, and one that scans upward only a few lines lands inside a `setup:` func literal of the table."
+    "author_notes": "Every call site sits inside the `t.Run(tc.name, func(t *testing.T) {...})` subtest closure of a table-driven test, 85 lines below the enclosing test function header in auth_roles_test.go (the table literal with four cases and their setup func literals occupies everything in between), 77 lines below it in the second roles test, and 29 lines below in auth_test.go. A retriever that attributes the call to the nearest enclosing func literal answers `func1` instead of the test function, and one that scans upward only a few lines lands inside a `setup:` func literal of the table.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-wal-running-crc-accessor-callers",
@@ -843,7 +826,8 @@
         "contains": "crc := decoder.LastCRC()"
       }
     ],
-    "author_notes": "Three of the four call sites are identical `crc := decoder.LastCRC()` lines buried in a `case CrcType:` arm of a `switch rec.GetType()` inside a `for` decode loop: 44 lines below the replay method's header (and a second textually identical hit 115 lines below it, in the same method's snapshot-tail handling), 39 lines below the integrity-check function's header, and at a similar depth inside the snapshot-scan function. wal.go contains three such near-clones within ~250 lines, so any attribution that keys on surrounding text rather than on the enclosing declaration merges or misassigns them; the fourth sits in a second file whose loop body is nearly word-for-word the same, including the comment lines."
+    "author_notes": "Three of the four call sites are identical `crc := decoder.LastCRC()` lines buried in a `case CrcType:` arm of a `switch rec.GetType()` inside a `for` decode loop: 44 lines below the replay method's header (and a second textually identical hit 115 lines below it, in the same method's snapshot-tail handling), 39 lines below the integrity-check function's header, and at a similar depth inside the snapshot-scan function. wal.go contains three such near-clones within ~250 lines, so any attribution that keys on surrounding text rather than on the enclosing declaration merges or misassigns them; the fourth sits in a second file whose loop body is nearly word-for-word the same, including the comment lines.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-rafthttp-stream-sender-ctor-callers",
@@ -877,7 +861,8 @@
         "contains": "msgAppV2Writer: startStreamWriter(t.Logger, t.ID, peerID, status, fs, r),"
       }
     ],
-    "author_notes": "The production call sites are two adjacent field initializers, 32 and 33 lines below the enclosing function's header, inside a `&peer{...}` composite literal in a function that also opens a `defer func()` at its top and a `go func()` right after the literal - so a nearest-enclosing-brace heuristic can attribute them to the deferred closure or to the goroutine. The single caller must be named once even though it calls twice. In the test file the hardest site is 39 lines below its test header, inside a `for i, tt := range tests` body that is itself preceded by a long table literal, in a file where three neighbouring tests open with near-identical constructor lines."
+    "author_notes": "The production call sites are two adjacent field initializers, 32 and 33 lines below the enclosing function's header, inside a `&peer{...}` composite literal in a function that also opens a `defer func()` at its top and a `go func()` right after the literal - so a nearest-enclosing-brace heuristic can attribute them to the deferred closure or to the goroutine. The single caller must be named once even though it calls twice. In the test file the hardest site is 39 lines below its test header, inside a `for i, tt := range tests` body that is itself preceded by a long table literal, in a file where three neighbouring tests open with near-identical constructor lines.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-wal-readonly-open-callers",
@@ -912,7 +897,8 @@
         "contains": "w, err = wal.OpenForRead(lg, tmpPath, &walpb.Snapshot{})"
       }
     ],
-    "author_notes": "In the testing helper the call is 46 lines below its function header, after a long `if len(reqs) != 0 {` block that itself opens and closes the log twice, so the nearest preceding `func` token in view belongs to nothing - the second helper in that file is only a few lines further down and its own call is textually identical apart from the path variable, inviting a merge of the two callers. In the unit tests the hardest site is 69 lines below the test header, past two loops, a deferred close closure and raw file surgery; one more caller reaches the function inside an `if ...; err != nil` statement rather than a plain assignment."
+    "author_notes": "In the testing helper the call is 46 lines below its function header, after a long `if len(reqs) != 0 {` block that itself opens and closes the log twice, so the nearest preceding `func` token in view belongs to nothing - the second helper in that file is only a few lines further down and its own call is textually identical apart from the path variable, inviting a merge of the two callers. In the unit tests the hardest site is 69 lines below the test header, past two loops, a deferred close closure and raw file surgery; one more caller reaches the function inside an `if ...; err != nil` statement rather than a plain assignment.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-wal-lock-trim-callers",
@@ -949,7 +935,8 @@
         "contains": "w.ReleaseLockTo(unlockIndex)"
       }
     ],
-    "author_notes": "The dedicated unit test calls it three times: once at the top and again 31 and 51 lines below its header, after a `defer func() {...}` closure and a ten-iteration `for` loop, so the later two sites can be attributed to the deferred closure or dropped as duplicates - the caller must still be named exactly once. A second test in the same file contains a byte-identical `w.ReleaseLockTo(unlockIndex)` line 27 lines below a different test header, which is easy to fold into the first test; and the production caller is a one-line wrapper method whose name gives no hint of the log."
+    "author_notes": "The dedicated unit test calls it three times: once at the top and again 31 and 51 lines below its header, after a `defer func() {...}` closure and a ten-iteration `for` loop, so the later two sites can be attributed to the deferred closure or dropped as duplicates - the caller must still be named exactly once. A second test in the same file contains a byte-identical `w.ReleaseLockTo(unlockIndex)` line 27 lines below a different test header, which is easy to fold into the first test; and the production caller is a one-line wrapper method whose name gives no hint of the log.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-server-member-attr-announce-callers",
@@ -983,7 +970,8 @@
         "contains": "s.GoAttach(func() { s.publishV3(s.Cfg.ReqTimeout()) })"
       }
     ],
-    "author_notes": "The production call is wrapped in `func() { ... }` handed to the tracked-goroutine helper, one of ten near-identical lines in the same block - so the answer is the enclosing exported lifecycle method, not the closure and not the goroutine helper it is passed to. The test sites sit 26 and 43 lines below their headers, below huge struct literals; the retry test additionally opens a `go func() {...}` immediately above its call, so a nearest-enclosing-function guess attributes that call to the goroutine literal instead of the test."
+    "author_notes": "The production call is wrapped in `func() { ... }` handed to the tracked-goroutine helper, one of ten near-identical lines in the same block - so the answer is the enclosing exported lifecycle method, not the closure and not the goroutine helper it is passed to. The test sites sit 26 and 43 lines below their headers, below huge struct literals; the retry test additionally opens a `go func() {...}` immediately above its call, so a nearest-enclosing-function guess attributes that call to the goroutine literal instead of the test.",
+    "stratum": "attribution_hard"
   },
   {
     "id": "etcd-cluster-version-decision-apply-callers",
@@ -1020,6 +1008,451 @@
         "contains": "err := monitor.UpdateClusterVersionIfNeeded()"
       }
     ],
-    "author_notes": "The mock-cluster caller wraps the call in an inline `func() { ... }` literal appended to a slice of callbacks that is then shuffled and executed elsewhere, so the owning method is a plain (non-Test) method on a mock type - easy to miss entirely or to report as the anonymous callback. The unit-test call is 106 lines below its test header, at the bottom of a ~90-line table literal, inside the `t.Run(tt.name, func(t *testing.T) {...})` subtest closure; the production call is inside a `for { select { ... } }` loop in a 2400-line file."
+    "author_notes": "The mock-cluster caller wraps the call in an inline `func() { ... }` literal appended to a slice of callbacks that is then shuffled and executed elsewhere, so the owning method is a plain (non-Test) method on a mock type - easy to miss entirely or to report as the anonymous callback. The unit-test call is 106 lines below its test header, at the bottom of a ~90-line table literal, inside the `t.Run(tt.name, func(t *testing.T) {...})` subtest closure; the production call is inside a `for { select { ... } }` loop in a 2400-line file.",
+    "stratum": "attribution_hard"
+  },
+  {
+    "id": "etcd-v2store-notif-ring-ctor-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "stratum": "local",
+    "question": "In the corpus's legacy v2 key-value store package (server/etcdserver/api/v2store), a small unexported constructor takes a single integer capacity and returns a pointer to the struct that keeps a bounded, replayable log of recent change notifications. Its whole body is a composite literal: it pre-sizes the embedded ring-buffer field to the given capacity and backs it with a slice of that many pointers, leaving the two index fields at their zero values. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/etcdserver/api/v2store/event_test.go::TestEventIndexHistoryCleared",
+        "server/etcdserver/api/v2store/event_test.go::TestEventQueue",
+        "server/etcdserver/api/v2store/event_test.go::TestFullEventQueue",
+        "server/etcdserver/api/v2store/event_test.go::TestScanHistory",
+        "server/etcdserver/api/v2store/watcher_hub.go::newWatchHub"
+      ]
+    },
+    "helper": "server/etcdserver/api/v2store/event_history.go::newEventHistory",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "server/etcdserver/api/v2store/event_history.go::addEvent",
+      "server/etcdserver/api/v2store/store.go::newStore",
+      "server/etcdserver/api/v2store/event_test.go::TestCloneEvent"
+    ],
+    "evidence": [
+      {
+        "path": "server/etcdserver/api/v2store/event_history.go",
+        "contains": "func newEventHistory(capacity int) *EventHistory {"
+      },
+      {
+        "path": "server/etcdserver/api/v2store/watcher_hub.go",
+        "contains": "EventHistory: newEventHistory(capacity),"
+      }
+    ],
+    "author_notes": "All five call sites sit 1-3 lines below their enclosing func header, at statement level with no closure or goroutine in between: four are the first line of a test body (event_test.go lines 27, 50, 93, 116, headers at 26, 49, 92, 115) and the fifth is inside the composite literal of the hub constructor at watcher_hub.go:51, three lines under its header at 48. A plain text crawl for the callee name lands inside the owning function's visible extent every time."
+  },
+  {
+    "id": "etcd-member-name-predicate-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "stratum": "local",
+    "question": "In server/etcdserver/api/membership/member.go there is a one-line boolean predicate method on the cluster-member struct: it returns true exactly when that member's name field has non-zero length. That is how the membership code separates a peer which has already come up and published itself from one that has merely been added to the raft configuration and has never run. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/etcdserver/api/membership/cluster.go::IsReadyToAddVotingMember",
+        "server/etcdserver/api/membership/cluster.go::IsReadyToPromoteMember",
+        "server/etcdserver/api/membership/cluster.go::IsReadyToRemoveVotingMember"
+      ]
+    },
+    "helper": "server/etcdserver/api/membership/member.go::IsStarted",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "server/etcdserver/api/membership/cluster.go::IsMemberExist",
+      "server/etcdserver/api/membership/member.go::Clone",
+      "server/etcdserver/api/membership/cluster.go::VotingMembers"
+    ],
+    "evidence": [
+      {
+        "path": "server/etcdserver/api/membership/member.go",
+        "contains": "func (m *Member) IsStarted() bool {"
+      },
+      {
+        "path": "server/etcdserver/api/membership/cluster.go",
+        "contains": "if member.IsStarted() {"
+      }
+    ],
+    "author_notes": "Every call is a bare `if member.<callee>() {` guard inside a short counting loop in cluster.go, 5, 5 and 9 lines below its own func header (lines 631/626, 694/689, 668/659). The owner's name is on screen in the same window as the call; no closure, no goroutine, no method value indirection."
+  },
+  {
+    "id": "etcd-v2store-mutation-metric-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "stratum": "local",
+    "question": "Inside the legacy v2 key-value package, server/etcdserver/api/v2store/metrics.go holds four sibling one-line unexported metric helpers, pairing a read flavour and a mutation flavour with a good-outcome and a bad-outcome flavour. The one asked about here is the good-outcome mutation helper: it takes the action label of a mutating store operation as its only argument and increments just the overall per-action mutation counter vector, leaving the companion vector for failing mutations alone, unlike the helper defined immediately below it which bumps both. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/etcdserver/api/v2store/store.go::CompareAndDelete",
+        "server/etcdserver/api/v2store/store.go::CompareAndSwap",
+        "server/etcdserver/api/v2store/store.go::Create",
+        "server/etcdserver/api/v2store/store.go::Delete",
+        "server/etcdserver/api/v2store/store.go::Set",
+        "server/etcdserver/api/v2store/store.go::Update"
+      ]
+    },
+    "helper": "server/etcdserver/api/v2store/metrics.go::reportWriteSuccess",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "server/etcdserver/api/v2store/metrics.go::reportWriteFailure",
+      "server/etcdserver/api/v2store/store.go::Get",
+      "server/etcdserver/api/v2store/store.go::Watch"
+    ],
+    "evidence": [
+      {
+        "path": "server/etcdserver/api/v2store/metrics.go",
+        "contains": "func reportWriteSuccess(writeAction string) {"
+      },
+      {
+        "path": "server/etcdserver/api/v2store/store.go",
+        "contains": "reportWriteSuccess(Set)"
+      }
+    ],
+    "author_notes": "All six calls are the tail-end bookkeeping line of a mutating store method in store.go, 9-11 lines below the enclosing header (e.g. 200 vs 191, 270 vs 259, 503 vs 494). Each sits at the method's top statement level just before the return, with the owning method signature still in the same screenful."
+  },
+  {
+    "id": "etcd-server-release-adapter-ctor-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "stratum": "local",
+    "question": "server/etcdserver/adapters.go defines a tiny unexported wrapper type that embeds a pointer to the main node struct so the node satisfies the Server interface declared by the neighbouring package that tracks and negotiates cluster release levels (the Monitor and Manager types in that package consume it). The question is about the one-line exported constructor in that file: it takes the node pointer, wraps it, and returns it as that interface value. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/etcdserver/api/v3rpc/maintenance.go::NewMaintenanceServer",
+        "server/etcdserver/server.go::Version",
+        "server/etcdserver/server.go::monitorClusterVersions",
+        "server/etcdserver/server.go::monitorDowngrade",
+        "server/etcdserver/server.go::monitorStorageVersion"
+      ]
+    },
+    "helper": "server/etcdserver/adapters.go::NewServerVersionAdapter",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "server/etcdserver/adapters.go::GetClusterVersion",
+      "server/etcdserver/server.go::NewServer",
+      "server/etcdserver/api/v3rpc/maintenance.go::Status"
+    ],
+    "evidence": [
+      {
+        "path": "server/etcdserver/adapters.go",
+        "contains": "func NewServerVersionAdapter(s *EtcdServer) serverversion.Server {"
+      },
+      {
+        "path": "server/etcdserver/server.go",
+        "contains": "monitor := serverversion.NewMonitor(lg, NewServerVersionAdapter(s))"
+      }
+    ],
+    "author_notes": "Four of the five calls are 1-2 lines under their method header in server.go (2435/2434, 2198/2196, 2323/2322, 2221/2219); the fifth is a struct-literal field 12 lines into the constructor at maintenance.go:109 (header 97). None is inside a closure or a GoAttach body, so the owner name is readable directly above the hit."
+  },
+  {
+    "id": "etcd-lease-http-endpoint-ctor-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "stratum": "local",
+    "question": "In server/lease/leasehttp/http.go, a two-argument exported constructor packs a lessor together with a func() <-chan struct{} readiness callback into a small unexported two-field struct and returns it as the standard net/http server-side request-serving interface, so that keep-alive and remaining-time requests can be served over plain HTTP by whichever node holds the leases. Its body is a single return of a composite literal. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/etcdserver/server.go::LeaseHandler",
+        "server/lease/leasehttp/http_test.go::TestRenewHTTP",
+        "server/lease/leasehttp/http_test.go::TestTimeToLiveHTTP",
+        "server/lease/leasehttp/http_test.go::testApplyTimeout"
+      ]
+    },
+    "helper": "server/lease/leasehttp/http.go::NewHandler",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "server/lease/leasehttp/http.go::ServeHTTP",
+      "server/lease/leasehttp/http.go::RenewHTTP",
+      "server/etcdserver/server.go::NewServer"
+    ],
+    "evidence": [
+      {
+        "path": "server/lease/leasehttp/http.go",
+        "contains": "func NewHandler(l lease.Lessor, waitch func() <-chan struct{}) http.Handler {"
+      },
+      {
+        "path": "server/etcdserver/server.go",
+        "contains": "return leasehttp.NewHandler(s.lessor, s.ApplyWaitCommit)"
+      }
+    ],
+    "author_notes": "Call sites are 4, 8 and 12 lines below their enclosing header: a one-line return in server.go:642 (header 638), a mux registration in transport.go:166 (header 158), and test-server setup lines in http_test.go 41/65/106 (headers 29/53/94). All are top-level statements in the owning function body. NOTE for the suite owner: transport.go::Handler is carried verbatim from the supplied verified_callers, but its line 166 call is probing.NewHandler(), a same-named function from an external package - see my report to the main agent."
+  },
+  {
+    "id": "etcd-alarm-schema-ctor-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "stratum": "local",
+    "question": "server/storage/schema/alarm.go declares an interface for the persistence side of cluster alarms - bucket creation, put and removal of a single alarm member record, reading all of them back, and forcing a commit - plus a two-field unexported implementation holding a zap logger and a storage backend. The question is about the exported constructor just below that struct: it takes those two dependencies and returns the interface value, with nothing else in its body. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/etcdserver/apply/auth_test.go::defaultAuthApplierV3",
+        "server/etcdserver/apply/uber_applier_test.go::defaultUberApplier",
+        "server/etcdserver/server.go::restoreAlarms"
+      ]
+    },
+    "helper": "server/storage/schema/alarm.go::NewAlarmBackend",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "server/storage/schema/alarm.go::CreateAlarmBucket",
+      "server/etcdserver/api/v3alarm/alarms.go::NewAlarmStore",
+      "server/etcdserver/server.go::NewServer"
+    ],
+    "evidence": [
+      {
+        "path": "server/storage/schema/alarm.go",
+        "contains": "func NewAlarmBackend(lg *zap.Logger, be backend.Backend) AlarmBackend {"
+      },
+      {
+        "path": "server/etcdserver/server.go",
+        "contains": "v3alarm.NewAlarmStore(s.lg, schema.NewAlarmBackend(s.lg, s.be))"
+      }
+    ],
+    "author_notes": "Each of the three calls is a nested argument on a single assignment line 1, 10 and 12 lines below its func header (server.go 2385/2384, auth_test.go 88/78, uber_applier_test.go 52/40), always at the owning function's statement level rather than inside a closure."
+  },
+  {
+    "id": "etcd-wal-name-list-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "stratum": "local",
+    "question": "In the write-ahead log storage package there is a small unexported helper that takes a logger and a directory path, lists that directory, keeps only the entries whose file name parses as a log segment (logging a warning for any other entry that is not a leftover temporary file), and hands back the surviving list of file names; when the filtered list comes out empty it returns the package's file-not-found error instead. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/storage/wal/repair.go::openLast",
+        "server/storage/wal/wal.go::selectWALFiles",
+        "server/storage/wal/wal.go::validSnapshotEntries"
+      ]
+    },
+    "helper": "server/storage/wal/util.go::readWALNames",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "server/storage/wal/util.go::checkWALNames",
+      "server/storage/wal/wal.go::openAtIndex",
+      "server/storage/wal/repair.go::Repair"
+    ],
+    "evidence": [
+      {
+        "path": "server/storage/wal/util.go",
+        "contains": "func readWALNames(lg *zap.Logger, dirpath string) ([]string, error) {"
+      },
+      {
+        "path": "server/storage/wal/repair.go",
+        "contains": "names, err := readWALNames(lg, dirpath)"
+      },
+      {
+        "path": "server/storage/wal/wal.go",
+        "contains": "names, err := readWALNames(lg, walDir)"
+      }
+    ],
+    "author_notes": "All three call sites are plain statements at the top of their owning function body: repair.go line 110 is the first line after the header on line 109, wal.go line 403 is the first line after the header on line 402, and wal.go line 641 is six lines below the header on line 635. No closure, goroutine or method-value indirection in any of them, so the enclosing function name is on screen with the call in a three-line window."
+  },
+  {
+    "id": "etcd-ttl-heap-ctor-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "stratum": "local",
+    "question": "In the v2 key-value store package, a zero-argument unexported constructor builds the min-heap that orders tree nodes by expiration time: it allocates the heap struct with an empty map from node pointer to slice position, runs the standard library heap initialisation over it, and returns the pointer. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/etcdserver/api/v2store/heap_test.go::TestHeapPushPop",
+        "server/etcdserver/api/v2store/heap_test.go::TestHeapUpdate",
+        "server/etcdserver/api/v2store/store.go::Recovery",
+        "server/etcdserver/api/v2store/store.go::newStore"
+      ]
+    },
+    "helper": "server/etcdserver/api/v2store/ttl_key_heap.go::newTTLKeyHeap",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "server/etcdserver/api/v2store/store.go::New",
+      "server/etcdserver/api/v2store/store.go::Clone",
+      "server/etcdserver/api/v2store/store.go::internalGet"
+    ],
+    "evidence": [
+      {
+        "path": "server/etcdserver/api/v2store/ttl_key_heap.go",
+        "contains": "func newTTLKeyHeap() *ttlKeyHeap {"
+      },
+      {
+        "path": "server/etcdserver/api/v2store/heap_test.go",
+        "contains": "h := newTTLKeyHeap()"
+      },
+      {
+        "path": "server/etcdserver/api/v2store/store.go",
+        "contains": "s.ttlKeyHeap = newTTLKeyHeap()"
+      }
+    ],
+    "author_notes": "Every call is a direct assignment or short variable declaration in the owning body: heap_test.go lines 24 and 47 are each the first line of their test function, store.go line 102 sits seven lines below its header among sibling field initialisations, and store.go line 777 is eight lines below its header at statement level. Nothing is nested inside a closure or goroutine."
+  },
+  {
+    "id": "etcd-url-picker-ctor-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "stratum": "local",
+    "question": "In the raft HTTP transport package, a two-line unexported constructor wraps a set of remote endpoint addresses in the tiny mutex-guarded round-robin chooser struct declared immediately above it, leaves the chooser's cursor at its zero value, and returns a pointer to the fresh value. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/etcdserver/api/rafthttp/peer.go::startPeer",
+        "server/etcdserver/api/rafthttp/remote.go::startRemote",
+        "server/etcdserver/api/rafthttp/urlpick_test.go::mustNewURLPicker"
+      ]
+    },
+    "helper": "server/etcdserver/api/rafthttp/urlpick.go::newURLPicker",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "server/etcdserver/api/rafthttp/transport.go::AddPeer",
+      "server/etcdserver/api/rafthttp/urlpick_test.go::TestURLPickerUpdate",
+      "server/etcdserver/api/rafthttp/urlpick.go::update"
+    ],
+    "evidence": [
+      {
+        "path": "server/etcdserver/api/rafthttp/urlpick.go",
+        "contains": "func newURLPicker(urls types.URLs) *urlPicker {"
+      },
+      {
+        "path": "server/etcdserver/api/rafthttp/peer.go",
+        "contains": "picker := newURLPicker(urls)"
+      },
+      {
+        "path": "server/etcdserver/api/rafthttp/urlpick_test.go",
+        "contains": "return newURLPicker(urls)"
+      }
+    ],
+    "author_notes": "remote.go line 33 is the very first statement under its header on line 32; urlpick_test.go line 72 is the return statement two lines under its header on line 70; peer.go line 142 is eleven lines under its header but at plain statement depth - the intervening deferred literal is closed before it, so the owning name is still the nearest preceding func line."
+  },
+  {
+    "id": "etcd-node-hidden-check-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "stratum": "local",
+    "question": "In the v2 key-value store package, a four-line pointer-receiver predicate on the in-memory tree node splits the node's stored path, looks at the final component, and reports whether it begins with an underscore - the marker for entries that directory reads quietly skip. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/etcdserver/api/v2store/node.go::Repr",
+        "server/etcdserver/api/v2store/node_extern.go::loadInternalNode",
+        "server/etcdserver/api/v2store/node_test.go::TestNewDirIs",
+        "server/etcdserver/api/v2store/node_test.go::TestNewKVIs"
+      ]
+    },
+    "helper": "server/etcdserver/api/v2store/node.go::IsHidden",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "server/etcdserver/api/v2store/node.go::IsPermanent",
+      "server/etcdserver/api/v2store/store.go::internalGet",
+      "server/etcdserver/api/v2store/node.go::List"
+    ],
+    "evidence": [
+      {
+        "path": "server/etcdserver/api/v2store/node.go",
+        "contains": "func (n *node) IsHidden() bool {"
+      },
+      {
+        "path": "server/etcdserver/api/v2store/node_extern.go",
+        "contains": "if child.IsHidden() { // get will not return hidden nodes"
+      },
+      {
+        "path": "server/etcdserver/api/v2store/node_test.go",
+        "contains": "if nd.IsHidden() {"
+      }
+    ],
+    "author_notes": "The two test call sites are two or three lines under their headers (node_test.go lines 33 and 162 under headers at 30 and 160). The two production call sites sit inside a plain for-range loop in the owning method body, not inside a closure or goroutine, so the enclosing method name is reachable by scanning upward past ordinary block structure only."
+  },
+  {
+    "id": "etcd-alarm-store-ctor-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "stratum": "local",
+    "question": "In the package that persists cluster-level alarms, an exported constructor takes a logger (swapping in a no-op logger when the argument is nil) plus a backend handle, builds the mutex-guarded struct that keeps a map from alarm kind to per-member entries, immediately reloads the persisted rows through that backend into the map, and returns the struct together with whatever error the reload produced. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/etcdserver/apply/auth_test.go::defaultAuthApplierV3",
+        "server/etcdserver/apply/uber_applier_test.go::defaultUberApplier",
+        "server/etcdserver/server.go::restoreAlarms"
+      ]
+    },
+    "helper": "server/etcdserver/api/v3alarm/alarms.go::NewAlarmStore",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "server/etcdserver/server.go::NewServer",
+      "server/etcdserver/api/v3alarm/alarms.go::restore",
+      "server/etcdserver/apply/uber_applier_test.go::TestUberApplier_Alarm_Corrupt"
+    ],
+    "evidence": [
+      {
+        "path": "server/etcdserver/api/v3alarm/alarms.go",
+        "contains": "func NewAlarmStore(lg *zap.Logger, be schema.AlarmBackend) (*AlarmStore, error) {"
+      },
+      {
+        "path": "server/etcdserver/server.go",
+        "contains": "as, err := v3alarm.NewAlarmStore(s.lg, schema.NewAlarmBackend(s.lg, s.be))"
+      },
+      {
+        "path": "server/etcdserver/apply/auth_test.go",
+        "contains": "alarmStore, err := v3alarm.NewAlarmStore(lg, schema.NewAlarmBackend(lg, be))"
+      }
+    ],
+    "author_notes": "server.go line 2385 is the first statement of a five-line method whose header is on 2384. The two test helpers call it in a flat setup run of := assignments (auth_test.go 88, uber_applier_test.go 52), a handful of lines below their headers with no nesting; the owner name is the nearest preceding func line in each case."
+  },
+  {
+    "id": "etcd-interval-compactor-ctor-callers",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "stratum": "local",
+    "question": "In the compaction-scheduling package, an unexported constructor takes a logger, a clock, a retention duration, a revision getter and a compaction target, fills in the struct that drives time-interval-based history compaction, preallocates its revision buffer to the count of sampling intervals held per retention window, derives a cancellable context with its cancel func, and returns that pointer. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/etcdserver/api/v3compactor/compactor.go::New",
+        "server/etcdserver/api/v3compactor/periodic_test.go::TestPeriodicHourly",
+        "server/etcdserver/api/v3compactor/periodic_test.go::TestPeriodicMinutes",
+        "server/etcdserver/api/v3compactor/periodic_test.go::TestPeriodicPause",
+        "server/etcdserver/api/v3compactor/periodic_test.go::TestPeriodicSkipRevNotChange"
+      ]
+    },
+    "helper": "server/etcdserver/api/v3compactor/periodic.go::newPeriodic",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "server/etcdserver/api/v3compactor/revision.go::newRevision",
+      "server/etcdserver/api/v3compactor/periodic_test.go::waitOneAction",
+      "server/etcdserver/api/v3compactor/periodic.go::Run"
+    ],
+    "evidence": [
+      {
+        "path": "server/etcdserver/api/v3compactor/periodic.go",
+        "contains": "func newPeriodic(lg *zap.Logger, clock clockwork.Clock, h time.Duration, rg RevGetter, c Compactable) *Periodic {"
+      },
+      {
+        "path": "server/etcdserver/api/v3compactor/compactor.go",
+        "contains": "return newPeriodic(lg, clockwork.NewRealClock(), retention, rg, c), nil"
+      },
+      {
+        "path": "server/etcdserver/api/v3compactor/periodic_test.go",
+        "contains": "tb := newPeriodic(zaptest.NewLogger(t), fc, retentionDuration, rg, compactable)"
+      }
+    ],
+    "author_notes": "The single production call is a return arm of a switch, twelve lines under a multi-line header whose func line is the nearest preceding one. Each of the four test call sites is eight or nine lines under its own test header, at top statement depth inside a short flat setup block - no closure or goroutine wrapping anywhere."
   }
 ]
