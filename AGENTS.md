@@ -41,6 +41,11 @@ what keeps the published numbers true.
 - **Graders judge identities, not containers.** Both directions have been defects — a keyed object
   against a list gold, and a bare list against a single-key gold. `quality_pass.credit` handles both,
   and `validate_suite.py` now compiles no suite whose gold identities fail in a different container.
+- **A gold can only name what the grader can tell apart.** One Go file defines four methods called
+  `GetRequestMetadata` on four receivers; the attribution is `path::name`, so the caller set names
+  that identity once and an answer enumerating all four is scored as extras. Three arms lost credit
+  for being exactly right. `validate_suite.py` now refuses any caller question whose verified
+  callers collapse that way, so this cannot reach a run again.
 
 ## The instruments (offline unless noted)
 

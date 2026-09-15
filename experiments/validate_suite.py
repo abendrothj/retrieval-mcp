@@ -95,7 +95,7 @@ def prose(identities):
     return f"The answer is {', '.join(names)} (in {', '.join(paths)})."
 
 
-def check_question(task, index, corpus):
+def check_question(task, index, counts, corpus):
     """Every failed expectation for one question, as (severity, detail) pairs."""
     gold = task["expected_json"]["answer"]
     problems = []
@@ -186,6 +186,19 @@ def check_question(task, index, corpus):
                 verified |= {leafwise(reached) for reached in
                              audit_failures.true_callers(corpus, caller_name.split("::")[-1],
                                                          caller_path)}
+        # A caller set is a set of identities, and `path::name` is the only identity the frozen
+        # grader can compare. Where one file defines that name several times - four methods called
+        # `GetRequestMetadata` on four receivers in one Go file - the distinct callers collapse into
+        # one gold entry, so an answer that correctly enumerates them all is scored as extras and
+        # every arm loses credit for being right. That cost three arms 0.571 each on a question they
+        # had answered exactly, so it is a build failure rather than a thing a pilot rediscovers.
+        for identity in {leafwise(entry) for entry in direct}:
+            entry_path, entry_leaf = identity.split("::", 1)
+            if counts.get(entry_leaf, {}).get(entry_path, 0) > 1:
+                report("answerability",
+                       f"{entry_path} defines {entry_leaf} "
+                       f"{counts[entry_leaf][entry_path]} times, so the caller set cannot name "
+                       f"which one calls {name}; an exhaustive answer is penalised as extras")
         claimed = {leafwise(identity) for identity in caller_identities if identity != helper}
         missing = claimed - verified
         if missing:
@@ -246,6 +259,7 @@ def validate(questions_path, corpus):
             "limitations": "No semantic checks ran because the suite shape is invalid.",
         }
     index = quality_pass.definitions(corpus)
+    counts = quality_pass.definition_counts(corpus)
     report, failed, seen = {}, 0, set()
     for position, task in enumerate(tasks):
         if not isinstance(task, dict):
@@ -265,7 +279,7 @@ def validate(questions_path, corpus):
             if isinstance(expected, dict) and "answer" in expected and \
                     isinstance(task.get("question"), str) and \
                     isinstance(task.get("category"), str):
-                problems.extend(check_question(task, index, corpus))
+                problems.extend(check_question(task, index, counts, corpus))
         report[key] = problems
         failed += bool(problems)
     return {

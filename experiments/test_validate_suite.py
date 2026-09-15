@@ -52,6 +52,41 @@ class ValidateSuiteTests(unittest.TestCase):
             self.assertIn("question leaks target identifier 'target'", details)
             self.assertIn("helper places target in missing.py, but the corpus does not", details)
 
+    def test_a_caller_the_gold_cannot_name_uniquely_is_a_build_failure(self):
+        """Two methods of one name in one file collapse into one identity the grader compares."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            corpus = root / "corpus"
+            corpus.mkdir()
+            (corpus / "helper.go").write_text("package p\n\nfunc Guard() bool {\n\treturn true\n}\n")
+            (corpus / "callers.go").write_text(
+                "package p\n\n"
+                "type left struct{}\n"
+                "type right struct{}\n\n"
+                "func (l left) Check() bool {\n\treturn Guard()\n}\n\n"
+                "func (r right) Check() bool {\n\treturn Guard()\n}\n"
+            )
+            questions = root / "questions.json"
+            questions.write_text(json.dumps([{
+                "id": "q",
+                "category": "direct_caller_lookup",
+                "set": "dev",
+                "question": "Name every method outside its own file that calls the boolean guard.",
+                "expected_json": {"answer": ["callers.go::Check"]},
+                "helper": "helper.go::Guard",
+                "exhaustive": True,
+                "rejected_alternates": [],
+                "evidence": [{"path": "callers.go", "contains": "return Guard()"}],
+                "author_notes": "Two receivers, one method name: the gold can name it once.",
+            }]))
+
+            result = validate(questions, corpus)
+
+            self.assertEqual(result["questions_with_problems"], 1)
+            details = " ".join(problem["detail"] for problem in result["findings"]["q"])
+            self.assertIn("callers.go defines Check 2 times", details)
+            self.assertIn("penalised as extras", details)
+
 
 if __name__ == "__main__":
     unittest.main()

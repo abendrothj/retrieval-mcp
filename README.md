@@ -13,13 +13,19 @@ Two commands: get the binary, then tell your client about it.
 **1. Get the binary.**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh -o install.sh
-sh install.sh
+curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh | sh
 ```
 
-Read the script first or do not; piping it —
-`curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh | sh` — runs
-the same thing, and which of those you are willing to do is your call rather than this project's.
+Reading a script before running it is a reasonable position and this project is not going to argue
+it — but download it somewhere other than the repository you are about to register it in, because a
+file dropped in a checkout is exactly what the rest of this section promises not to leave there:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh \
+  -o /tmp/retrieval-mcp-install.sh
+sh /tmp/retrieval-mcp-install.sh
+```
+
 Either way it fetches a published checksum — the release's aggregate `SHA256SUMS`, or the
 per-archive `<archive>.tar.gz.sha256` that releases up to and including v0.1.4 carry instead —
 verifies the archive for your platform against the single record naming it, and refuses to extract
@@ -36,8 +42,14 @@ tree) or `user` (one entry every project sees). A user-scope entry still reads w
 is open, because `--root .` resolves against the directory the client launches the server in:
 
 ```sh
-RETRIEVAL_MCP_REGISTER=claude,codex RETRIEVAL_MCP_SCOPE=user sh install.sh
+curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh |
+  RETRIEVAL_MCP_REGISTER=claude,codex RETRIEVAL_MCP_SCOPE=user sh
 ```
+
+The entry it writes names `$HOME/.local/bin/retrieval-mcp` — the absolute path of the binary it just
+installed, so a registration done for you does not depend on that directory being on your `PATH`.
+The commands it prints for you to run by hand use the bare name, which is the same server as long as
+the install directory is on `PATH`.
 
 With a Rust toolchain, or with [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall) to
 fetch the same prebuilt archive without compiling:
@@ -68,6 +80,23 @@ That is the installation. Start a new session and the tools are there; `/mcp` in
 }
 ```
 
+To give a whole team the server without anyone running a registration command, commit that same
+entry as `.mcp.json` at the project root — `claude mcp add --scope project …` writes it for you.
+Claude Code asks each contributor to approve a project-scoped server once, and it expands
+`${CLAUDE_PROJECT_DIR:-.}` in an entry's `args`, so a committed entry can name the project root
+rather than depending on the directory the client happened to launch in:
+
+```json
+{
+  "mcpServers": {
+    "retrieval": {
+      "command": "retrieval-mcp",
+      "args": ["--root", "${CLAUDE_PROJECT_DIR:-.}"]
+    }
+  }
+}
+```
+
 MCP servers are declared in configuration and started by the client on demand — you never launch
 this yourself, and it exits with the session. `--root` is the only repository the session can read
 and is fixed at startup, so a server entry is per-project. It may be relative — resolved once
@@ -79,11 +108,12 @@ adding.
 
 **Manual download.** Prebuilt tarballs are on
 [the releases page](https://github.com/abendrothj/retrieval-mcp/releases) — macOS and Linux, x86-64
-and arm64 — each with a `.sha256` beside it and all of them together in one `SHA256SUMS`. Verify
-against that manifest by hand before extracting, with both files in the same directory:
+and arm64, with both a glibc and a static musl build for Linux — each with a `.sha256` beside it,
+and from v0.1.5 all of them together in one `SHA256SUMS`. Verify against that manifest by hand
+before extracting, with both files in the same directory:
 
 ```sh
-archive=retrieval-mcp-v0.1.4-aarch64-apple-darwin.tar.gz
+archive=retrieval-mcp-v0.1.5-aarch64-apple-darwin.tar.gz
 grep "$archive" SHA256SUMS | shasum -a 256 -c -   # sha256sum -c - on Linux; expect "$archive: OK"
 mkdir -p ~/.local/bin && tar -xzf "$archive"
 install "${archive%.tar.gz}/retrieval-mcp" ~/.local/bin/
@@ -416,7 +446,7 @@ over real JSON-RPC subprocess calls.
 cargo build --locked --release --bin retrieval-mcp
 cargo test --locked --all-targets            # 29 library, 14 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 215 tests
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 216 tests
 python3 experiments/check_docs.py            # the docs still describe the server that exists
 ```
 

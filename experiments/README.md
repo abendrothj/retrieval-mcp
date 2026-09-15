@@ -86,12 +86,13 @@ any of the four features it was found underneath.
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Twenty-three defects in it have produced or nearly
+The harness is the second experimental subject. Twenty-four defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
 some penalised it, one was found inside its own single held-out loss, one would have made every
 brace-language caller question unauthorable, one scored three arms to zero on questions they had
-answered exactly right, and the six newest were found by an audit built to admit five new
-languages and by the release that followed it — four in the evaluator, two in the server. Each is
+answered exactly right, twice, and the seven newest were found by an audit built to admit five
+new languages, by the release that followed it and by the Go pilot that ran on them — five in the
+evaluator, two in the server. Each is
 pinned by a test. This table is the authoritative list; prose below refers to it rather than to
 ordinals.
 
@@ -120,6 +121,7 @@ ordinals.
 | `true_callers()` counted declarations and annotations as calls | A C prototype, a Java interface signature, a `.d.ts` method signature and LevelDB's `EXCLUSIVE_LOCKS_REQUIRED(mutex_)` each demanded a caller no system reports; `WriteBatchInternal::SetSequence(batch, seq)` was then read as a prototype and lost real callers |
 | The documentation check ran the quickstart against whatever `retrieval-mcp` was on PATH | A two-day-old `cargo install` copy answered on the developer machine and the check passed, while CI — which has none — failed on seven consecutive pushes with an empty result; the check was validating a binary that was not the build under test |
 | `quality_pass.definitions()` indexed C call sites and plain bindings as definitions | `if (!ReadBlock(rep_->file, ...)) {` claimed ReadBlock was defined at its own call site, and `const both = context.options[0] === "both";` became an answerable identity that no structural index defines |
+| A caller set named identities its own grader cannot distinguish | Four Go methods called `GetRequestMetadata` on four receivers in one file collapse to one `path::name` gold entry, so all three arms enumerated them correctly and all three scored 0.571 — every arm docked for being right |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
 
@@ -948,7 +950,7 @@ it then prints the exact validate/prepare/run/score commands. It calls no model.
 
 ### The habit that made the numbers trustworthy
 
-The seventeenseventeen entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
+The twenty-four entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
 flattered this server, some penalised it, and the last was found inside its own single held-out loss.
 None was found by auditing on a schedule. Every one came from the same rule, which is the methodological
 claim this project would actually defend:

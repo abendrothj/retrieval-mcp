@@ -61,9 +61,13 @@ Linux)
 	# loader's own name is the reliable signal; `ldd --version` is the fallback, and on glibc it
 	# answers without either matching.
 	libc=gnu
-	if [ -n "$(echo /lib/ld-musl-*.so.1)" ] && [ -e "$(echo /lib/ld-musl-*.so.1 | cut -d' ' -f1)" ]; then
+	for loader in /lib/ld-musl-*.so.1; do
+		[ -e "$loader" ] || continue
 		libc=musl
-	elif command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | head -1 | grep -qi musl; then
+		break
+	done
+	if [ "$libc" = gnu ] && command -v ldd >/dev/null 2>&1 &&
+		ldd --version 2>&1 | head -1 | grep -qi musl; then
 		libc=musl
 	fi
 	case "$arch" in

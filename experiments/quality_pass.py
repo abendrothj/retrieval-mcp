@@ -69,12 +69,15 @@ IDENTIFIER = re.compile(r"[A-Za-z_$][\w$]*")
 DECLINE = re.compile(r"\b(cannot|can't|could not|couldn't|unable|do not have|don't have|no reliable|not able)\b", re.I)
 
 
-def definitions(corpus):
-    """identifier -> set of paths that define it, from source text alone.
+def definition_lines(corpus):
+    """(identifier, path, line number) for every definition the source text shows.
 
-    Independent of every system under test: ripgrep over the corpus, no index consulted.
+    Independent of every system under test: ripgrep over the corpus, no index consulted. The
+    multiplicity matters and is therefore not collapsed here: one Go file can define four methods
+    named `GetRequestMetadata` on four receivers, and a caller set that names the identity once
+    cannot say which of them a call site reached.
     """
-    index = {}
+    lines = []
     passes = (
         ([r"^\s*(pub\s+)?(async\s+)?fn\s+[A-Za-z0-9_]+",
           r"^\s*(async\s+)?(def|class)\s+[A-Za-z0-9_]+"],
@@ -109,8 +112,25 @@ def definitions(corpus):
             match = expression.match(parts[2])
             if match:
                 name = next(group for group in match.groups() if group)
-                index.setdefault(name, set()).add(parts[0].lstrip("./"))
+                lines.append((name, parts[0].lstrip("./"), int(parts[1]) if parts[1].isdigit() else 0))
+    return lines
+
+
+def definitions(corpus):
+    """identifier -> set of paths that define it, from source text alone."""
+    index = {}
+    for name, path, _ in definition_lines(corpus):
+        index.setdefault(name, set()).add(path)
     return index
+
+
+def definition_counts(corpus):
+    """identifier -> {path: how many definitions of that name the file holds}."""
+    counts = {}
+    for name, path, _ in definition_lines(corpus):
+        counts.setdefault(name, {})
+        counts[name][path] = counts[name].get(path, 0) + 1
+    return counts
 
 
 def context_segments(written):
