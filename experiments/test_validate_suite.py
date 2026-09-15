@@ -87,6 +87,42 @@ class ValidateSuiteTests(unittest.TestCase):
             self.assertIn("callers.go defines Check 2 times", details)
             self.assertIn("penalised as extras", details)
 
+    def test_a_caller_question_silent_about_test_callers_is_a_build_failure(self):
+        """Whether a test function counts is a convention only the question can settle."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            corpus = root / "corpus"
+            corpus.mkdir()
+            (corpus / "helper.go").write_text("package p\n\nfunc Guard() bool {\n\treturn true\n}\n")
+            (corpus / "use.go").write_text("package p\n\nfunc Use() bool {\n\treturn Guard()\n}\n")
+            (corpus / "guard_test.go").write_text(
+                "package p\n\nfunc TestGuard(t *T) {\n\t_ = Guard()\n}\n")
+            question = {
+                "id": "q",
+                "category": "direct_caller_lookup",
+                "set": "dev",
+                "question": "Name every function outside its own file that calls the boolean guard.",
+                "expected_json": {"answer": ["use.go::Use", "guard_test.go::TestGuard"]},
+                "helper": "helper.go::Guard",
+                "exhaustive": True,
+                "rejected_alternates": ["helper.go::Guard"],
+                "evidence": [{"path": "use.go", "contains": "return Guard()"}],
+                "author_notes": "The gold counts the test caller; the prose never says so.",
+            }
+            questions = root / "questions.json"
+            questions.write_text(json.dumps([question]))
+
+            silent = validate(questions, corpus)
+
+            self.assertEqual(silent["questions_with_problems"], 1)
+            self.assertIn("include test files and the question does not say whether they count",
+                          " ".join(problem["detail"] for problem in silent["findings"]["q"]))
+
+            question["question"] += " Test functions count as callers; name them too."
+            questions.write_text(json.dumps([question]))
+
+            self.assertEqual(validate(questions, corpus)["problems"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1037,6 +1037,67 @@ optimisation to be refused by its own run. The file is still reported as partly 
 nothing here says a Go or Java question is answered in fewer turns or less context. The end-to-end
 evidence in this file remains Rust, Python and TypeScript.
 
+## The Go caller study: the first agent-level run in a new language
+
+The five languages admitted in `v0.1.3` carried a correctness claim and no agent-level one. This
+closes half of that gap for Go, and it closes it with a criterion missed.
+
+**Pre-registered** in `runs/go-caller-20260914/preregistration.json` before the first trial: 24
+authored exhaustive-caller questions over a 307-file gRPC-Go corpus
+(`2a1d6d47...`, revision `e4711283`), three arms — Codex CLI's own shell tools, `zvec-grep 0.2.2`,
+and `retrieval-mcp` 0.1.5's default four-tool surface (`6b026c7b...`) — three repetitions, seed 11,
+`gpt-5.6-luna` via Codex CLI, 25 calls per trial. Pass criteria: quality within one resolved answer
+of the best arm, at least 20% fewer input tokens than the native control, and zero answers given
+without evidence. Every question compiled clean under `validate_suite.py` and survived
+`lexical_oracle.py` at budget 25, so a bounded lexical crawl dissolves none of them.
+
+**rep-1 was a pilot, and is reported as one.** It found two gold defects rather than a result:
+`credentials/oauth/oauth.go` defines four methods named `GetRequestMetadata` on four receivers, so
+a `path::name` caller set can name that identity once while the corpus holds four distinct callers —
+all three arms enumerated all four, correctly, and all three scored 0.571. And the caller golds
+excluded the helper's own defining file without the prose saying so. Two questions were dropped,
+the remaining 22 restated, and both defects are now build failures in `validate_suite.py`.
+
+**Two repetitions on the repaired suite, identical binary, seeds 12 and 13.** Twenty questions
+completed in all three arms in both (two cells in rep-2 hit a provider capacity error and their
+questions are excluded from every arm, keeping the matrix balanced):
+
+| | native control | zvec-grep | retrieval-mcp |
+|---|---:|---:|---:|
+| Resolved correct / 40 | **35** | 34 | 33 |
+| Graded credit | 0.963 | 0.944 | 0.942 |
+| Input tokens | 17.13 M | 13.94 M | **8.30 M** |
+| Retrieval calls | 229 | 234 | **135** |
+| Persistent context (tok·turns) | 2,050 k | 2,189 k | **670 k** |
+| Median calls to first evidence | 2 | 3 | **2** |
+| Answered without evidence | 1 | 2 | **0** |
+
+Against the criteria registered before the first trial: efficiency **passes** by a wide margin
+(−51.5% input tokens, −41% calls, −67% persistent context, replicated at −51.5% and −50.0% in the
+two repetitions separately), safety **passes** (zero unsupported answers in 40 trials, against one
+and two), and quality **misses** — 33 against 35 is two answers, and the criterion was one. The
+pre-registered claim is therefore not supported as written, and that is the published result.
+
+**What the quality column actually measured.** Seventeen of the eighteen losses across both
+repetitions, in all three arms, are the same thing: a test function that calls the helper and was
+not named. Pooled, every arm named **64 of 72** test callers — 89%, the same for all three — so the
+convention costs each arm equally and which questions its misses land on decides a 33-versus-35.
+The questions never said whether a test caller counts; the golds said yes silently. That is the
+`cu-callers-02` defect class in a third costume, it is now refused by `validate_suite.py`, and the
+suite has been restated (`Test functions count as callers; name them too.`) for the next run. The
+restatement makes this suite incomparable with these two repetitions by construction.
+
+**The efficiency result does not depend on any of that.** It is a token and call count, not a
+grade: the retrieval arm reached first evidence in 2 calls and stopped, and spent half the context
+to do it, in both repetitions, on the same questions where it lost credit for omitting a test.
+
+**One incident worth recording.** rep-3 refused to start: `server or semantic backend changed after
+preparation`. Uncommitted server work had appeared in the checkout after rep-2 finished and its
+release build had been overwritten. The guard was right and rep-2 was clean — its last trial was
+written six minutes before the rebuild — so HEAD was built in a separate worktree, reproduced the
+registered hash byte for byte, and rep-3 ran against that. Without the check, a repetition would
+have silently measured a different server.
+
 ## Three index changes, one survivor
 
 After the surface was frozen, driving the server against an awkward repository suggested three

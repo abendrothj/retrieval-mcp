@@ -48,7 +48,7 @@
     "id": "gg-creds-handshake-attrs-from-ctx-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "The root credentials package has an experimental two-line reader that extracts a value from a context via the internal credentials package's own context accessor, type-asserts it to the exported struct that carries per-address attributes supplied by the resolver or balancer down to a transport credential's dialing-time negotiation, and returns that struct's zero value when nothing of that type is present. It sits directly after the declaration of that attribute-carrying struct and before the helper that compares a connection's security level. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "The root credentials package has an experimental two-line reader that extracts a value from a context via the internal credentials package's own context accessor, type-asserts it to the exported struct that carries per-address attributes supplied by the resolver or balancer down to a transport credential's dialing-time negotiation, and returns that struct's zero value when nothing of that type is present. It sits directly after the declaration of that attribute-carrying struct and before the helper that compares a connection's security level. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "credentials/credentials.go::ClientHandshakeInfoFromContext",
     "exhaustive": true,
     "expected_json": {
@@ -90,7 +90,7 @@
     "id": "gg-alts-counter-peer-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "The ALTS record-protocol connection package keeps a few tiny counter helpers in a shared utilities file. One of them takes a raw sequence-counter byte slice and reports which end of the connection owns it: if the high bit of the counter's final byte is set it returns the server end, otherwise the client end. It is the inverse of the two constructors in the same file that set that same high bit when initialising outgoing and incoming counters. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "The ALTS record-protocol connection package keeps a few tiny counter helpers in a shared utilities file. One of them takes a raw sequence-counter byte slice and reports which end of the connection owns it: if the high bit of the counter's final byte is set it returns the server end, otherwise the client end. It is the inverse of the two constructors in the same file that set that same high bit when initialising outgoing and incoming counters. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "credentials/alts/internal/conn/utils.go::CounterSide",
     "exhaustive": true,
     "expected_json": {
@@ -132,7 +132,7 @@
     "id": "gg-metadata-add-values-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "The metadata package's map-based header type has a method that adds extra values for a key without discarding what is already stored there: it returns immediately when no values are supplied, lowercases the key, and extends the existing slice held at that key with the new values. It sits between the method that replaces a key's whole value slice and the one that drops a key entirely, and its doc comment stresses that the key is lowercased before storing. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "The metadata package's map-based header type has a method that adds extra values for a key without discarding what is already stored there: it returns immediately when no values are supplied, lowercases the key, and extends the existing slice held at that key with the new values. It sits between the method that replaces a key's whole value slice and the one that drops a key entirely, and its doc comment stresses that the key is lowercased before storing. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "metadata/metadata.go::Append",
     "exhaustive": true,
     "expected_json": {
@@ -173,7 +173,7 @@
     "id": "gg-resolver-fallback-scheme-reader-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "The resolver package exposes a one-line accessor that returns the package-level variable holding the scheme applied when a dial target has no registered scheme of its own. It is the read counterpart of the initialisation-time setter just above it, which overwrites that variable and also records in an internal package that the user changed it; the doc comment notes the value seen by the legacy dialing entry point versus the \"dns\" fallback used by the newer client constructor. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "The resolver package exposes a one-line accessor that returns the package-level variable holding the scheme applied when a dial target has no registered scheme of its own. It is the read counterpart of the initialisation-time setter just above it, which overwrites that variable and also records in an internal package that the user changed it; the doc comment notes the value seen by the legacy dialing entry point versus the \"dns\" fallback used by the newer client constructor. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "resolver/resolver.go::GetDefaultScheme",
     "exhaustive": true,
     "expected_json": {
@@ -214,7 +214,7 @@
     "id": "gg-header-allowlist-predicate-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "In internal/transport/http_util.go there is a tiny unexported predicate over a single HTTP/2 header name whose entire body is a two-arm switch: it answers true only for \":authority\" and \"user-agent\", the two protocol-owned names that must still be surfaced to users as metadata, and false for everything else. It is always consulted together with the sibling predicate that classifies a name as protocol-owned, to carve out that exception. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "In internal/transport/http_util.go there is a tiny unexported predicate over a single HTTP/2 header name whose entire body is a two-arm switch: it answers true only for \":authority\" and \"user-agent\", the two protocol-owned names that must still be surfaced to users as metadata, and false for everything else. It is always consulted together with the sibling predicate that classifies a name as protocol-owned, to carve out that exception. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "internal/transport/http_util.go::isWhitelistedHeader",
     "exhaustive": true,
     "expected_json": {
@@ -259,7 +259,7 @@
     "id": "gg-deadline-string-parse-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "A helper in internal/transport/http_util.go turns the wire form of an RPC deadline into a time.Duration: the input is at most eight digits followed by a one-character unit suffix (H, M, S, m, u or n), and it errors out with %q-formatted messages when the string is shorter than two bytes, longer than nine bytes, or carries an unrecognised unit. It parses the digits with strconv.ParseUint, multiplies by the unit's duration, and clamps hour-scale values that would overflow math.MaxInt64 to the largest representable duration. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "A helper in internal/transport/http_util.go turns the wire form of an RPC deadline into a time.Duration: the input is at most eight digits followed by a one-character unit suffix (H, M, S, m, u or n), and it errors out with %q-formatted messages when the string is shorter than two bytes, longer than nine bytes, or carries an unrecognised unit. It parses the digits with strconv.ParseUint, multiplies by the unit's duration, and clamps hour-scale values that would overflow math.MaxInt64 to the largest representable duration. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "internal/transport/http_util.go::decodeTimeout",
     "exhaustive": true,
     "expected_json": {
@@ -304,7 +304,7 @@
     "id": "gg-compressor-registry-add-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "A short exported function in encoding/encoding.go stores a compression codec in the package-level map keyed by the codec's own reported name, and additionally appends that name to the shared slice of advertised compression names kept in internal/grpcutil when it is not already listed there. Its doc comment says it is not thread-safe, that it must only run during program start-up, and that the last registration for a given name wins. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "A short exported function in encoding/encoding.go stores a compression codec in the package-level map keyed by the codec's own reported name, and additionally appends that name to the shared slice of advertised compression names kept in internal/grpcutil when it is not already listed there. Its doc comment says it is not thread-safe, that it must only run during program start-up, and that the last registration for a given name wins. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "encoding/encoding.go::RegisterCompressor",
     "exhaustive": true,
     "expected_json": {
@@ -353,7 +353,7 @@
     "id": "gg-http2-frame-plumbing-ctor-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "An unexported constructor in internal/transport/http_util.go wraps an io.ReadWriter connection into the struct that owns an HTTP/2 frame encoder plus its buffered writer, source and memory pool. It floors a negative write-buffer size to zero, builds a buffered source over the connection, optionally takes a shared write pool from the size-keyed pool map, creates the buffered writer, then caps the largest acceptable incoming frame, opts into frame reuse to reduce garbage, applies a maximum header list size and installs an hpack decoder for meta-headers. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "An unexported constructor in internal/transport/http_util.go wraps an io.ReadWriter connection into the struct that owns an HTTP/2 frame encoder plus its buffered writer, source and memory pool. It floors a negative write-buffer size to zero, builds a buffered source over the connection, optionally takes a shared write pool from the size-keyed pool map, creates the buffered writer, then caps the largest acceptable incoming frame, opts into frame reuse to reduce garbage, applies a maximum header list size and installs an hpack decoder for meta-headers. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "internal/transport/http_util.go::newFramer",
     "exhaustive": true,
     "expected_json": {
@@ -403,7 +403,7 @@
     "id": "gg-outbound-trace-adapter-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "A one-line exported constructor in stats/opentelemetry/internal/tracing/carrier.go wraps a context.Context in the text-map adapter meant for the send side of an RPC and returns a pointer to it. The type it builds is the one whose Set appends a key/value pair to the context's outbound metadata, whose Keys enumerates that same outbound metadata, and whose Get does nothing but log an error because it is not usable in that direction. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "A one-line exported constructor in stats/opentelemetry/internal/tracing/carrier.go wraps a context.Context in the text-map adapter meant for the send side of an RPC and returns a pointer to it. The type it builds is the one whose Set appends a key/value pair to the context's outbound metadata, whose Keys enumerates that same outbound metadata, and whose Get does nothing but log an error because it is not usable in that direction. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "stats/opentelemetry/internal/tracing/carrier.go::NewOutgoingCarrier",
     "exhaustive": true,
     "expected_json": {
@@ -448,7 +448,7 @@
     "id": "gg-server-cert-pair-loader-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "A four-line exported function in credentials/tls.go builds server-side transport credentials from two filesystem paths: it loads an X.509 certificate and its private key with tls.LoadX509KeyPair, returns that error unchanged on failure, and otherwise puts the loaded certificate as the sole entry of a tls.Config certificate list and hands that config to the package's generic constructor for TLS credentials. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "A four-line exported function in credentials/tls.go builds server-side transport credentials from two filesystem paths: it loads an X.509 certificate and its private key with tls.LoadX509KeyPair, returns that error unchanged on failure, and otherwise puts the loaded certificate as the sole entry of a tls.Config certificate list and hands that config to the package's generic constructor for TLS credentials. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "credentials/tls.go::NewServerTLSFromFile",
     "exhaustive": true,
     "expected_json": {
@@ -493,7 +493,7 @@
     "id": "gg-keepalive-client-option-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "In the root package of this Go corpus, an exported constructor returns a client-side connection option that stores a keepalive.ClientParameters struct onto the connect options used when a new client connection is built. Before it builds that option it compares the parameters' ping interval field against internal.KeepaliveMinPingTime, and when the interval is below that floor it logs a warning about adjusting the keepalive ping interval to the minimum period and raises the field to that floor. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "In the root package of this Go corpus, an exported constructor returns a client-side connection option that stores a keepalive.ClientParameters struct onto the connect options used when a new client connection is built. Before it builds that option it compares the parameters' ping interval field against internal.KeepaliveMinPingTime, and when the interval is below that floor it logs a warning about adjusting the keepalive ping interval to the minimum period and raises the field to that floor. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "dialoptions.go::WithKeepaliveParams",
     "exhaustive": true,
     "expected_json": {
@@ -538,7 +538,7 @@
     "id": "gg-transport-io-error-predicate-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "In internal/transport/http_util.go, a one-line unexported predicate takes an error and reports whether that error, anywhere in its unwrap chain, is the file's tiny private error wrapper type that marks a failure as having come from the network connection itself. It answers by passing errors.As a pointer to a zero value of that wrapper type, and its companion in the same file produces such a wrapped error from a non-nil error. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "In internal/transport/http_util.go, a one-line unexported predicate takes an error and reports whether that error, anywhere in its unwrap chain, is the file's tiny private error wrapper type that marks a failure as having come from the network connection itself. It answers by passing errors.As a pointer to a zero value of that wrapper type, and its companion in the same file produces such a wrapped error from a non-nil error. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "internal/transport/http_util.go::isIOError",
     "exhaustive": true,
     "expected_json": {
@@ -583,7 +583,7 @@
     "id": "gg-alts-counter-from-bytes-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "In credentials/alts/internal/conn/utils.go, an exported helper builds an ALTS 96-bit little-endian sequence counter struct out of bytes handed in by the caller: it records the given overflow length on the named result, copies the supplied slice into the struct's fixed-size array, and returns that named result with a bare return. Unlike the two constructors above it in the same file, it derives nothing from which side of the connection the counter belongs to. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "In credentials/alts/internal/conn/utils.go, an exported helper builds an ALTS 96-bit little-endian sequence counter struct out of bytes handed in by the caller: it records the given overflow length on the named result, copies the supplied slice into the struct's fixed-size array, and returns that named result with a bare return. Unlike the two constructors above it in the same file, it derives nothing from which side of the connection the counter belongs to. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "credentials/alts/internal/conn/utils.go::CounterFromValue",
     "exhaustive": true,
     "expected_json": {
@@ -629,7 +629,7 @@
     "id": "gg-control-frame-queue-ctor-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "In internal/transport/controlbuf.go, an unexported four-line constructor allocates the queue that passes control frames to the loopy writer. It returns a pointer to a freshly built struct whose wakeup channel is made with a single slot of buffering, whose queued-frame list starts as an empty itemList, and whose done field is the caller-supplied receive-only channel that closes when the transport is finished. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "In internal/transport/controlbuf.go, an unexported four-line constructor allocates the queue that passes control frames to the loopy writer. It returns a pointer to a freshly built struct whose wakeup channel is made with a single slot of buffering, whose queued-frame list starts as an empty itemList, and whose done field is the caller-supplied receive-only channel that closes when the transport is finished. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "internal/transport/controlbuf.go::newControlBuffer",
     "exhaustive": true,
     "expected_json": {
@@ -681,7 +681,7 @@
     "id": "gg-listener-accept-loop-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "In the root package of this corpus, an exported method on the type that hosts registered gRPC handlers takes a net.Listener, blocks, and returns an error. It marks the receiver as having started accepting; if the receiver was already shut down it closes the listener and returns the package's already-stopped sentinel error. Otherwise it registers a listen socket with channelz and loops on Accept, sleeping with a delay that doubles from 5ms up to one second on temporary accept failures and handing each accepted raw connection to its own goroutine. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "In the root package of this corpus, an exported method on the type that hosts registered gRPC handlers takes a net.Listener, blocks, and returns an error. It marks the receiver as having started accepting; if the receiver was already shut down it closes the listener and returns the package's already-stopped sentinel error. Otherwise it registers a listen socket with channelz and loops on Accept, sleeping with a delay that doubles from 5ms up to one second on temporary accept failures and handing each accepted raw connection to its own goroutine. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "server.go::Serve",
     "exhaustive": true,
     "expected_json": {
@@ -727,7 +727,7 @@
     "id": "gg-trace-rpc-label-prefix-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "In the root package's file that defines gRPC's optional golang.org/x/net/trace instrumentation types, an unexported one-argument string function normalizes a fully qualified RPC path into the grouping label used for event logs: it trims any leading slash and then cuts the remaining string at the next slash, so that \"/pkg.Service/GetFoo\" collapses to \"pkg.Service\". It is a pure string transformation with no dependencies beyond the standard strings package. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "In the root package's file that defines gRPC's optional golang.org/x/net/trace instrumentation types, an unexported one-argument string function normalizes a fully qualified RPC path into the grouping label used for event logs: it trims any leading slash and then cuts the remaining string at the next slash, so that \"/pkg.Service/GetFoo\" collapses to \"pkg.Service\". It is a pure string transformation with no dependencies beyond the standard strings package. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "trace.go::methodFamily",
     "exhaustive": true,
     "expected_json": {
@@ -772,7 +772,7 @@
     "id": "gg-rpc-util-marshal-helper-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "The root package's RPC utility file defines an unexported two-argument helper that serializes an arbitrary message value into a buffer slice using the supplied base codec. A nil message produces a nil slice and no error; a marshaling failure is returned as an Internal status error mentioning marshaling; and a serialized result longer than the maximum uint32 is freed and rejected with a ResourceExhausted status error describing a message that is too large. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "The root package's RPC utility file defines an unexported two-argument helper that serializes an arbitrary message value into a buffer slice using the supplied base codec. A nil message produces a nil slice and no error; a marshaling failure is returned as an Internal status error mentioning marshaling; and a serialized result longer than the maximum uint32 is freed and rejected with a ResourceExhausted status error describing a message that is too large. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "rpc_util.go::encode",
     "exhaustive": true,
     "expected_json": {
@@ -822,7 +822,7 @@
     "id": "gg-alts-recv-sequence-ctor-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "In the small utilities file of the ALTS record-protocol connection package, an exported constructor returns a freshly initialized sequence counter used to check the ordering of frames received from the peer. It stores the supplied overflow length and, when the local endpoint is the client side, pre-sets the little-endian high bit of the counter's last byte, because the peer stamps that bit on the messages it produces; the returned value is the package's plain counter struct, not a pointer. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "In the small utilities file of the ALTS record-protocol connection package, an exported constructor returns a freshly initialized sequence counter used to check the ordering of frames received from the peer. It stores the supplied overflow length and, when the local endpoint is the client side, pre-sets the little-endian high bit of the counter's last byte, because the peer stamps that bit on the messages it produces; the returned value is the package's plain counter struct, not a pointer. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "credentials/alts/internal/conn/utils.go::NewInCounter",
     "exhaustive": true,
     "expected_json": {
@@ -867,7 +867,7 @@
     "id": "gg-endpointsharding-picker-state-accessor-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "The endpoint-sharding balancer package exports a one-argument accessor that takes a balancer picker and type-asserts it to the package's own aggregating picker, the one that delegates picks round-robin across its children and carries a slice of per-child status records alongside those delegates. On a successful assertion it returns that slice; for any other picker implementation it returns nil. Petiole policies layered on top of endpoint sharding use it to recover the per-endpoint status that accompanies an aggregated picker. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "The endpoint-sharding balancer package exports a one-argument accessor that takes a balancer picker and type-asserts it to the package's own aggregating picker, the one that delegates picks round-robin across its children and carries a slice of per-child status records alongside those delegates. On a successful assertion it returns that slice; for any other picker implementation it returns nil. Petiole policies layered on top of endpoint sharding use it to recover the per-endpoint status that accompanies an aggregated picker. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "balancer/endpointsharding/endpointsharding.go::ChildStatesFromPicker",
     "exhaustive": true,
     "expected_json": {
@@ -917,7 +917,7 @@
     "id": "gg-server-service-desc-entry-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "An exported method on the root package's server type takes a service descriptor and an implementation value and adds the pair to the server's table of served services. When the implementation value is non-nil it first uses reflection to verify that the value satisfies the handler interface type named by the descriptor, fatally logging a message about a handler type that does not satisfy the interface otherwise, and then delegates to the unexported routine that takes the server mutex, refuses duplicates and builds the per-method information map. The generated stubs call it, and using it after the accept loop has begun is fatal. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "An exported method on the root package's server type takes a service descriptor and an implementation value and adds the pair to the server's table of served services. When the implementation value is non-nil it first uses reflection to verify that the value satisfies the handler interface type named by the descriptor, fatally logging a message about a handler type that does not satisfy the interface otherwise, and then delegates to the unexported routine that takes the server mutex, refuses duplicates and builds the per-method information map. The generated stubs call it, and using it after the accept loop has begun is fatal. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "server.go::RegisterService",
     "exhaustive": true,
     "expected_json": {
@@ -967,7 +967,7 @@
     "id": "gg-pickfirst-health-optin-attribute-callers",
     "category": "direct_caller_lookup",
     "set": "dev",
-    "question": "The pick-first balancer package exports an experimental one-argument function that takes a resolver state by value, stores a true boolean under an attribute key whose type is an unexported empty struct, and returns the updated state. The attribute is how a parent policy opts the leaf pick-first child into the generic health-reporting path used for client-side health checking and outlier detection. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name.",
+    "question": "The pick-first balancer package exports an experimental one-argument function that takes a resolver state by value, stores a true boolean under an attribute key whose type is an unexported empty struct, and returns the updated state. The attribute is how a parent policy opts the leaf pick-first child into the generic health-reporting path used for client-side health checking and outlier detection. Count only calls made from outside the file that defines it, and name each caller once even if a file defines several methods with that name. Name every function or method in the corpus that calls it, each as path::name. Test functions count as callers; name them too.",
     "helper": "balancer/pickfirst/pickfirst.go::EnableHealthListener",
     "exhaustive": true,
     "expected_json": {

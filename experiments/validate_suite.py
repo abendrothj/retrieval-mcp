@@ -84,6 +84,12 @@ def check_structure(task, corpus):
     return problems
 
 
+# Test-file conventions across the six indexed families: Go `_test.go`, Python `test_*.py` and
+# `*_test.py`, Java `*Test.java`, JS/TS `*.test.ts` and `*.spec.js`, and any `tests/` directory.
+TEST_FILE = re.compile(r"(^|/)(tests?|testing)/|(^|/)test_[^/]*$|"
+                       r"(_test|[._-]test|[._-]spec|Test|Tests)\.[^/.]+$")
+
+
 def qualified(identity):
     return isinstance(identity, str) and "::" in identity
 
@@ -199,6 +205,16 @@ def check_question(task, index, counts, corpus):
                        f"{entry_path} defines {entry_leaf} "
                        f"{counts[entry_leaf][entry_path]} times, so the caller set cannot name "
                        f"which one calls {name}; an exhaustive answer is penalised as extras")
+        # Whether a test function counts as a caller is a convention the corpus cannot settle, and
+        # a question that leaves it open is scored by a coin flip: across two repetitions of the Go
+        # study every arm named 64 of 72 test callers - the same 89% - and which questions the
+        # misses landed on decided the quality column. If the verified callers include test files,
+        # the question has to say whether they count.
+        if any(TEST_FILE.search(entry.split("::")[0]) for entry in direct) and \
+                "test" not in task["question"].lower():
+            report("answerability",
+                   f"callers of {name} include test files and the question does not say whether "
+                   f"they count; the gold decides silently and every arm is graded on a guess")
         claimed = {leafwise(identity) for identity in caller_identities if identity != helper}
         missing = claimed - verified
         if missing:

@@ -6,161 +6,15 @@ no database, no daemon, no API key, no embedding service unless you want one. On
 set it matched a specialist code-search MCP on answer quality while the agent spent **24% fewer
 input tokens** and carried **34% less context** — [the numbers](#the-result).
 
-## Install
+## Contents
 
-Two commands: get the binary, then tell your client about it.
-
-**1. Get the binary.**
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh | sh
-```
-
-Reading a script before running it is a reasonable position and this project is not going to argue
-it — but download it somewhere other than the repository you are about to register it in, because a
-file dropped in a checkout is exactly what the rest of this section promises not to leave there:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh \
-  -o /tmp/retrieval-mcp-install.sh
-sh /tmp/retrieval-mcp-install.sh
-```
-
-Either way it fetches a published checksum — the release's aggregate `SHA256SUMS`, or the
-per-archive `<archive>.tar.gz.sha256` that releases up to and including v0.1.4 carry instead —
-verifies the archive for your platform against the single record naming it, and refuses to extract
-on a mismatch, a missing record or a duplicate one. It then writes exactly one file —
-`retrieval-mcp` in `$HOME/.local/bin`, or wherever `RETRIEVAL_MCP_INSTALL_DIR` points — and nothing
-else: no shell startup file, no client configuration, nothing launched, nothing in your repository.
-`RETRIEVAL_MCP_VERSION=v0.1.5` installs a specific tag; the default is the latest release.
-
-It registers nothing unless asked. `RETRIEVAL_MCP_REGISTER=claude,codex` runs each client's own
-`mcp add` after installing — never an edit to their configuration files, and never a prompt,
-because a piped installer's stdin is the script itself and a prompt would silently consume it.
-`RETRIEVAL_MCP_SCOPE` picks `local` (this repository, the default, refused outside a git work
-tree) or `user` (one entry every project sees). A user-scope entry still reads whichever project
-is open, because `--root .` resolves against the directory the client launches the server in:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh |
-  RETRIEVAL_MCP_REGISTER=claude,codex RETRIEVAL_MCP_SCOPE=user sh
-```
-
-The entry it writes names `$HOME/.local/bin/retrieval-mcp` — the absolute path of the binary it just
-installed, so a registration done for you does not depend on that directory being on your `PATH`.
-The commands it prints for you to run by hand use the bare name, which is the same server as long as
-the install directory is on `PATH`.
-
-With a Rust toolchain, or with [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall) to
-fetch the same prebuilt archive without compiling:
-
-```sh
-cargo install retrieval-mcp     # builds from source; Rust 1.90+ and a C compiler
-cargo binstall retrieval-mcp    # downloads the release archive instead
-```
-
-**2. Register it with your client**, run inside the repository you want to query:
-
-```sh
-claude mcp add --transport stdio --scope local retrieval -- retrieval-mcp --root .   # Claude Code
-codex mcp add retrieval -- retrieval-mcp --root .                                    # Codex
-```
-
-That is the installation. Start a new session and the tools are there; `/mcp` in Claude Code or
-`codex mcp list` confirms it. Any other MCP client takes the entry directly:
-
-```json
-{
-  "mcpServers": {
-    "retrieval": {
-      "command": "retrieval-mcp",
-      "args": ["--root", "."]
-    }
-  }
-}
-```
-
-To give a whole team the server without anyone running a registration command, commit that same
-entry as `.mcp.json` at the project root — `claude mcp add --scope project …` writes it for you.
-Claude Code asks each contributor to approve a project-scoped server once, and it expands
-`${CLAUDE_PROJECT_DIR:-.}` in an entry's `args`, so a committed entry can name the project root
-rather than depending on the directory the client happened to launch in:
-
-```json
-{
-  "mcpServers": {
-    "retrieval": {
-      "command": "retrieval-mcp",
-      "args": ["--root", "${CLAUDE_PROJECT_DIR:-.}"]
-    }
-  }
-}
-```
-
-MCP servers are declared in configuration and started by the client on demand — you never launch
-this yourself, and it exits with the session. `--root` is the only repository the session can read
-and is fixed at startup, so a server entry is per-project. It may be relative — resolved once
-against the working directory the client launches the server in, which for Claude Code and Codex is
-the project you opened — or absolute if you would rather not depend on that. Nothing is written to
-your repository, no index is built ahead of time, and the first structural call builds an in-memory
-snapshot that dies with the process. [Connect a client](#connect-a-client) has the options worth
-adding.
-
-**Manual download.** Prebuilt tarballs are on
-[the releases page](https://github.com/abendrothj/retrieval-mcp/releases) — macOS and Linux, x86-64
-and arm64, with both a glibc and a static musl build for Linux — each with a `.sha256` beside it,
-and from v0.1.5 all of them together in one `SHA256SUMS`. Verify against that manifest by hand
-before extracting, with both files in the same directory:
-
-```sh
-archive=retrieval-mcp-v0.1.5-aarch64-apple-darwin.tar.gz
-grep "$archive" SHA256SUMS | shasum -a 256 -c -   # sha256sum -c - on Linux; expect "$archive: OK"
-mkdir -p ~/.local/bin && tar -xzf "$archive"
-install "${archive%.tar.gz}/retrieval-mcp" ~/.local/bin/
-```
-
-There is nothing else to install: no runtime dependency, no service, no API key. Search is
-ripgrep's own engine linked into the binary, not a `rg` subprocess.
-
-**Optional: the agent skill.** `npx skills add abendrothj/retrieval-mcp` installs
-[`skills/retrieval-mcp/SKILL.md`](skills/retrieval-mcp/SKILL.md), a one-page routing guide telling
-an agent which of the four tools a given question wants and what each response already answers. The
-server advertises the same routing in its own instructions and tool descriptions; the skill is the
-copy an agent reads before it calls anything, and nothing depends on it.
-
-### Update and uninstall
-
-Re-run the installer — it verifies the new archive the same way and replaces the binary in place —
-or `cargo install --force retrieval-mcp`, or `cargo binstall retrieval-mcp`. Client entries name the
-binary rather than a version, so nothing needs re-registering; `retrieval-mcp --version` reports
-which build a client is launching. Removal is two commands:
-
-```sh
-rm ~/.local/bin/retrieval-mcp   # or: cargo uninstall retrieval-mcp
-claude mcp remove retrieval     # or: codex mcp remove retrieval
-```
-
-That is the entire footprint: no daemon to stop, no cache or state directory to clear, no index to
-delete, no file of any kind left in the repositories you queried. The single exception is opt-in and
-named as such — the optional Ollama adapter caches embeddings in `<repository>/.retrieval-mcp/`
-unless `RETRIEVAL_SEMANTIC_CACHE_DIR` sent them elsewhere, as
-[its documentation](examples/OLLAMA_BACKEND.md) says.
-
-## Quickstart
-
-```sh
-# Run it against any checkout, from that checkout, with the installed binary on PATH.
-# This is the call your agent will make, and exactly what it gets back:
-printf '%s\n' \
-  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"find_callers","arguments":{"name":"build"}}}' \
-  | retrieval-mcp --root . 2>/dev/null | tail -1
-```
-
-That is the payload an agent receives: every call site of `build` with the definition enclosing it
-and a complete count, from one call, against the current files on disk. It is a smoke check — a
-wired-up client never needs it. From a clone rather than an install, `cargo build --locked --release
---bin retrieval-mcp` first and call `./target/release/retrieval-mcp` instead.
+[What it is](#what-it-is) · [The result](#the-result) · [Install](#install) ·
+[Quickstart](#quickstart) · [Connect a client](#connect-a-client) · [Tools](#tools) ·
+[Limits that change your answer](#limits-that-change-your-answer) ·
+[Troubleshooting](#troubleshooting) ·
+[Platforms, updating, and removal](#platforms-updating-and-removal) ·
+[Build, test, and code layout](#build-test-and-code-layout) ·
+[Research options](#research-options--not-needed-to-use-the-server)
 
 ## What it is
 
@@ -228,6 +82,135 @@ of it: **correct evidence reduces recovery turns.** The largest efficiency win m
 freeze came from a caller row that started telling the truth about a call site, not from a smaller
 payload, a richer result, or more retrieval machinery.
 
+## Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh | sh
+```
+
+That writes exactly one file — `retrieval-mcp` in `$HOME/.local/bin`, or wherever
+`RETRIEVAL_MCP_INSTALL_DIR` points — after verifying the release archive against a published
+checksum. No shell startup file, no client configuration, nothing launched, nothing in your
+repository. With a Rust toolchain, `cargo install retrieval-mcp` builds it instead, and
+[`cargo binstall`](https://github.com/cargo-bins/cargo-binstall)` retrieval-mcp` fetches the same
+prebuilt archive without compiling.
+
+Then tell your client, from any directory — the entry carries no path:
+
+```sh
+claude mcp add --transport stdio --scope user retrieval -- retrieval-mcp   # Claude Code
+codex mcp add retrieval -- retrieval-mcp                                   # Codex
+```
+
+Start a new session and the four tools are there. Any other MCP client takes the entry directly:
+
+```json
+{"mcpServers": {"retrieval": {"command": "retrieval-mcp"}}}
+```
+
+That is the installation. [Connect a client](#connect-a-client) has the scopes, the committed
+`.mcp.json` form, the operator options, and how a session decides which repository it reads;
+[Platforms, updating, and removal](#platforms-updating-and-removal) has the checksum policy, the
+manual download, the supported targets, and how to take it back off.
+
+## Quickstart
+
+```sh
+# Run it against any checkout, from that checkout, with the installed binary on PATH.
+# No --root: with no client roots to ask for, the server reads the directory it was started in.
+# This is the call your agent will make, and exactly what it gets back:
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"find_callers","arguments":{"name":"launch_directory"}}}' \
+  | retrieval-mcp 2>/dev/null | tail -1
+```
+
+Run inside this repository, the `structuredContent` of that reply reads — line, column and excerpt
+elided here because they move with every edit above the call site, everything else checked against
+a live call by `experiments/check_docs.py`:
+
+```json
+{
+  "results": [
+    {"path": "src/tools/mod.rs", "kind": "call", "name": "launch_directory",
+     "expression": "launch_directory", "caller": "resolve_root",
+     "resolution": "unique_name_candidate", "candidate_count": 1}
+  ],
+  "orientation": {"symbol": "launch_directory", "returned_relation": "callers",
+                  "incoming_callers": 1, "outgoing_callees": 9},
+  "symbol_status": "indexed"
+}
+```
+
+Each call site with the definition enclosing it, the relationship counted in both directions, and
+a coverage block saying what the snapshot read — from one call, against the files on disk. It is a
+smoke check; a wired-up client never needs it. From a clone rather than an install, run `cargo
+build --locked --release --bin retrieval-mcp` first and call `./target/release/retrieval-mcp`
+instead.
+
+## Connect a client
+
+The two registration commands are in [Install](#install); this section is what they write and what
+else can be done with it. Check the connection with `/mcp` in Claude Code, which connects and lists
+the tools; `codex mcp list` prints the configured entry without contacting it, so Codex confirms on
+its next session. Claude options belong before the server name and server arguments follow `--`.
+Codex also accepts the entry directly:
+
+```toml
+[mcp_servers.retrieval]
+command = "retrieval-mcp"
+tool_timeout_sec = 150
+```
+
+`--scope user` writes one entry every project sees; `--scope local` confines it to the repository
+you ran it in. To give a whole team the server without anyone running a registration command,
+commit the same pathless entry as `.mcp.json` at the project root — `claude mcp add --scope
+project …` writes it for you, and Claude Code asks each contributor to approve a project-scoped
+server once. Use an absolute path to `./target/release/retrieval-mcp` if you built from a clone.
+
+**Which repository a session reads.** MCP servers are declared in configuration and started by the
+client on demand — you never launch this yourself, and it exits with the session. The session reads
+exactly one repository, and the client decides which: on the first tool call the server asks for
+the client's roots and takes the first one, and a client that reports none — Codex 0.154.0 declares
+no roots capability, where Claude Code 2.1.261 declares `roots.listChanged` — leaves the directory
+the client launched the server in, which both of them measurably set to the project you opened. Two
+launch directories are refused by name rather than indexed: your home directory and the filesystem
+root. `--root PATH` overrides all of that and is never asked about, which is how a session reads a
+repository the client did not open — a vendored tree, a sibling checkout, a corpus under test.
+Nothing is written to your repository, no index is built ahead of time, and the first structural
+call builds an in-memory snapshot that dies with the process.
+
+| Option | Effect |
+|---|---|
+| `--root <dir>` | Pins the one repository the session reads, canonicalised once, never overridden by the client. Optional: without it the first tool call takes the client's first root, or the directory the client launched the server in when it reports none, and a roots-changed notification makes the next call resolve again. A home directory or filesystem root is refused rather than indexed |
+| `--timeout-seconds <n>` | 1–600, default 30; what normally bounds indexing on a large repository |
+| `--log-file <path>` | Append invocation events as JSONL; the parent directory must already exist |
+| `--run-id <id>` | Operator label recorded in every event, for matching a run to its trials |
+| `--no-ignore` | Search and index ignored files too; `.git`, `target` and hidden files stay excluded |
+| `--tools <list>` | Restrict the session's tools — see [Research options](#research-options--not-needed-to-use-the-server) |
+| `--ranker <lexical\|semantic\|hybrid>` | Ranking behind `search_concept`; the last two need `--semantic-command` |
+
+The server waits for an MCP client on stdin; it is not an interactive terminal application. Stdout
+carries MCP messages only, and logs go to stderr. Concurrent calls are answered independently:
+requests are handled as they arrive, the structural snapshot is built once behind a `OnceCell`
+however many callers race it, and every accepted request is answered even if the client closes stdin
+mid-build — pinned by four stdio tests that pipeline 24 calls without awaiting replies, race eight
+structural calls against one lazy build, cancel a call while its build runs, and close stdin with
+nine requests in flight. Client setup follows the official
+[Claude Code](https://code.claude.com/docs/en/mcp) and
+[Codex](https://developers.openai.com/codex/mcp) MCP documentation; the project tests the wire
+protocol without modifying your agent configuration or running paid model sessions.
+
+**Invocation logs.** `--log-file` writes JSONL with `schema_version:1`, an event
+(`tool_start` / `tool_end`), epoch-millisecond timestamp, session ID, optional run ID, MCP request
+ID, per-session sequence, the tool set, tool name and argument object. End events add latency
+(including first-call indexing), result count, retrieval bytes, MCP response bytes, errors, returned
+locations, structural coverage and semantic backend name. Interrupted handlers emit a cancellation
+marker; abrupt termination can leave an unmatched start. Files are append-only, never truncated,
+mode 0600 on Unix, without rotation or crash-durable `fsync`; write failures are reported on stderr
+while retrieval continues. Response bodies are omitted, but arguments can still contain sensitive
+search strings or paths — keep experiment logs private, and use a separate file per run.
+
 ## Tools
 
 The four tools a default session gets are `search_exact`, `read_source`, `find_callers` and
@@ -256,8 +239,8 @@ agent to read before it calls anything.
 
 All tool inputs reject unknown fields. Results include both MCP `structuredContent` and a JSON text
 equivalent for compatibility, plus output schemas. Line numbers are 1-based and ranges inclusive.
-Search pages default to 20 results, allow 1–100, and use `offset` / `next_offset`. There is no
-expensive total-count promise.
+`search_exact` pages default to 20 results and `search_concept` to 10; both allow 1–100 and use
+`offset` / `next_offset`. There is no expensive total-count promise.
 
 `search_exact` is case-sensitive literal search unless `regex:true` or `case_sensitive:false` is
 supplied. Results represent matching lines, not individual occurrences; excerpts are centered near
@@ -380,73 +363,110 @@ against 3.7 s. Resident cost is roughly 150 KB per indexed file — about 0.35 G
 for VS Code, both fully covered. A repository large enough to truncate says so; narrow `--root`,
 raise `--timeout-seconds`, or replace the index behind `StructuralBackend`.
 
-## Connect a client
+## Troubleshooting
+
+Every failure below is one the server states rather than hides; the fix is what to do about it.
+
+| What you see | What it means | What to do |
+|---|---|---|
+| `/mcp` reports the server failed to connect | the client cannot execute `retrieval-mcp` | check `retrieval-mcp --version` in the same shell; if that fails, `$HOME/.local/bin` is not on your `PATH`, so register the absolute path instead |
+| The tools are absent in a session you just configured | client entries load at session start | start a new session; `claude mcp get retrieval` or `codex mcp list` shows what was written |
+| `launched this server in your home directory` | the client started the server somewhere that is not a repository, and a home directory is not a corpus anyone meant to index | pass `--root /path/to/repo` in the entry |
+| `this client declares roots but roots/list failed` | the client advertised roots and then refused to list them | pass `--root /path/to/repo`; the flag is never overridden |
+| `coverage.budget_truncated: true` | whole files were never read, so absence proves nothing | compare `indexed_files` with `eligible_files`, then narrow `--root` or raise `--timeout-seconds` |
+| `symbol_status: "unknown_symbol"` | the name is not in the index, so its empty page is not evidence | retry with one of the returned `nearest_indexed_names`, or `search_exact` |
+| `files_searched: 0` over a repository with files | ignore rules or the `path` scope emptied the corpus | widen `path`, or run with `--no-ignore` if the code under study is gitignored |
+| `response exceeds 64 KiB` | a single row is too large to return | lower `limit`, or narrow `path`; ordinary oversized pages are trimmed and paged instead |
+| `the semantic ranker needs a backend` | `--ranker semantic` or `hybrid` without `--semantic-command` | supply the adapter command, or stay on the default `lexical` ranker |
+
+Callers or definitions that you know exist but are missing from a result are usually not a bug:
+resolution is deliberately conservative, and [Limits that change your
+answer](#limits-that-change-your-answer) says exactly what is and is not resolved.
+
+## Platforms, updating, and removal
+
+Prebuilt binaries cover macOS and Linux on x86-64 and arm64, with a static musl build for Linux
+so the server runs in Alpine and distroless containers. **Windows is not supported**: the server
+has Unix-only paths — log files created 0600, process-group handling in the tests — that have
+never been exercised there, and an untested binary is not a claim this project makes. Under WSL
+the Linux binary works, and `cargo install retrieval-mcp` builds from source wherever the
+Tree-sitter grammars build.
+
+**What the installer verifies.** It fetches a published checksum — the release's aggregate
+`SHA256SUMS`, published from v0.1.5, or the per-archive `<archive>.tar.gz.sha256` that every
+release carries — checks the archive for your platform against the single record naming it, and
+refuses to extract on a mismatch, a missing record or a duplicate one. `RETRIEVAL_MCP_VERSION=v0.1.5`
+installs a specific tag; the default is the latest release. Reading the script first is a
+reasonable position, but download it somewhere other than the repository you are about to register
+it in:
 
 ```sh
-claude mcp add --transport stdio --scope local retrieval -- retrieval-mcp --root .   # Claude Code
-codex mcp add retrieval -- retrieval-mcp --root .                                    # Codex
+curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh \
+  -o /tmp/retrieval-mcp-install.sh
+sh /tmp/retrieval-mcp-install.sh
 ```
 
-Check the connection with `/mcp` in Claude Code or `codex mcp list`, then start a new session.
-Claude options belong before the server name; server arguments follow `--`. Codex also accepts the
-entry directly:
+It registers nothing unless asked. `RETRIEVAL_MCP_REGISTER=claude,codex` runs each client's own
+`mcp add` after installing — never an edit to their configuration files, and never a prompt,
+because a piped installer's stdin is the script itself and a prompt would silently consume it.
+`RETRIEVAL_MCP_SCOPE` picks `user` (one entry every project sees, the default) or `local` (this
+repository only, refused outside a git work tree). The entry it writes names
+`$HOME/.local/bin/retrieval-mcp`, the absolute path of the binary it just installed, so a
+registration done for you does not depend on that directory being on your `PATH`.
 
-```toml
-[mcp_servers.retrieval]
-command = "retrieval-mcp"
-args = ["--root", "."]
-tool_timeout_sec = 150
+**Manual download.** Tarballs are on
+[the releases page](https://github.com/abendrothj/retrieval-mcp/releases), each with a `.sha256`
+beside it and, from v0.1.5, all of them together in one `SHA256SUMS`. Verify against that manifest
+by hand before extracting, with both files in the same directory:
+
+```sh
+archive=retrieval-mcp-v0.1.5-aarch64-apple-darwin.tar.gz
+grep "$archive" SHA256SUMS | shasum -a 256 -c -   # sha256sum -c - on Linux; expect "$archive: OK"
+mkdir -p ~/.local/bin && tar -xzf "$archive"
+install "${archive%.tar.gz}/retrieval-mcp" ~/.local/bin/
 ```
 
-Substitute an absolute `--root` if you would rather not depend on the directory the client launches
-the server in, and an absolute path to `./target/release/retrieval-mcp` if you built from a clone.
-The options worth knowing:
+There is nothing else to install: no runtime dependency, no service, no API key. Search is
+ripgrep's own engine linked into the binary, not a `rg` subprocess.
 
-| Option | Effect |
-|---|---|
-| `--root <dir>` | Mandatory; the only repository the session can read, canonicalised once at startup |
-| `--timeout-seconds <n>` | 1–600, default 30; what normally bounds indexing on a large repository |
-| `--log-file <path>` | Append invocation events as JSONL; the parent directory must already exist |
-| `--run-id <id>` | Operator label recorded in every event, for matching a run to its trials |
-| `--no-ignore` | Search and index ignored files too; `.git`, `target` and hidden files stay excluded |
-| `--tools <list>` | Restrict the session's tools — see [Research options](#research-options--not-needed-to-use-the-server) |
-| `--ranker <lexical\|semantic\|hybrid>` | Ranking behind `search_concept`; the last two need `--semantic-command` |
+**Optional: the agent skill.** `npx skills add abendrothj/retrieval-mcp` installs
+[`skills/retrieval-mcp/SKILL.md`](skills/retrieval-mcp/SKILL.md), a one-page routing guide telling
+an agent which of the four tools a given question wants and what each response already answers. The
+server advertises the same routing in its own instructions and tool descriptions; the skill is the
+copy an agent reads before it calls anything, and nothing depends on it.
 
-The server waits for an MCP client on stdin; it is not an interactive terminal application. Stdout
-carries MCP messages only, and logs go to stderr. Concurrent calls are answered independently:
-requests are handled as they arrive, the structural snapshot is built once behind a `OnceCell`
-however many callers race it, and every accepted request is answered even if the client closes stdin
-mid-build — pinned by four stdio tests that pipeline 24 calls without awaiting replies, race eight
-structural calls against one lazy build, cancel a call while its build runs, and close stdin with
-nine requests in flight. Client setup follows the official
-[Claude Code](https://code.claude.com/docs/en/mcp) and
-[Codex](https://developers.openai.com/codex/mcp) MCP documentation; the project tests the wire
-protocol without modifying your agent configuration or running paid model sessions.
+**Update and removal.** Re-run the installer — it verifies the new archive the same way and
+replaces the binary in place — or `cargo install --force retrieval-mcp`, or `cargo binstall
+retrieval-mcp`. Client entries name the binary rather than a version, so nothing needs
+re-registering; `retrieval-mcp --version` reports which build a client is launching. Removal is two
+commands:
 
-**Invocation logs.** `--log-file` writes JSONL with `schema_version:1`, an event
-(`tool_start` / `tool_end`), epoch-millisecond timestamp, session ID, optional run ID, MCP request
-ID, per-session sequence, the tool set, tool name and argument object. End events add latency
-(including first-call indexing), result count, retrieval bytes, MCP response bytes, errors, returned
-locations, structural coverage and semantic backend name. Interrupted handlers emit a cancellation
-marker; abrupt termination can leave an unmatched start. Files are append-only, never truncated,
-mode 0600 on Unix, without rotation or crash-durable `fsync`; write failures are reported on stderr
-while retrieval continues. Response bodies are omitted, but arguments can still contain sensitive
-search strings or paths — keep experiment logs private, and use a separate file per run.
+```sh
+rm ~/.local/bin/retrieval-mcp   # or: cargo uninstall retrieval-mcp
+claude mcp remove retrieval     # or: codex mcp remove retrieval
+```
+
+That is the entire footprint: no daemon to stop, no cache or state directory to clear, no index to
+delete, no file of any kind left in the repositories you queried. The single exception is opt-in and
+named as such — the optional Ollama adapter caches embeddings in `<repository>/.retrieval-mcp/`
+unless `RETRIEVAL_SEMANTIC_CACHE_DIR` sent them elsewhere, as
+[its documentation](examples/OLLAMA_BACKEND.md) says.
 
 ## Build, test, and code layout
 
 Building requires Rust 1.90+ (tested with 1.96) and a C compiler for Tree-sitter. The binary needs
 nothing at runtime: ripgrep's `grep-searcher`, `grep-regex` and `ignore` crates are linked in, so
 there is no `rg` subprocess and no PATH dependency. The SDK is
-[`rmcp` 3.3.0](https://github.com/modelcontextprotocol/rust-sdk), the official Tokio-based Rust SDK;
-`Cargo.lock` pins the working dependency set, and the integration test negotiates MCP `2025-11-25`
-over real JSON-RPC subprocess calls.
+[`rmcp`](https://github.com/modelcontextprotocol/rust-sdk), the official Tokio-based Rust SDK —
+`Cargo.toml` requires 3.2.0, `Cargo.lock` pins the 3.3.0 it resolves to along with the rest of the
+working dependency set — and the integration tests negotiate MCP `2025-11-25` over real JSON-RPC
+subprocess calls.
 
 ```sh
 cargo build --locked --release --bin retrieval-mcp
-cargo test --locked --all-targets            # 29 library, 14 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 29 library, 19 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 216 tests
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 225 tests
 python3 experiments/check_docs.py            # the docs still describe the server that exists
 ```
 
@@ -513,7 +533,7 @@ them back, singly or together, which is also how an ablation arm is built:
 
 # Is inspect_symbol earning its place? Remove it and change nothing else.
 ./target/release/retrieval-mcp --root /path/to/repo \
-  --tools search_exact,read_source,find_symbol,find_callers,trace_dependencies
+  --tools search_exact,read_source,find_symbol,find_callers,trace_dependencies,search_concept
 
 # Grep-and-read baseline: two tools, no structural index and no concept search.
 ./target/release/retrieval-mcp --root /path/to/repo --tools search_exact,read_source
@@ -568,8 +588,9 @@ stale ranges fail the call. The server reads its own excerpts from current sourc
 backend-provided text, but it cannot verify that a backend's ranking reflects current contents.
 
 The subprocess has the operator's permissions: it is a trusted adapter, not a sandbox. Command
-timeouts default to 30 seconds and range from 1 to 600. Backend stdout is capped (1 MiB semantic,
-4 MiB lexical); stderr is capped at 64 KiB and not forwarded into tool results, and errors direct
+timeouts default to 30 seconds and range from 1 to 600. Backend stdout is capped at 1 MiB — the
+lexical ranker runs in process and starts nothing — and stderr is capped at 64 KiB and not
+forwarded into tool results, while errors direct
 the operator to run the adapter itself for diagnostics. Direct child processes are killed on timeout
 or cancellation; adapters are responsible for any descendants they spawn.
 
