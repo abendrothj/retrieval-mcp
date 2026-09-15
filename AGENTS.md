@@ -13,7 +13,7 @@ what keeps the published numbers true.
    criteria and decision rule go into a `preregistration.json` beside the run, written before the
    first trial. Criteria missed means the negative result is what gets published.
 3. **Every surprising result triggers an evaluator audit before an architectural interpretation.**
-   Seventeen harness defects were found that way; several had already produced believable findings.
+   Twenty-three harness defects were found that way; several had already produced believable findings.
 4. **A defect is not a feature.** A wrong output — a caller row naming a local `const` — is fixed on
    sight with a regression test. A capability is measured first.
 5. **One variable per arm.** Systems files are asserted to differ only in `id` and `server`; a
@@ -69,7 +69,7 @@ python3 experiments/check_docs.py
 
 ## Where the project stands
 
-Released `v0.1.2`; `v0.1.3` is written and unreleased. The default surface is four tools —
+Released `v0.1.5`; what shipped in each release is in `CHANGELOG.md`. The default surface is four tools —
 `search_exact`, `read_source`, `find_callers`, `search_concept` — with the lexical ranker; the
 other three are un-defaulted on replicated evidence. Shipped after the freeze: the TypeScript
 caller-attribution guard (isolated: source reads −74%, calls −30%, total input −39.5%, worst trial

@@ -67,7 +67,7 @@ genuinely do not encode — the enclosing definition of a call site — did one 
 `find_callers`, return a positive ledger; the other three failed their own claimed classes under
 replication and left the default surface.
 
-Running alongside all of it: seventeenseventeen defects in the measuring apparatus, several of which had already
+Running alongside all of it: twenty-three defects in the measuring apparatus, several of which had already
 produced convincing results. A stopping rule that looked like a free 22% saving, a treatment loss
 that looked like a premature stop, an arm whose payload metrics read zero, a 0.40 that looked like a
 noisy tool, and — in the held-out run itself — this server's only loss, which had actually named both
@@ -176,6 +176,23 @@ seed, wrong direction), `wrong_level` (right neighbourhood, wrong container/memb
 workable seed was visible and something else was invented), and `unavailable` (no workable seed was
 on screen). It also reports how far the chosen seed sits from gold, and replays the recorded action
 to measure what that surface actually returned in bytes.
+
+### The ranker bake-off, and where the semantic win actually lives
+
+**Description questions are a vocabulary problem, not an embedding problem.** A model-free ranker
+bake-off on 18 gradable coreutils questions put dense retrieval well ahead of BM25: recall@5 of
+12/18 semantic and 13/18 hybrid against 6/18 lexical. On a separate authored VS Code suite the same
+three rankers ran twice — once on the raw question, once on a frozen one-shot rewrite of it into
+code vocabulary. Rewriting moved BM25 from 3/15 to 9/15 at recall@5 (MRR 0.167 → 0.484) while dense
+moved 2/15 to 4/15 (0.144 → 0.273), so reformulated BM25 beat dense on every metric, reformulated
+or not. The expensive semantic work pays off in *query formation*, not in document ranking, which
+is why `lexical` is the default ranker and embeddings are an optional backend.
+
+**Grep-first habits are model-specific.** Running the same coreutils suite inside a real agent loop,
+DeepSeek V4 Flash scored 20/22 while rarely calling the semantic tool at all. Retrieval-engine
+differences were marginal in a tool-rich agent; corpus naming conventions dominated. Conclusions
+from an offline ranker bake-off do not survive contact with a different model's habits, which is
+why every finding in this record names the model it came from.
 
 ### The `inspect_symbol` A/B
 
