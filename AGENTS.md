@@ -80,27 +80,40 @@ python3 experiments/check_docs.py
 
 ## Where the project stands
 
-Released `v0.1.5`; what shipped in each release is in `CHANGELOG.md`. The default surface is four tools —
-`search_exact`, `read_source`, `find_callers`, `search_concept` — with the lexical ranker; the
-other three are un-defaulted on replicated evidence. Shipped after the freeze: the TypeScript
-caller-attribution guard (isolated: source reads −74%, calls −30%, total input −39.5%, worst trial
-−81%, quality unchanged), doc comments in concept chunks (offline MRR 0.126 → 0.234, no agent-level
-gain claimed), and five more languages — Go, Java, C, C++ and JavaScript — admitted only after a
-pre-registered audit against an independent reading of Cobra, Gson, Redis, LevelDB and ESLint
-(99/100 definitions, caller precision 0.92–1.00, recall 0.93–1.00). Rejected on evidence: markdown
-chunking, macro-argument callers, the schema diet, container fields, and dropping call rows from
-parser-error regions.
+Released `v0.1.5`; what shipped in each release is in `CHANGELOG.md`, and an unreleased section
+there describes the client-root work, the qualified-call fix and the routing filter. The default
+surface is four tools — `search_exact`, `read_source`, `find_callers`, `search_concept` — with the
+lexical ranker; the other three stay un-defaulted on replicated evidence.
 
-What the new languages cost, measured on an M4 Pro: the release binary grows 11.3 → 15.9 MB, a
-clean release build 37 → 47 s, and a cold Django snapshot 3.9 → 5.9 s — the last because 112
-JavaScript files are now indexed, of which four minified vendor bundles account for about 0.7 s.
-No model has run on any of the five: there is no agent-level claim for them, and making one needs
-a pre-registered suite and `--allow-model-usage`.
+The claim the evidence supports is **quality ties, input tokens 34–51% cheaper**, now on two
+independent corpora: the held-out Django suite (30 mixed-shape questions, 29/29/28, −33.5% against
+native) and an etcd client corpus (30 mixed-shape questions, three repetitions, 270 trials, 87/89/89,
+−44.6% against native and −29.2% against zvec-grep). Quality has never separated in either
+direction across 468 scored trials; the token gap has never failed to replicate. Two studies missed
+their registered quality criterion by a single answer and both are published as misses.
 
-Three open threads, none urgent: confirm the repaired `cu-callers-02` wording (6 trials), build
-a caller suite around the `vs-callers-enter-rule-resolution` ambiguity, whose instability (3/3, 3/3,
-1/3, 0/3, 3/3, 3/3) is the only genuine decision boundary the current questions expose, and decide
-whether `v0.1.3` ships before or after an end-to-end run in one of the new languages.
+Everything measured lives under `runs/`, which is gitignored and therefore local: each study
+directory holds its `preregistration.json`, per-repetition reports, and a note for any chunk that
+was stopped or failed. `experiments/README.md` carries the prose record for anyone without those
+bytes, and the corpora are re-cuttable from `corpora/` against the fingerprints in each
+`corpus-manifest.json`.
+
+Open threads:
+
+- **One repetition is owed.** `runs/instructions-ab-20260916` tests two handshake sentences against
+  a control, one variable each, on the 39-question stratified caller suite. Repetitions 1 and 2 are
+  complete; the third stopped twice on the provider's capacity error and neither partial is
+  scoreable. Standing paired result on the hard stratum: `verbatim` 3 wins, 0 losses, median +10.1k
+  tokens; `disambiguate` 3 wins, 1 loss, median +7.8k. Neither meets the stability rule, which needs
+  three repetitions, so neither ships. The command is in `STATE.md`.
+- **`runs/etcd-caller-20260915` is built, gated and deliberately unrun**: 39 questions, 27
+  attribution-hard and 12 local controls, enriched 2.4× over its corpus's own 38% base rate. It
+  answers "does attribution change answers, or only cost", and that question has not been worth
+  $16.
+- **No agent-level claim for the client-root work.** It is covered by an offline differential (28
+  tool payloads identical across pinned, launch-directory and client-roots resolution), six stdio
+  tests and one live Codex session. The benchmark pins `--root`, so the new path was never exercised
+  under a model.
 
 ## The line worth remembering
 
