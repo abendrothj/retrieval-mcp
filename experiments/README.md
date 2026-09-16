@@ -1213,6 +1213,32 @@ Re-running all five pre-registered language audits after both repairs reproduces
 numbers exactly: Cobra 1.000/0.988, Gson 0.917/0.929, Redis 0.979/0.931, LevelDB 0.941/1.000,
 ESLint 0.981/1.000.
 
+### A second mixed-shape suite, so the claim rests on two corpora
+
+The claim this project defends is quality ties, tokens materially cheaper. It rested on one
+mixed-shape suite - 30 held-out Django questions across six shapes, where the arms scored 29/29/28
+and `retrieval-mcp` spent 33.5% fewer input tokens than the native control and 23.7% fewer than
+zvec-grep. One corpus, one language, one snapshot.
+
+`experiments/etcd_mixed_questions.json` is the second: 30 questions over 311 Go files of etcd
+(`client/v3`, `client/pkg`, `server/proxy`, `server/auth`, `server/embed`, `pkg/flags`,
+`etcdctl/ctlv3`) sharing no file with any suite authored here, in the held-out suite's exact shape
+proportions - 8 conceptual lookup, 6 symbol resolution, 6 direct caller, 5 transitive blast radius,
+4 generic name, 1 mixed discovery. Authored in five parallel batches against material the oracle had
+already verified, `validate_suite.py` clean.
+
+The interesting number is the gate. `lexical_oracle.py` at budget 25 dissolves **11 of 30** - and
+dissolves **11 of 30** of the Django held-out suite too, the same 19 resistant. Those eleven are
+kept on purpose. A necessity suite excludes the work a bounded grep can already do, which is right
+when the question is whether structural retrieval is *needed*; a representativeness suite must
+include it, or the token comparison is measured only where grep is helpless and the result flatters
+the server by construction. Dissolution is concentrated exactly where it should be: 4 of 8
+conceptual, 4 of 6 symbol resolution, 3 of 4 generic name, and **0 of 12** caller and transitive
+questions.
+
+Not run. It exists so that the next model spend buys a replication of the claim that is actually
+defended, on an independent corpus, rather than another rewording of a caller suite.
+
 ## Three index changes, one survivor
 
 After the surface was frozen, driving the server against an awkward repository suggested three

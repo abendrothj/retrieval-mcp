@@ -1,0 +1,992 @@
+[
+  {
+    "id": "etcdc-conceptual-cluster-api-ctor",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "In the official Go client's v3 package, one exported constructor hands back the membership-administration facade that the client handle exposes: it builds the private implementation around a retry-aware remote stub derived from the supplied handle, and, when that handle is not nil, copies the handle's shared gRPC call options onto the implementation before returning it. Which function is that? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "client/v3/cluster.go::NewCluster"
+    },
+    "rejected_alternates": [
+      "client/v3/cluster.go::MemberAdd",
+      "client/v3/cluster.go::MemberList",
+      "client/v3/cluster.go::MemberPromote"
+    ],
+    "evidence": [
+      {
+        "path": "client/v3/cluster.go",
+        "contains": "api := &cluster{remote: RetryClusterClient(c)}"
+      }
+    ],
+    "author_notes": "Behavioural cues: retry-wrapped remote stub, conditional copy of callOpts, returns the exported interface. Distinguished from the variant that takes a pre-built remote stub (not listed as an alternate since it is a near-duplicate) by the fact that the answer derives the stub itself. Alternates are the interface methods implemented in the same file; they operate on an existing implementation rather than constructing one."
+  },
+  {
+    "id": "etcdc-conceptual-snapshot-save-subcmd",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "In the etcdctl v3 command package, which function builds and returns the cobra sub-command whose usage line is \"save <filename>\", whose one-line description says it stores an etcd node backend snapshot to a given file, and which delegates all real work to a separate package-level run handler while reusing the shared usage example string? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "etcdctl/ctlv3/command/snapshot_command.go::NewSnapshotSaveCommand"
+    },
+    "rejected_alternates": [
+      "etcdctl/ctlv3/command/snapshot_command.go::NewSnapshotCommand",
+      "etcdctl/ctlv3/command/snapshot_command.go::snapshotSaveCommandFunc"
+    ],
+    "evidence": [
+      {
+        "path": "etcdctl/ctlv3/command/snapshot_command.go",
+        "contains": "Stores an etcd node backend snapshot to a given file"
+      }
+    ],
+    "author_notes": "The file holds only three functions: the umbrella command, the leaf builder (answer) and the run handler. The question pins the leaf builder via its usage string and short description, and by the fact that it only assembles a struct literal; the run handler does the I/O, the umbrella command registers the leaf."
+  },
+  {
+    "id": "etcdc-conceptual-check-umbrella-cmd",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "Inside the etcdctl v3 command tree there is an umbrella grouping for verifying properties of a running cluster: it declares the usage \"check <subcommand>\", is filed under the utility group, has no run function of its own, and simply attaches the throughput-benchmark and data-scale sub-commands as children before returning. Which function creates it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "etcdctl/ctlv3/command/check.go::NewCheckCommand"
+    },
+    "rejected_alternates": [
+      "etcdctl/ctlv3/command/check.go::NewCheckPerfCommand",
+      "etcdctl/ctlv3/command/check.go::NewCheckDatascaleCommand",
+      "etcdctl/ctlv3/command/check.go::interruptableContext"
+    ],
+    "evidence": [
+      {
+        "path": "etcdctl/ctlv3/command/check.go",
+        "contains": "commands for checking properties of the etcd cluster"
+      },
+      {
+        "path": "etcdctl/ctlv3/command/check.go",
+        "contains": "GroupID: groupUtilityID"
+      }
+    ],
+    "author_notes": "Cues that pick the parent rather than either leaf: no Run field, GroupID on the utility group, and two AddCommand calls. The two leaf builders in the alternates each define flags and a Run handler; the context helper is unrelated plumbing in the same file."
+  },
+  {
+    "id": "etcdc-conceptual-auto-compaction-duration",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "The embedded-server package contains an unexported helper that converts the configured auto-compaction mode together with its retention setting into a duration value: a non-negative whole number is treated as a bare revision count under the revision-based mode and as that many hours under the periodic mode, an empty mode is rejected with an error naming the undefined command-line switch, and any value that is not a whole number falls through to generic duration interpretation with a wrapped error on failure. Which function is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "server/embed/etcd.go::parseCompactionRetention"
+    },
+    "rejected_alternates": [
+      "server/embed/etcd.go::StartEtcd",
+      "server/embed/etcd.go::configureClientListeners",
+      "server/embed/etcd.go::GetLogger"
+    ],
+    "evidence": [
+      {
+        "path": "server/embed/etcd.go",
+        "contains": "--auto-compaction-mode is undefined"
+      },
+      {
+        "path": "server/embed/etcd.go",
+        "contains": "error parsing CompactionRetention: %w"
+      }
+    ],
+    "author_notes": "Identified by the two-branch mode switch plus the numeric-versus-duration fallback and the exact error text about the undefined switch. Alternates are the other file-level functions: the server bootstrap that calls the answer, a listener-configuration helper, and a trivial accessor."
+  },
+  {
+    "id": "etcdc-conceptual-auth-status-subcmd",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "In etcdctl's authentication command file, one unexported builder returns a minimal cobra sub-command registered under the usage word \"status\", summarised as returning authentication status, and wired to the handler that queries the server and prints whether authentication is switched on. It is registered alongside the enable and disable builders by the exported parent. Which function is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "etcdctl/ctlv3/command/auth_command.go::newAuthStatusCommand"
+    },
+    "rejected_alternates": [
+      "etcdctl/ctlv3/command/auth_command.go::newAuthEnableCommand",
+      "etcdctl/ctlv3/command/auth_command.go::newAuthDisableCommand",
+      "etcdctl/ctlv3/command/auth_command.go::authStatusCommandFunc"
+    ],
+    "evidence": [
+      {
+        "path": "etcdctl/ctlv3/command/auth_command.go",
+        "contains": "Returns authentication status"
+      },
+      {
+        "path": "etcdctl/ctlv3/command/auth_command.go",
+        "contains": "ac.AddCommand(newAuthStatusCommand())"
+      }
+    ],
+    "author_notes": "The three sibling builders are structurally identical, so the question pins the answer by its usage word and short description. The run handler alternate is the one that actually performs the RPC and display call, which the builder only references."
+  },
+  {
+    "id": "etcdc-conceptual-jwt-default-ttl",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "In the server's auth package, a method on the JWT settings struct supplies the fallback five-minute token lifetime whenever neither the already-populated field nor the incoming option map carries an explicit time-to-live, and then delegates the rest of the loading work to the plain map-reading method on the same struct. Which method is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "server/auth/options.go::ParseWithDefaults"
+    },
+    "rejected_alternates": [
+      "server/auth/options.go::Parse",
+      "server/auth/options.go::hmacKey",
+      "server/auth/options.go::Key"
+    ],
+    "evidence": [
+      {
+        "path": "server/auth/options.go",
+        "contains": "opts.TTL = DefaultTTL"
+      },
+      {
+        "path": "server/auth/options.go",
+        "contains": "DefaultTTL will be used when a 'ttl' is not specified"
+      }
+    ],
+    "author_notes": "The distinguishing behaviour is the default-filling guard before delegation; the plain loader alternate does the actual map reading (signing method, key files, ttl) and never applies the fallback lifetime. Key helpers in the alternates deal with signing material, not option loading."
+  },
+  {
+    "id": "etcdc-conceptual-unique-flag-sorted-values",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "The shared flags package defines a flag value that stores de-duplicated command-line entries in a map. An unexported method on that type materialises the stored members into a freshly allocated sequence sized to the map, sorts them lexicographically, and returns them; both the flag's textual rendering and the package-level lookup helper rely on it so that output order is deterministic. Which method is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "pkg/flags/unique_strings.go::stringSlice"
+    },
+    "rejected_alternates": [
+      "pkg/flags/unique_strings.go::NewUniqueStringsValue",
+      "pkg/flags/unique_strings.go::Set",
+      "pkg/flags/unique_strings.go::UniqueStringsFromFlag"
+    ],
+    "evidence": [
+      {
+        "path": "pkg/flags/unique_strings.go",
+        "contains": "ss := make([]string, 0, len(us.Values))"
+      },
+      {
+        "path": "pkg/flags/unique_strings.go",
+        "contains": "sort.Strings(ss)"
+      }
+    ],
+    "author_notes": "Cues: allocation with map-sized capacity, lexicographic sort, two in-package consumers. Alternates are the constructor, the comma-splitting setter that fills the map, and the flag-set lookup helper that calls the answer."
+  },
+  {
+    "id": "etcdc-conceptual-create-if-absent-key",
+    "category": "conceptual_lookup",
+    "set": "dev",
+    "question": "Among the experimental client recipes there is a helper that writes a key only when it does not already exist: it guards a transaction with a comparison asserting the key's version is zero, performs the write under an optionally supplied lease inside the success branch, returns the revision from the committed response's header, and reports a package-level already-exists error when the guard does not hold. Which function is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "client/v3/experimental/recipes/key.go::putNewKV"
+    },
+    "rejected_alternates": [
+      "client/v3/experimental/recipes/key.go::newEphemeralKV",
+      "client/v3/experimental/recipes/key.go::Put",
+      "client/v3/experimental/recipes/key.go::Delete"
+    ],
+    "evidence": [
+      {
+        "path": "client/v3/experimental/recipes/key.go",
+        "contains": "cmp := v3.Compare(v3.Version(key), \"=\", 0)"
+      },
+      {
+        "path": "client/v3/experimental/recipes/key.go",
+        "contains": "return 0, ErrKeyExists"
+      }
+    ],
+    "author_notes": "Behaviour that isolates the answer: version-equals-zero guard, lease option on the write, revision returned from the transaction header, sentinel error on conflict. The alternates are the lease-bound wrapper that calls it and two methods on the remote-key value type."
+  },
+  {
+    "id": "etcdc-sym-client-dial-config-from-spec",
+    "category": "symbol_resolution",
+    "set": "dev",
+    "question": "In the etcd Go client package, one top-level function turns a user-facing connection specification value into the dialing configuration the client itself consumes: it first asks a package-private helper to build the transport security settings and bails out with that error if it fails, then copies endpoints, dial timeout, keep-alive interval and timeout, and the send/receive message size limits across, and finally, only when a credentials block is present, carries the user name, password and token onto the result. It is neither the deep-copier that duplicates the specification's slices and nested pointers, nor the predicate that reports whether a credentials block is blank. Which definition is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "client/v3/config.go::NewClientConfig"
+    },
+    "rejected_alternates": [
+      "client/v3/config.go::Clone",
+      "client/v3/config.go::Empty",
+      "client/v3/config.go::newTLSConfig"
+    ],
+    "evidence": [
+      {
+        "path": "client/v3/config.go",
+        "contains": "cfg.Token = confSpec.Auth.Token"
+      },
+      {
+        "path": "client/v3/config.go",
+        "contains": "MaxCallRecvMsgSize:   confSpec.MaxCallRecvMsgSize,"
+      }
+    ],
+    "author_notes": "Disambiguates the constructor from its file siblings: Clone deep-copies the spec, Empty is a bool predicate on the credentials struct, and newTLSConfig returns only a *tls.Config (it is the delegate described, not the described function). The credential-copy branch and the field-by-field translation are unique to the answer."
+  },
+  {
+    "id": "etcdc-sym-auto-tls-for-member-traffic",
+    "category": "symbol_resolution",
+    "set": "dev",
+    "question": "The embedded server's configuration type carries two near-identical methods that mint short-lived self-signed material under a fixtures subdirectory and then apply the configured cipher suites to the resulting transport info. Identify the one that covers member-to-member traffic rather than the client-facing side: it returns nil immediately when its automatic-TLS switch is off, warns and returns nil when certificates were already supplied for that side, and builds its host list by allocating a slice exactly the length of the inter-member listen URL list and filling it by index (the other variant appends from two separate listen URL lists). Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "server/embed/config.go::PeerSelfCert"
+    },
+    "rejected_alternates": [
+      "server/embed/config.go::ClientSelfCert",
+      "server/embed/config.go::ElectionTicks",
+      "server/embed/config.go::InferLocalAddr"
+    ],
+    "evidence": [
+      {
+        "path": "server/embed/config.go",
+        "contains": "cfg.logger.Warn(\"ignoring peer auto TLS since certs given\")"
+      },
+      {
+        "path": "server/embed/config.go",
+        "contains": "phosts := make([]string, len(cfg.ListenPeerUrls))"
+      }
+    ],
+    "author_notes": "The index-filled fixed-length slice vs. the two-list append is the precise structural difference between the two self-cert methods (lines 1222-1228 vs 1244-1247). ElectionTicks and InferLocalAddr are same-file methods with unrelated shapes."
+  },
+  {
+    "id": "etcdc-sym-log-format-string-validator",
+    "category": "symbol_resolution",
+    "set": "dev",
+    "question": "In the client-side logging utility package, one exported function validates a caller-supplied output-style string and hands back the canonical value paired with an error: it accepts exactly the two supported literals unchanged, maps the empty string to the package-level default variable, and for anything else returns an empty string plus a formatted error naming the two acceptable values. Unlike the sibling helper that handles severity strings, it never panics and never yields a library-specific level type. Which definition is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "client/pkg/logutil/log_format.go::ConvertToZapFormat"
+    },
+    "rejected_alternates": [
+      "client/pkg/logutil/log_level.go::ConvertToZapLevel",
+      "client/pkg/logutil/zap.go::CreateDefaultZapLogger",
+      "client/pkg/logutil/zap.go::MergeOutputPaths"
+    ],
+    "evidence": [
+      {
+        "path": "client/pkg/logutil/log_format.go",
+        "contains": "return \"\", fmt.Errorf(\"unknown log format: %s, supported values json, console\", format)"
+      },
+      {
+        "path": "client/pkg/logutil/log_format.go",
+        "contains": "\t\treturn DefaultLogFormat, nil"
+      }
+    ],
+    "author_notes": "The file has no siblings, so the near-misses come from the same package: the level converter panics and returns zapcore.Level, the logger factory returns a *zap.Logger, and the path merger returns a zap.Config. Only the answer returns (string, error) with the empty-string default mapping."
+  },
+  {
+    "id": "etcdc-sym-blanket-assertion-toggle",
+    "category": "symbol_resolution",
+    "set": "dev",
+    "question": "In the small package that gates runtime assertions behind an environment variable, one exported function takes no arguments at all and is a single-line delegation: it calls the parameterized setter with the catch-all category constant and returns whatever restore closure that setter produced. It is not the setter itself (which takes the category as a parameter), not the counterpart that unsets the variable before returning a restore closure, and not the read-only predicate that compares the current environment value against a requested category. Which definition is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "client/pkg/verify/verify.go::EnableAllVerifications"
+    },
+    "rejected_alternates": [
+      "client/pkg/verify/verify.go::EnableVerifications",
+      "client/pkg/verify/verify.go::DisableVerifications",
+      "client/pkg/verify/verify.go::IsVerificationEnabled"
+    ],
+    "evidence": [
+      {
+        "path": "client/pkg/verify/verify.go",
+        "contains": "return EnableVerifications(envVerifyValueAll)"
+      },
+      {
+        "path": "client/pkg/verify/verify.go",
+        "contains": "envVerifyValueAll    VerificationType = \"all\""
+      }
+    ],
+    "author_notes": "Zero parameters plus a one-line delegation to the parameterized setter uniquely identifies the answer; the setter takes a VerificationType, the unsetter has a two-statement body around os.Unsetenv, and the predicate returns bool."
+  },
+  {
+    "id": "etcdc-sym-ctl-metrics-scrape-helper",
+    "category": "symbol_resolution",
+    "set": "dev",
+    "question": "Among the shared helpers of the v3 command-line tool, one unexported function reaches out over plain HTTP instead of the gRPC client: it prefixes a bare host with a scheme when none is present, appends the telemetry path, optionally loads a key pair and installs it (together with the skip-verify flag) on the default transport for secure hosts, then splits the response body into lines, finds the resident-set-size gauge by prefix, parses its trailing number as a 64-bit float and returns it, printing a message and yielding 0.0 at every failure point rather than exiting the process. Which definition is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "etcdctl/ctlv3/command/util.go::endpointMemoryMetrics"
+    },
+    "rejected_alternates": [
+      "etcdctl/ctlv3/command/util.go::compact",
+      "etcdctl/ctlv3/command/util.go::defrag",
+      "etcdctl/ctlv3/command/util.go::Argify"
+    ],
+    "evidence": [
+      {
+        "path": "etcdctl/ctlv3/command/util.go",
+        "contains": "residentMemoryKey := \"process_resident_memory_bytes\""
+      },
+      {
+        "path": "etcdctl/ctlv3/command/util.go",
+        "contains": "residentMemoryBytes, parseErr := strconv.ParseFloat(residentMemoryValue, 64)"
+      }
+    ],
+    "author_notes": "Returning float64 with 0.0 sentinels on error separates it from the same-file helpers that drive the gRPC client and abort via cobrautl.ExitWithError (compact, defrag) and from the quoted-argument splitter that returns []string."
+  },
+  {
+    "id": "etcdc-sym-advertise-url-hostname-substitution",
+    "category": "symbol_resolution",
+    "set": "dev",
+    "question": "One method on the embedded server's configuration type substitutes the machine's detected host into advertised URLs: for both the inter-member and the client-facing side it swaps in that detected host, keeping the existing scheme and the port taken from the corresponding listen URL, but only when the advertised value is still the built-in default and the matching listen address is the wildcard 0.0.0.0. It also rewrites the initial membership string from the member name whenever a non-default name was given while that string still equals the passed-in fallback, and it returns two values: the detected host, blanked out unless at least one substitution actually happened, plus the package-level status error from host detection. Which definition is it? Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "server/embed/config.go::UpdateDefaultClusterFromName"
+    },
+    "rejected_alternates": [
+      "server/embed/config.go::ConfigFromFile",
+      "server/embed/config.go::GetDNSClusterNames",
+      "server/embed/config.go::ClientSelfCert"
+    ],
+    "evidence": [
+      {
+        "path": "server/embed/config.go",
+        "contains": "\tdhost := defaultHostname\n\tif !used {\n\t\tdhost = \"\"\n\t}"
+      },
+      {
+        "path": "server/embed/config.go",
+        "contains": "cfg.AdvertisePeerUrls[0] = url.URL{Scheme: cfg.AdvertisePeerUrls[0].Scheme, Host: fmt.Sprintf(\"%s:%s\", defaultHostname, pport)}"
+      }
+    ],
+    "author_notes": "The (string, error) return where the string is suppressed unless a substitution occurred is unique in the file; ConfigFromFile returns (*Config, error) from YAML, GetDNSClusterNames does SRV discovery, and ClientSelfCert returns only an error."
+  },
+  {
+    "id": "etcdc-callers-unsupported-format-stub",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "helper": "etcdctl/ctlv3/command/printer.go::newPrinterUnsupported",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "question": "In the command-line tool's output-format layer, a small constructor takes a format label and returns a placeholder implementation of the result-rendering interface: every RPC hook on it funnels into one shared closure that aborts the process through the CLI error-exit path with the bad-feature exit code and an error message reading \"<label> not supported as output format\". Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "etcdctl/ctlv3/command/printer.go::NewPrinter",
+        "etcdctl/ctlv3/command/printer_json.go::newJSONPrinter",
+        "etcdctl/ctlv3/command/printer_protobuf.go::newPBPrinter"
+      ]
+    },
+    "rejected_alternates": [
+      "etcdctl/ctlv3/command/printer.go::Alarm",
+      "etcdctl/ctlv3/command/printer.go::AuthStatus",
+      "etcdctl/ctlv3/command/printer.go::Del",
+      "etcdctl/ctlv3/command/printer.go::DowngradeCancel",
+      "etcdctl/ctlv3/command/printer.go::DowngradeEnable",
+      "etcdctl/ctlv3/command/printer.go::DowngradeValidate"
+    ],
+    "evidence": [
+      {
+        "path": "etcdctl/ctlv3/command/printer.go",
+        "contains": "return &tablePrinter{newPrinterUnsupported(\"table\")}"
+      },
+      {
+        "path": "etcdctl/ctlv3/command/printer_json.go",
+        "contains": "printer: &printerRPC{newPrinterUnsupported(\"json\"), printJSON},"
+      },
+      {
+        "path": "etcdctl/ctlv3/command/printer_protobuf.go",
+        "contains": "&printerRPC{newPrinterUnsupported(\"protobuf\"), printPB},"
+      }
+    ],
+    "author_notes": "Three call sites in two files beyond the defining one: the format switch in the defining file uses it twice (fields and table branches) but that is one caller, and the JSON and protobuf constructors each embed it once. Distractors are the printer interface methods defined alongside it, which never call it."
+  },
+  {
+    "id": "etcdc-callers-cache-range-eviction",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "helper": "server/proxy/grpcproxy/cache/store.go::Invalidate",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "question": "A method on the gRPC proxy's response cache takes a key plus an optional range end, turns that pair into either a single affine string interval over one key or a half-open affine interval over the span, stabs the interval tree of cached ranges with it, and evicts from the LRU every cached response whose recorded range overlaps that interval. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/proxy/grpcproxy/kv.go::DeleteRange",
+        "server/proxy/grpcproxy/kv.go::Put",
+        "server/proxy/grpcproxy/kv.go::Txn",
+        "server/proxy/grpcproxy/kv.go::txnToCache"
+      ]
+    },
+    "rejected_alternates": [
+      "server/proxy/grpcproxy/cache/store.go::Add",
+      "server/proxy/grpcproxy/cache/store.go::Close",
+      "server/proxy/grpcproxy/cache/store.go::Compact",
+      "server/proxy/grpcproxy/cache/store.go::Get",
+      "server/proxy/grpcproxy/cache/store.go::NewCache",
+      "server/proxy/grpcproxy/cache/store.go::Size"
+    ],
+    "evidence": [
+      {
+        "path": "server/proxy/grpcproxy/cache/store.go",
+        "contains": "func (c *cache) Invalidate(key, endkey []byte) {"
+      },
+      {
+        "path": "server/proxy/grpcproxy/kv.go",
+        "contains": "p.cache.Invalidate(r.Key, nil)"
+      },
+      {
+        "path": "server/proxy/grpcproxy/kv.go",
+        "contains": "p.cache.Invalidate(r.Key, r.RangeEnd)"
+      },
+      {
+        "path": "server/proxy/grpcproxy/kv.go",
+        "contains": "p.cache.Invalidate(rdr.Key, rdr.RangeEnd)"
+      },
+      {
+        "path": "server/proxy/grpcproxy/kv.go",
+        "contains": "p.cache.Invalidate(cmp.Key, cmp.RangeEnd)"
+      }
+    ],
+    "author_notes": "Five call sites collapse to four distinct callers inside the proxy KV file: the single-key write path, the range-delete path, the transaction-response cache updater (two sites), and the transaction entry point itself (comparison keys). The cache's own sibling methods (Add/Get/Compact/Close/Size/NewCache) are plausible but never call it."
+  },
+  {
+    "id": "etcdc-callers-underlying-grpc-conn",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "helper": "client/v3/client.go::ActiveConnection",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "question": "A one-line accessor on the client library's main struct hands back the underlying gRPC connection the client is currently talking over, so that other packages can construct their own generated protocol stubs on top of the very same dialed link instead of dialing again. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/proxy/grpcproxy/auth.go::NewAuthProxy",
+        "server/proxy/grpcproxy/cluster.go::NewClusterProxy",
+        "server/proxy/grpcproxy/election.go::NewElectionProxy",
+        "server/proxy/grpcproxy/lease.go::NewLeaseProxy",
+        "server/proxy/grpcproxy/lock.go::NewLockProxy",
+        "server/proxy/grpcproxy/maintenance.go::NewMaintenanceProxy"
+      ]
+    },
+    "rejected_alternates": [
+      "client/v3/client.go::Close",
+      "client/v3/client.go::ContextError",
+      "client/v3/client.go::Ctx",
+      "client/v3/client.go::Dial",
+      "client/v3/client.go::Endpoints",
+      "client/v3/client.go::GetLogger"
+    ],
+    "evidence": [
+      {
+        "path": "client/v3/client.go",
+        "contains": "func (c *Client) ActiveConnection() *grpc.ClientConn { return c.conn }"
+      },
+      {
+        "path": "server/proxy/grpcproxy/auth.go",
+        "contains": "pb.NewAuthClient(c.ActiveConnection())"
+      },
+      {
+        "path": "server/proxy/grpcproxy/cluster.go",
+        "contains": "clus: pb.NewClusterClient(c.ActiveConnection()),"
+      },
+      {
+        "path": "server/proxy/grpcproxy/election.go",
+        "contains": "v3electionpb.NewElectionClient(client.ActiveConnection())"
+      },
+      {
+        "path": "server/proxy/grpcproxy/lease.go",
+        "contains": "leaseClient: pb.NewLeaseClient(c.ActiveConnection()),"
+      },
+      {
+        "path": "server/proxy/grpcproxy/lock.go",
+        "contains": "v3lockpb.NewLockClient(client.ActiveConnection())"
+      },
+      {
+        "path": "server/proxy/grpcproxy/maintenance.go",
+        "contains": "maintenanceClient: pb.NewMaintenanceClient(c.ActiveConnection()),"
+      }
+    ],
+    "author_notes": "Six proxy constructors, one per proxied service, each wrap the returned connection in a generated client. No caller lives inside the client package itself, which is the trap: sibling accessors on the same struct are the distractors."
+  },
+  {
+    "id": "etcdc-callers-cluster-endpoint-expansion",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "helper": "etcdctl/ctlv3/command/ep_command.go::endpointsFromCluster",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "question": "A command-line helper decides which server addresses a subcommand should operate on: with the cluster-wide flag off it simply reads the address list flag off the cobra command and hands it back, and with the flag on it gathers the secure, auth, dial-timeout and keep-alive settings, opens a short-lived client without credentials, asks the membership API for the member list, and returns each client address advertised by every member. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "etcdctl/ctlv3/command/defrag_command.go::defragCommandFunc",
+        "etcdctl/ctlv3/command/ep_command.go::epHashKVCommandFunc",
+        "etcdctl/ctlv3/command/ep_command.go::epHealthCommandFunc",
+        "etcdctl/ctlv3/command/ep_command.go::epStatusCommandFunc"
+      ]
+    },
+    "rejected_alternates": [
+      "etcdctl/ctlv3/command/ep_command.go::NewEndpointCommand",
+      "etcdctl/ctlv3/command/ep_command.go::newEpHashKVCommand",
+      "etcdctl/ctlv3/command/ep_command.go::newEpHealthCommand"
+    ],
+    "evidence": [
+      {
+        "path": "etcdctl/ctlv3/command/defrag_command.go",
+        "contains": "for _, ep := range endpointsFromCluster(cmd) {"
+      },
+      {
+        "path": "etcdctl/ctlv3/command/ep_command.go",
+        "contains": "for _, ep := range endpointsFromCluster(cmd) {"
+      },
+      {
+        "path": "etcdctl/ctlv3/command/ep_command.go",
+        "contains": "func endpointsFromCluster(cmd *cobra.Command) []string {"
+      }
+    ],
+    "author_notes": "Four callers: three endpoint subcommand handlers in the defining file plus the defrag handler in another file. The command constructors in the same file (newEpHealthCommand etc.) only wire cobra commands and are distractors."
+  },
+  {
+    "id": "etcdc-callers-sort-enum-range-check",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "helper": "client/v3/op.go::IsSortOptionValid",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "question": "A predicate declared against the key/value request-option type in the client library reports true when a range request carries no ordering preference at all, or when both of its ordering enum numbers \u2014 the direction plus the field to sort by \u2014 are present in the protocol package's generated enum-name maps; anything else yields false. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "client/v3/kv.go::Do",
+        "client/v3/namespace/kv.go::Get",
+        "client/v3/op_test.go::TestIsSortOptionValid"
+      ]
+    },
+    "rejected_alternates": [
+      "client/v3/op.go::GetPrefixRangeEnd",
+      "client/v3/op.go::IsCountOnly",
+      "client/v3/op.go::IsCreatedNotify",
+      "client/v3/op.go::IsDelete",
+      "client/v3/op.go::IsFilterDelete",
+      "client/v3/op.go::IsFilterPut"
+    ],
+    "evidence": [
+      {
+        "path": "client/v3/kv.go",
+        "contains": "if op.IsSortOptionValid() {"
+      },
+      {
+        "path": "client/v3/namespace/kv.go",
+        "contains": "if !getOp.IsSortOptionValid() {"
+      },
+      {
+        "path": "client/v3/op_test.go",
+        "contains": "func TestIsSortOptionValid(t *testing.T) {"
+      },
+      {
+        "path": "client/v3/op_test.go",
+        "contains": "actualRet := getOp.IsSortOptionValid()"
+      }
+    ],
+    "author_notes": "Three callers, one of which is a test function, exercising the 'include test files' rule: the KV request dispatcher, the namespace wrapper's read path, and the table-driven unit test (which calls it twice in one function body). Sibling Is*/Get* predicates on the same type are distractors."
+  },
+  {
+    "id": "etcdc-callers-advertised-client-urls-strings",
+    "category": "direct_caller_lookup",
+    "set": "dev",
+    "helper": "server/embed/config.go::getAdvertiseClientURLs",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "question": "A tiny accessor on the embedded server's configuration allocates a string slice of exactly the right length and fills it with the textual form of every URL in the configured list of client-facing addresses the member announces to the rest of the cluster. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": [
+        "server/embed/config.go::Validate",
+        "server/embed/etcd.go::Close",
+        "server/embed/etcd.go::StartEtcd",
+        "server/embed/etcd.go::print"
+      ]
+    },
+    "rejected_alternates": [
+      "server/embed/config.go::AddFlags",
+      "server/embed/config.go::ClientSelfCert",
+      "server/embed/config.go::ConfigFromFile",
+      "server/embed/config.go::ElectionTicks",
+      "server/embed/config.go::GetDNSClusterNames",
+      "server/embed/config.go::InferLocalAddr"
+    ],
+    "evidence": [
+      {
+        "path": "server/embed/config.go",
+        "contains": "addrs := cfg.getAdvertiseClientURLs()"
+      },
+      {
+        "path": "server/embed/etcd.go",
+        "contains": "zap.Strings(\"advertise-client-urls\", e.cfg.getAdvertiseClientURLs()),"
+      },
+      {
+        "path": "server/embed/etcd.go",
+        "contains": "zap.Strings(\"advertise-client-urls\", ec.getAdvertiseClientURLs()),"
+      }
+    ],
+    "author_notes": "Four callers across two files: the config validator in the defining file and three sites in the embed server file (startup, the config log dump helper, and shutdown logging). Sibling config methods are distractors."
+  },
+  {
+    "id": "etcdc-generic-election-stepdown-txn",
+    "category": "generic_name",
+    "set": "dev",
+    "question": "A concurrency helper for leader elections has a method that gives up leadership: if the struct holds no live leadership session it returns a nil error immediately; otherwise it builds a comparison on the create revision of the currently held leader key against the revision it recorded when it won, runs a single transaction whose success branch deletes that leader key, caches the returned response header on success, and finally blanks out both the stored leader key and the leadership session before returning the transaction error. Several unrelated types in the proxy layer expose a method of the same name that merely forwards a protobuf request. Identify the definition that performs the compare-and-delete transaction described above. Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "client/v3/concurrency/election.go::Resign"
+    },
+    "rejected_alternates": [
+      "server/proxy/grpcproxy/adapter/election_client_adapter.go::Resign",
+      "server/proxy/grpcproxy/election.go::Resign"
+    ],
+    "evidence": [
+      {
+        "path": "client/v3/concurrency/election.go",
+        "contains": "resp, err := client.Txn(ctx).If(cmp).Then(v3.OpDelete(e.leaderKey)).Commit()"
+      },
+      {
+        "path": "client/v3/concurrency/election.go",
+        "contains": "e.leaderKey = \"\"\n\te.leaderSession = nil"
+      }
+    ],
+    "author_notes": "Three same-named definitions. The two proxy ones are one-line delegations over protobuf request/response types (adapter forwards to the embedded server, electionProxy forwards to its client); only the concurrency one does real work: nil-session early return, CreateRevision compare against the stored leaderRev, OpDelete of the leader key in a Txn, header caching, and clearing leaderKey/leaderSession. The prose names none of those behaviours in a way the forwarders could satisfy. Shared name never appears in the question."
+  },
+  {
+    "id": "etcdc-generic-proxy-ttl-attachedkeys",
+    "category": "generic_name",
+    "set": "dev",
+    "question": "One method with this widely reused name lives on the proxy type that fronts a real cluster: it reads the boolean flag on the incoming request that asks for attached keys and, when that flag is set, calls the embedded client-side lessor with the option that requests the key list, and otherwise calls the same lessor with no extra options; on error it returns a nil reply, and on success it assembles a fresh protobuf reply copying the response header, the identifier converted back to int64, the remaining seconds, the originally granted seconds, and the key list. Namesakes elsewhere are a stub returning an empty reply, a retry wrapper appending a repeatable policy option, and a thin server-to-client adapter. Identify the implementation that branches on the attached-keys flag. Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "server/proxy/grpcproxy/lease.go::LeaseTimeToLive"
+    },
+    "rejected_alternates": [
+      "client/v3/mock/mockserver/mockserver.go::LeaseTimeToLive",
+      "client/v3/retry.go::LeaseTimeToLive",
+      "server/proxy/grpcproxy/adapter/lease_client_adapter.go::LeaseTimeToLive"
+    ],
+    "evidence": [
+      {
+        "path": "server/proxy/grpcproxy/lease.go",
+        "contains": "r, err = lp.lessor.TimeToLive(ctx, clientv3.LeaseID(rr.ID), clientv3.WithAttachedKeys())"
+      },
+      {
+        "path": "server/proxy/grpcproxy/lease.go",
+        "contains": "GrantedTTL: r.GrantedTTL,"
+      }
+    ],
+    "author_notes": "Four same-named definitions; only the grpcproxy one contains logic (rr.Keys branch, WithAttachedKeys option, manual field-by-field construction of the reply). The mock returns an empty struct, retryLeaseClient appends withRepeatablePolicy and delegates, ls2lc adapts the client signature onto the server. Describing the flag branch plus field copying excludes all three. The shared name is never written; 'lease' is never adjacent to the TTL wording."
+  },
+  {
+    "id": "etcdc-generic-fileutil-raw-fd-flush",
+    "category": "generic_name",
+    "set": "dev",
+    "question": "A file-durability helper in the client file utilities package is defined once per build target. The variant to identify does not call the os.File flush method and does not delegate to the sibling full-flush wrapper in its own package; instead it takes the open file's numeric descriptor, converts it to an int, and hands it straight to the low-level system-call package's flush-without-metadata primitive, returning that call's error. Identify that build-specific definition. Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "client/pkg/fileutil/sync_linux.go::Fdatasync"
+    },
+    "rejected_alternates": [
+      "client/pkg/fileutil/sync.go::Fdatasync",
+      "client/pkg/fileutil/sync_darwin.go::Fdatasync"
+    ],
+    "evidence": [
+      {
+        "path": "client/pkg/fileutil/sync_linux.go",
+        "contains": "syscall.Fdatasync(int(f.Fd()))"
+      },
+      {
+        "path": "client/pkg/fileutil/sync_linux.go",
+        "contains": "//go:build linux"
+      }
+    ],
+    "author_notes": "Three variants: the generic one returns f.Sync(), the darwin one delegates to the package's Fsync (fcntl F_FULLFSYNC), the linux one is the only one that converts f.Fd() to an int and calls into the syscall package. 'does not call the os.File flush method' rules out the generic file, 'does not delegate to the sibling full-flush wrapper' rules out darwin. Prose avoids any spelling that would strip to the shared name (no 'data sync' phrasing)."
+  },
+  {
+    "id": "etcdc-generic-sockopt-wasm-unsupported",
+    "category": "generic_name",
+    "set": "dev",
+    "question": "A build-tagged socket-option helper in the client transport package, which normally flips the SO_REUSEADDR flag on a raw connection, has two refusing variants that simply construct and return a new error saying the behaviour is unsupported on that platform. Identify the refusing variant guarded by the build constraint for the WebAssembly and js targets, whose error text names WASM rather than the desktop operating system. Return the qualified symbol as path::name.",
+    "expected_json": {
+      "answer": "client/pkg/transport/sockopt_wasm.go::setReuseAddress"
+    },
+    "rejected_alternates": [
+      "client/pkg/transport/sockopt_solaris.go::setReuseAddress",
+      "client/pkg/transport/sockopt_unix.go::setReuseAddress",
+      "client/pkg/transport/sockopt_windows.go::setReuseAddress"
+    ],
+    "evidence": [
+      {
+        "path": "client/pkg/transport/sockopt_wasm.go",
+        "contains": "return errors.New(\"address reuse is not supported on WASM\")"
+      },
+      {
+        "path": "client/pkg/transport/sockopt_wasm.go",
+        "contains": "//go:build wasm || js"
+      }
+    ],
+    "author_notes": "Four variants: solaris and unix are byte-identical Control/SetsockoptInt implementations, so neither could be singled out; the two refusing variants differ only in their error string and build tag. The question therefore targets the WASM/js one explicitly by build constraint and message, excluding the windows twin and both working implementations. Shared name never written (no phrase strips to it)."
+  },
+  {
+    "id": "etcdc-transitive-leasing-session-lease-accessor",
+    "category": "transitive_blast_radius",
+    "set": "dev",
+    "question": "In the leasing key-value wrapper, a tiny accessor method takes the read side of the mutex that guards the wrapper's cached lease bookkeeping, defers unlocking it, and hands back the lease currently held by the wrapper's session. I want its two-hop blast radius: the functions and methods that call its direct callers. Name every function or method in the corpus that reaches it in two hops, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "helper": "client/v3/leasing/kv.go::leaseID",
+    "hops": 2,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "expected_json": {
+      "answer": [
+        "client/pkg/transport/limit_listen.go::Accept",
+        "client/pkg/transport/limit_listen.go::acquire",
+        "client/v3/leasing/kv.go::get",
+        "client/v3/leasing/kv.go::revokeRange",
+        "client/v3/leasing/txn.go::revokeFallback"
+      ]
+    },
+    "rejected_alternates": [
+      "client/v3/leasing/kv.go::readySession",
+      "client/v3/leasing/kv.go::Close",
+      "client/v3/leasing/kv.go::Compact",
+      "client/v3/leasing/txn.go::Then",
+      "client/pkg/transport/limit_listen.go::release"
+    ],
+    "evidence": [
+      {
+        "path": "client/v3/leasing/kv.go",
+        "contains": "func (lkv *leasingKV) leaseID() v3.LeaseID {"
+      },
+      {
+        "path": "client/v3/leasing/kv.go",
+        "contains": "resp, err := lkv.acquire(ctx, key, v3.OpGet(key))"
+      },
+      {
+        "path": "client/v3/leasing/kv.go",
+        "contains": "return lkv.revokeLeaseKvs(ctx, leaseKeys.Kvs)"
+      },
+      {
+        "path": "client/v3/leasing/txn.go",
+        "contains": "_, err := txn.lkv.revokeLeaseKvs(txn.ctx, resp.GetResponseRange().Kvs)"
+      },
+      {
+        "path": "client/pkg/transport/limit_listen.go",
+        "contains": "func (l *limitListener) Accept() (net.Conn, error) {"
+      }
+    ],
+    "author_notes": "Hop-1 is the three in-file users of the session-lease accessor (acquire, monitorLease, revokeLeaseKvs); hop-2 is whoever calls those. Name-based resolution means the unrelated limitListener.acquire in client/pkg/transport/limit_listen.go and its caller Accept join the hop-2 set, which is exactly what the pinned hop2_verified list records; the answer is that list verbatim. Prose avoids 'leaseID'/'lease ID' and every gold name (Accept, acquire, get, revokeRange, revokeFallback), including under whitespace stripping."
+  },
+  {
+    "id": "etcdc-transitive-pretest-goroutine-guard",
+    "category": "transitive_blast_radius",
+    "set": "dev",
+    "question": "A helper in the shared client test utilities first probes, with a 10ms budget, for goroutines that already escaped before the case starts and skips the case outright when it finds some; otherwise it queues a cleanup hook so the same goroutine audit runs once the case finishes. I want its two-hop blast radius: the functions and methods that call its direct callers. Name every function or method in the corpus that reaches it in two hops, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "helper": "client/pkg/testutil/leak.go::RegisterLeakDetection",
+    "hops": 2,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "expected_json": {
+      "answer": [
+        "client/v3/client_test.go::TestAuthTokenBundleNoOverwrite",
+        "client/v3/client_test.go::TestClientRejectOldCluster",
+        "client/v3/client_test.go::TestMinSupportedVersion",
+        "client/v3/client_test.go::TestNewOnlyJWTExclusivity",
+        "client/v3/client_test.go::TestNewWithOnlyJWT"
+      ]
+    },
+    "rejected_alternates": [
+      "client/pkg/testutil/leak.go::afterTest",
+      "client/pkg/testutil/leak.go::CheckLeakedGoroutine",
+      "client/pkg/testutil/before.go::BeforeTest",
+      "client/v3/client_test.go::TestDialCancel",
+      "client/v3/txn_test.go::TestTxnPanics"
+    ],
+    "evidence": [
+      {
+        "path": "client/pkg/testutil/leak.go",
+        "contains": "func RegisterLeakDetection(t TB) {"
+      },
+      {
+        "path": "client/pkg/testutil/leak.go",
+        "contains": "t.Skip(\"Found leaked goroutined BEFORE test\", err)"
+      },
+      {
+        "path": "client/pkg/testutil/before.go",
+        "contains": "RegisterLeakDetection(tb)"
+      },
+      {
+        "path": "client/v3/client_test.go",
+        "contains": "func TestAuthTokenBundleNoOverwrite(t *testing.T) {"
+      },
+      {
+        "path": "client/v3/client_test.go",
+        "contains": "testutil.BeforeTest(t)"
+      }
+    ],
+    "author_notes": "Hop-1 is BeforeTest plus the two tests that call the registrar directly; hop-2 is therefore the client_test.go cases that go through BeforeTest, as pinned in hop2_verified. Direct callers are listed as rejected alternates so a one-hop answer scores wrong. Gold names are long Test* identifiers, so plain words like 'test' are safe, but the helper's own name is never spelled, split, or reassembled."
+  },
+  {
+    "id": "etcdc-transitive-listener-socket-option-setter",
+    "category": "transitive_blast_radius",
+    "set": "dev",
+    "question": "A one-line constructor in the transport package takes a pointer to the struct holding port-reuse and address-reuse settings and returns a listener-option closure that stores that pointer on the listener option struct. I want its two-hop blast radius: the functions and methods that call its direct callers. Name every function or method in the corpus that reaches it in two hops, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "helper": "client/pkg/transport/listener_opts.go::WithSocketOpts",
+    "hops": 2,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "expected_json": {
+      "answer": [
+        "server/embed/etcd.go::StartEtcd",
+        "server/embed/etcd.go::serveMetrics",
+        "server/embed/etcd_test.go::TestEmptyClientTLSInfo_createMetricsListener"
+      ]
+    },
+    "rejected_alternates": [
+      "client/pkg/transport/listener_opts.go::WithTLSInfo",
+      "client/pkg/transport/listener_opts.go::IsSocketOpts",
+      "client/pkg/transport/listener_opts.go::newListenOpts",
+      "server/embed/etcd.go::configurePeerListeners",
+      "server/embed/etcd.go::createMetricsListener"
+    ],
+    "evidence": [
+      {
+        "path": "client/pkg/transport/listener_opts.go",
+        "contains": "func WithSocketOpts(s *SocketOpts) ListenerOption {"
+      },
+      {
+        "path": "client/pkg/transport/listener_opts.go",
+        "contains": "return func(lo *ListenerOptions) { lo.socketOpts = s }"
+      },
+      {
+        "path": "server/embed/etcd.go",
+        "contains": "transport.WithSocketOpts(&e.cfg.SocketOpts),"
+      },
+      {
+        "path": "server/embed/etcd.go",
+        "contains": "ml, err := e.createMetricsListener(murl)"
+      },
+      {
+        "path": "server/embed/etcd_test.go",
+        "contains": "_, err := e.createMetricsListener(murl)"
+      }
+    ],
+    "author_notes": "Hop-1 is the listener test plus the three server/embed builders; hop-2 collapses to StartEtcd (calls both listener configurators), serveMetrics and the embed test that exercises the metrics listener builder, verbatim from hop2_verified. The hop-1 embed functions are rejected alternates. Prose names neither the option constructor nor any gold identifier, including with punctuation and spaces removed."
+  },
+  {
+    "id": "etcdc-transitive-goroutine-dump-poller",
+    "category": "transitive_blast_radius",
+    "set": "dev",
+    "question": "A function in the shared client test utilities closes idle connections on the default HTTP transport, then polls the live goroutine dump for a caller-supplied duration, matching each stack against a table of suspicious fragments (a transport read or write loop, an httptest server, a gRPC resource, a stream closer), returning nil as soon as nothing interesting is still running and otherwise an error naming what appears to have leaked. I want its two-hop blast radius: the functions and methods that call its direct callers. Name every function or method in the corpus that reaches it in two hops, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "helper": "client/pkg/testutil/leak.go::CheckAfterTest",
+    "hops": 2,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "expected_json": {
+      "answer": [
+        "client/pkg/testutil/before.go::BeforeTest",
+        "client/pkg/testutil/leak.go::MustTestMainWithLeakDetection",
+        "client/pkg/testutil/leak.go::RegisterLeakDetection",
+        "client/pkg/testutil/leak_test.go::TestSample",
+        "client/v3/client_test.go::TestDialCancel",
+        "client/v3/txn_test.go::TestTxnPanics"
+      ]
+    },
+    "rejected_alternates": [
+      "client/pkg/testutil/leak.go::CheckLeakedGoroutine",
+      "client/pkg/testutil/leak.go::interestingGoroutines",
+      "client/pkg/testutil/leak.go::afterTest",
+      "client/pkg/testutil/leak.go::MustCheckLeakedGoroutine",
+      "client/v3/client_test.go::TestAuthTokenBundleNoOverwrite"
+    ],
+    "evidence": [
+      {
+        "path": "client/pkg/testutil/leak.go",
+        "contains": "func CheckAfterTest(d time.Duration) error {"
+      },
+      {
+        "path": "client/pkg/testutil/leak.go",
+        "contains": "CheckAfterTest(5 * time.Second)"
+      },
+      {
+        "path": "client/pkg/testutil/leak.go",
+        "contains": "if err := CheckAfterTest(1 * time.Second); err != nil {"
+      },
+      {
+        "path": "client/pkg/testutil/before.go",
+        "contains": "RegisterLeakDetection(tb)"
+      },
+      {
+        "path": "client/pkg/testutil/leak_test.go",
+        "contains": "defer afterTest(t)"
+      }
+    ],
+    "author_notes": "Hop-1 is MustCheckLeakedGoroutine, the registrar and afterTest; hop-2 spans the package's own entry points plus the two client tests that register detection directly, exactly as pinned. Note the registrar appears in hop-2 as well (it calls afterTest, which calls the poller), so answers must keep it. Question prose avoids the helper name and all six gold names under stripping, including 'BeforeTest' and 'TestSample'."
+  },
+  {
+    "id": "etcdc-transitive-retry-cancellation-predicate",
+    "category": "transitive_blast_radius",
+    "set": "dev",
+    "question": "In the client's retry interceptor file, a two-line predicate pulls the gRPC status code out of an error and reports true when that code is deadline-exceeded or cancelled, so the retry machinery can stop retrying calls the caller already gave up on. I want its two-hop blast radius: the functions and methods that call its direct callers. Name every function or method in the corpus that reaches it in two hops, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "helper": "client/v3/retry_interceptor.go::isContextError",
+    "hops": 2,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "expected_json": {
+      "answer": [
+        "client/v3/client.go::dialSetupOpts",
+        "client/v3/retry_interceptor.go::RecvMsg",
+        "client/v3/retry_interceptor.go::receiveMsgAndIndicateRetry",
+        "client/v3/retry_interceptor.go::unaryClientInterceptor"
+      ]
+    },
+    "rejected_alternates": [
+      "client/v3/retry_interceptor.go::contextErrToGRPCErr",
+      "client/v3/retry_interceptor.go::isSafeRetry",
+      "client/v3/retry.go::isSafeRetryImmutableRPC",
+      "client/v3/retry_interceptor.go::backoffLinearWithJitter",
+      "client/v3/client.go::dialWithBalancer"
+    ],
+    "evidence": [
+      {
+        "path": "client/v3/retry_interceptor.go",
+        "contains": "func isContextError(err error) bool {"
+      },
+      {
+        "path": "client/v3/retry_interceptor.go",
+        "contains": "return status.Code(err) == codes.DeadlineExceeded || status.Code(err) == codes.Canceled"
+      },
+      {
+        "path": "client/v3/retry_interceptor.go",
+        "contains": "if !isSafeRetry(c, lastErr, callOpts) {"
+      },
+      {
+        "path": "client/v3/retry_interceptor.go",
+        "contains": "return isSafeRetry(s.client, err, s.callOpts), err"
+      },
+      {
+        "path": "client/v3/client.go",
+        "contains": "grpc.WithUnaryInterceptor(c.unaryClientInterceptor(withMax(unaryMaxRetries), rrBackoff)),"
+      }
+    ],
+    "author_notes": "Hop-1 is isSafeRetry plus the two interceptor paths that consult the predicate directly; hop-2 is the streaming RecvMsg wrapper, the two interceptor functions that call isSafeRetry, and the dial-option builder in client.go, verbatim from hop2_verified. Two hop-1 members recur at hop-2 because they also call isSafeRetry, so the answer legitimately overlaps hop-1; isSafeRetry itself is a rejected alternate."
+  },
+  {
+    "id": "etcdc-range-end-successor-implementation-and-callers",
+    "category": "mixed_discovery_structure",
+    "set": "dev",
+    "question": "In the client package that builds key-value operations, an unexported helper computes the exclusive upper bound that makes a range cover every key sharing a given byte prefix: it copies the input, scans from the last byte backwards for the first byte below 0xff, increments that byte, truncates everything after it, and returns a package-level sentinel when every byte is already 0xff so the request falls back to an open-ended range instead. Name that helper and every function in the corpus that calls it. Answer as a JSON object with keys \"implementation\" and \"callers\", where implementation is one path::name and callers is a list of path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "expected_json": {
+      "answer": {
+        "implementation": "client/v3/op.go::getPrefix",
+        "callers": [
+          "client/v3/compare.go::WithPrefix",
+          "client/v3/op.go::GetPrefixRangeEnd",
+          "client/v3/op.go::WithPrefix"
+        ]
+      }
+    },
+    "caller_key": "callers",
+    "helper": "client/v3/op.go::getPrefix",
+    "hops": 1,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "rejected_alternates": [
+      "client/v3/op.go::WithFromKey",
+      "client/v3/op.go::WithRange",
+      "client/v3/compare.go::WithRange"
+    ],
+    "evidence": [
+      {
+        "path": "client/v3/op.go",
+        "contains": "default to WithFromKey policy"
+      },
+      {
+        "path": "client/v3/op.go",
+        "contains": "func GetPrefixRangeEnd(prefix string) string {"
+      }
+    ],
+    "author_notes": "Both facets in one answer: the implementation must be found from behaviour (prefix successor with an all-0xff fallback) and its three callers enumerated, two of which are same-named `WithPrefix` definitions in different files - a namesake pair that a bare-name answer cannot separate."
+  }
+]
