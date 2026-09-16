@@ -18,17 +18,19 @@ use crate::{
     },
     source::SourceResult,
 };
-use anyhow::Result;
+use anyhow::{Context, Result, ensure};
 use rmcp::{
     ServerHandler,
     model::*,
-    service::{RequestContext, RoleServer},
+    service::{NotificationContext, Peer, RequestContext, RoleServer},
 };
 use schemars::JsonSchema;
 use serde_json::{Value, json};
+use std::path::PathBuf;
+use std::time::Duration;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::OnceCell;
+use tokio::sync::{Mutex, OnceCell};
 
 const ROUTING_INSTRUCTIONS: &str = "\
 Route repository retrieval by the question's intent:
@@ -79,11 +81,42 @@ impl Drop for InFlight {
     }
 }
 
-pub struct RetrievalServer {
+/// Everything that depends on which repository the session reads: the workspace and the snapshot
+/// built for it. They are held together behind one `Arc` so a request that has started keeps a
+/// consistent pair even if the client moves its root mid-session - a snapshot from one root and
+/// paths from another would be a wrong answer, not a stale one.
+pub struct Session {
     pub workspace: Workspace,
+    structural: OnceCell<Arc<dyn StructuralBackend>>,
+}
+
+impl Session {
+    fn new(workspace: Workspace) -> Self {
+        Self {
+            workspace,
+            structural: OnceCell::new(),
+        }
+    }
+}
+
+/// The resolved session, and whether the client has since said its roots moved.
+///
+/// `stale` is set by the roots-changed notification rather than clearing `current`, because a
+/// changed root list usually does not change *this* server's root - Claude Code sends the
+/// notification when a working directory is added, and the project root stays first in the list.
+/// Dropping the snapshot on every notification would pay a cold index rebuild, seconds on a large
+/// repository, to learn that nothing moved.
+#[derive(Default)]
+struct SessionState {
+    current: Option<Arc<Session>>,
+    stale: bool,
+}
+
+pub struct RetrievalServer {
+    /// Resolved at startup from `--root`, or on the first tool call from the client's own roots.
+    session: Mutex<SessionState>,
     pub config: Config,
     pub lexical: Arc<dyn LexicalBackend>,
-    pub structural: OnceCell<Arc<dyn StructuralBackend>>,
     pub semantic: Option<Arc<dyn SemanticBackend>>,
     /// Requests accepted and not yet answered. A transport can read this to avoid shutting down
     /// with a reply still owed: a client that closes stdin while a slow first structural call is
@@ -94,14 +127,20 @@ pub struct RetrievalServer {
 
 impl RetrievalServer {
     pub fn new(config: Config) -> Result<Self> {
+        let session = match &config.root {
+            Some(root) => SessionState {
+                current: Some(Arc::new(Session::new(Workspace::new(root)?))),
+                stale: false,
+            },
+            None => SessionState::default(),
+        };
         Ok(Self {
-            workspace: Workspace::new(&config.root)?,
+            session: Mutex::new(session),
             inflight: Arc::new(AtomicUsize::new(0)),
             lexical: Arc::new(Ripgrep {
                 timeout: config.timeout,
                 no_ignore: config.no_ignore,
             }),
-            structural: OnceCell::new(),
             semantic: config.semantic_command.clone().map(|command| {
                 Arc::new(CommandSemantic {
                     command,
@@ -115,6 +154,42 @@ impl RetrievalServer {
             )?,
             config,
         })
+    }
+
+    /// The repository this call reads, resolved from the client when the operator pinned none.
+    ///
+    /// A pinned `--root` never consults the client, so an operator can always point a session at a
+    /// directory the client did not open. Otherwise the first call takes the client's first root,
+    /// or the directory it launched the server in when it reports none, and a later call re-asks
+    /// only after a roots-changed notification - keeping the warm snapshot when the answer names
+    /// the same directory.
+    async fn session(&self, peer: &Peer<RoleServer>) -> Result<Arc<Session>> {
+        {
+            let state = self.session.lock().await;
+            if let Some(session) = state.current.as_ref()
+                && !state.stale
+            {
+                return Ok(Arc::clone(session));
+            }
+        }
+        // Resolved before the lock is taken: asking the client is a round trip, and holding the
+        // session behind it would make one slow answer stall every other call rather than just
+        // its own.
+        let workspace = Workspace::new(&resolve_root(peer, self.config.timeout).await?)?;
+        let mut state = self.session.lock().await;
+        state.stale = false;
+        if let Some(session) = state.current.as_ref() {
+            if session.workspace.root() == workspace.root() {
+                return Ok(Arc::clone(session));
+            }
+            tracing::info!(event = "root_changed", from = %session.workspace.root().display(),
+                           to = %workspace.root().display());
+        } else {
+            tracing::info!(event = "root_adopted", root = %workspace.root().display());
+        }
+        let session = Arc::new(Session::new(workspace));
+        state.current = Some(Arc::clone(&session));
+        Ok(session)
     }
 
     pub fn definitions(&self) -> Vec<Tool> {
@@ -151,7 +226,7 @@ impl RetrievalServer {
         catalogue
     }
 
-    async fn execute(&self, name: &str, args: Value) -> Result<Value> {
+    async fn execute(&self, session: &Session, name: &str, args: Value) -> Result<Value> {
         anyhow::ensure!(
             serde_json::to_vec(&args)?.len() <= 16 * 1024,
             "tool arguments exceed 16 KiB"
@@ -163,11 +238,11 @@ impl RetrievalServer {
         match name {
             "search_exact" => Ok(serde_json::to_value(
                 self.lexical
-                    .search(&self.workspace, serde_json::from_value(args)?)
+                    .search(&session.workspace, serde_json::from_value(args)?)
                     .await?,
             )?),
             "read_source" => {
-                let ws = self.workspace.clone();
+                let ws = session.workspace.clone();
                 let args = serde_json::from_value(args)?;
                 Ok(serde_json::to_value(
                     tokio::task::spawn_blocking(move || ws.read(args)).await??,
@@ -176,36 +251,38 @@ impl RetrievalServer {
             "find_symbol" => {
                 let args = serde_json::from_value(args)?;
                 Ok(serde_json::to_value(
-                    self.index().await?.find_symbol(&self.workspace, args)?,
+                    self.index(session).await?.find_symbol(&session.workspace, args)?,
                 )?)
             }
             "find_callers" => {
                 let args = serde_json::from_value(args)?;
                 Ok(serde_json::to_value(
-                    self.index().await?.find_callers(&self.workspace, args)?,
+                    self.index(session).await?.find_callers(&session.workspace, args)?,
                 )?)
             }
             "trace_dependencies" => {
                 let args = serde_json::from_value(args)?;
                 Ok(serde_json::to_value(
-                    self.index().await?.trace_dependencies(&self.workspace, args)?,
+                    self.index(session)
+                        .await?
+                        .trace_dependencies(&session.workspace, args)?,
                 )?)
             }
             "inspect_symbol" => {
                 let args = serde_json::from_value(args)?;
                 Ok(serde_json::to_value(
-                    self.index().await?.inspect_symbol(&self.workspace, args)?,
+                    self.index(session).await?.inspect_symbol(&session.workspace, args)?,
                 )?)
             }
-            "search_concept" => Ok(serde_json::to_value(self.concept(args).await?)?),
+            "search_concept" => Ok(serde_json::to_value(self.concept(session, args).await?)?),
             _ => anyhow::bail!("unknown or disabled tool: {name}; use tools/list"),
         }
     }
 
-    async fn index(&self) -> Result<&Arc<dyn StructuralBackend>> {
-        self.structural.get_or_try_init(|| async {
+    async fn index<'a>(&self, session: &'a Session) -> Result<&'a Arc<dyn StructuralBackend>> {
+        session.structural.get_or_try_init(|| async {
             let index = StructuralIndex::build(
-                self.workspace.clone(),
+                session.workspace.clone(),
                 self.config.timeout,
                 self.config.no_ignore,
             )
@@ -216,7 +293,7 @@ impl RetrievalServer {
     }
 
     /// One conceptual search; the operator's `--ranker` decides how it is answered.
-    async fn concept(&self, args: Value) -> Result<ConceptResult> {
+    async fn concept(&self, session: &Session, args: Value) -> Result<ConceptResult> {
         let args: ConceptArgs = serde_json::from_value(args)?;
         let ranker = self.config.ranker;
         // The same bounds `search_exact` enforces, applied before the ranker is chosen: the
@@ -232,33 +309,33 @@ impl RetrievalServer {
             .as_deref()
             .is_some_and(|fields| fields.iter().any(|field| field == "excerpt"));
         let lexical = if ranker.needs_index() {
-            self.index()
+            self.index(session)
                 .await?
-                .search_concept(&self.workspace, &args.query, args.path.as_deref(),
+                .search_concept(&session.workspace, &args.query, args.path.as_deref(),
                                 (wanted + offset).min(100))?
         } else {
             Vec::new()
         };
         let mut result = if ranker.needs_backend() {
             let backend = self.semantic.as_ref().ok_or_else(|| anyhow::anyhow!("the semantic ranker needs a backend; start with --semantic-command '[\"/absolute/path/to/backend\"]' or use --ranker lexical"))?;
-            let dense = backend.search(&self.workspace, args).await?;
+            let dense = backend.search(&session.workspace, args).await?;
             match ranker {
                 Ranker::Semantic => dense,
                 // Reciprocal rank fusion: no tuned weights, no learned reranker, no score scaling.
-                _ => fuse(dense, lexical, wanted, offset, include_excerpt, &self.workspace)?,
+                _ => fuse(dense, lexical, wanted, offset, include_excerpt, &session.workspace)?,
             }
         } else {
-            crate::search::semantic::rows(&self.workspace, lexical, wanted, offset,
+            crate::search::semantic::rows(&session.workspace, lexical, wanted, offset,
                                           include_excerpt, "bm25/symbol-chunks",
                                           "Lexical BM25 over indexed definitions; no embedding model or service.")?
         };
         if ranker.needs_index() {
             // An index-backed empty page is only interpretable next to the corpus size: zero
             // indexed files means ignore rules or the root emptied the corpus, not absence.
-            result.indexed_files = Some(self.index().await?.coverage().indexed_files);
+            result.indexed_files = Some(self.index(session).await?.coverage().indexed_files);
         }
         if self.config.structural() {
-            let index = self.index().await?;
+            let index = self.index(session).await?;
             for hit in &mut result.results {
                 hit.symbol = index.locate(&hit.path, hit.start_line);
             }
@@ -381,6 +458,141 @@ fn fit_response(mut value: Value, offset: usize) -> Result<Value> {
     Ok(value)
 }
 
+/// Where a session reads from when the operator pinned nothing: the client's roots if it reports
+/// any, otherwise the directory the client launched this server in.
+///
+/// The launch directory is what every other stdio MCP server uses, and it is the same directory
+/// `--root .` always resolved against - measured, not assumed: Claude Code 2.1.261 and Codex
+/// 0.154.0 both spawn the server with the opened project as its working directory. Asking the
+/// client first is still worth a round trip, because a root is authoritative where a working
+/// directory is a convention, and because Claude Code keeps naming the project even after the
+/// session gains extra working directories.
+async fn resolve_root(peer: &Peer<RoleServer>, timeout: Duration) -> Result<PathBuf> {
+    match client_root(peer, timeout).await? {
+        Some(root) => Ok(root),
+        None => launch_directory(),
+    }
+}
+
+/// The root this client reports, or `None` when it has none to report.
+///
+/// This is the only `roots/list` call site, deliberately. Roots are deprecated by SEP-2577 -
+/// advisory only, no wire change, functional in every spec version released within a year of the
+/// deprecating one, and `#[deprecated]` in rmcp - so the day the request goes away, one function
+/// goes with it. It is also issued from inside a `tools/call`, which is what SEP-2260 requires
+/// from protocol version 2026-07-28: a client may reject a server request that belongs to none of
+/// its own.
+///
+/// The capability is checked before asking, because a client that never declared roots answers
+/// with a protocol error rather than an empty list. Codex 0.154.0 is such a client; it is not a
+/// misconfiguration, so it falls through to the launch directory instead of failing.
+#[allow(deprecated)]
+async fn client_root(peer: &Peer<RoleServer>, timeout: Duration) -> Result<Option<PathBuf>> {
+    let declared = peer
+        .peer_info()
+        .is_some_and(|info| info.capabilities.roots.is_some());
+    if !declared {
+        return Ok(None);
+    }
+    // Bounded, because a client that declares roots and then does not answer is indistinguishable
+    // from one that cannot: without a deadline the first tool call never returns, and every later
+    // call queues behind it. A silence is treated as the absence it looks like - the launch
+    // directory - rather than as a session that hangs.
+    let answered = match tokio::time::timeout(timeout, peer.list_roots()).await {
+        Ok(answered) => answered,
+        Err(_) => {
+            tracing::info!(event = "roots_timed_out", seconds = timeout.as_secs_f32());
+            return Ok(None);
+        }
+    };
+    let roots = answered
+        .context("this client declares roots but roots/list failed")?
+        .roots;
+    // One root is what this server indexes: paths in every answer are relative to it, and
+    // `--root` was always a single directory. A client that reports several - Claude Code adds one
+    // per extra working directory, after the project it launched in - gets the first indexed and
+    // the rest named in the log, rather than silently folded into a corpus the paths cannot
+    // describe.
+    let Some(first) = roots.first() else {
+        tracing::info!(event = "roots_empty");
+        return Ok(None);
+    };
+    if roots.len() > 1 {
+        tracing::info!(event = "roots_ignored", indexed = %first.uri,
+                       ignored = ?roots[1..].iter().map(|root| &root.uri).collect::<Vec<_>>());
+    }
+    root_from_uri(&first.uri).map(Some)
+}
+
+/// The directory the client launched this server in, refused in the two cases where it cannot be
+/// a repository anyone meant to index.
+///
+/// A home directory or a filesystem root is a corpus of everything: minutes of indexing, every
+/// unrelated checkout, and whatever else lives there. `install.sh` already refuses to register a
+/// local entry outside a work tree for the same reason, and an operator who genuinely wants such
+/// a root can still say so with `--root`.
+fn launch_directory() -> Result<PathBuf> {
+    let cwd = std::env::current_dir()
+        .context("this client reports no roots and the launch directory is unreadable; start the server with --root PATH")?;
+    let refuse = |what: &str| {
+        anyhow::anyhow!(
+            "this client reports no roots and launched this server in {what} ({}); start the server with --root PATH naming the repository to read",
+            cwd.display()
+        )
+    };
+    ensure!(cwd.parent().is_some(), "{}", refuse("the filesystem root"));
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from)
+        && home.canonicalize().ok() == cwd.canonicalize().ok()
+    {
+        anyhow::bail!("{}", refuse("your home directory"));
+    }
+    tracing::info!(event = "launch_directory", root = %cwd.display());
+    Ok(cwd)
+}
+
+/// A `file:` URI as a local path.
+///
+/// Percent-escapes are decoded: a project under `/Users/me/My Projects` is reported as
+/// `My%20Projects`, and left encoded it reaches `Workspace::new` as a directory that does not
+/// exist - a wrong root reported as a missing one. Any other scheme is refused by name, because
+/// this server reads local files and a remote root is not something it can fall back from.
+fn root_from_uri(uri: &str) -> Result<PathBuf> {
+    let authority = uri
+        .strip_prefix("file://")
+        .with_context(|| format!("root {uri} is not a file: URI, and this server reads local files"))?;
+    let path = authority.strip_prefix("localhost").unwrap_or(authority);
+    ensure!(
+        path.starts_with('/'),
+        "root {uri} names a host this server cannot read"
+    );
+    let bytes = path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        if bytes[at] == b'%' {
+            let escape = path
+                .get(at + 1..at + 3)
+                .with_context(|| format!("root {uri} ends in a truncated percent-escape"))?;
+            decoded.push(
+                u8::from_str_radix(escape, 16)
+                    .with_context(|| format!("root {uri} has a malformed percent-escape"))?,
+            );
+            at += 3;
+        } else {
+            decoded.push(bytes[at]);
+            at += 1;
+        }
+    }
+    let decoded = String::from_utf8(decoded)
+        .with_context(|| format!("root {uri} decodes to a non-UTF-8 path, which is unsupported"))?;
+    let path = PathBuf::from(decoded);
+    ensure!(
+        path.is_absolute(),
+        "root {uri} does not name an absolute path"
+    );
+    Ok(path)
+}
+
 impl ServerHandler for RetrievalServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
@@ -412,7 +624,13 @@ impl ServerHandler for RetrievalServer {
             .and_then(Value::as_u64)
             .unwrap_or_default() as usize;
         let outcome = tokio::select! {
-            result = self.execute(&request.name, args) => result,
+            // The root is resolved inside the call, not at startup: asking the client for its
+            // roots is only legal while handling a client request, and a failure to resolve one
+            // is a tool error like any other, logged with the call that provoked it.
+            result = async {
+                let session = self.session(&context.peer).await?;
+                self.execute(&session, &request.name, args).await
+            } => result,
             _ = context.ct.cancelled() => Err(anyhow::anyhow!("request cancelled")),
         };
         let outcome = outcome.and_then(|value| fit_response(value, offset));
@@ -435,5 +653,20 @@ impl ServerHandler for RetrievalServer {
         let size = serde_json::to_vec(&result).map_or(0, |bytes| bytes.len());
         log.finish(count, size, &value, error.as_deref());
         Ok(result.into())
+    }
+
+    /// The client's roots moved: ask again on the next call, but keep the session until the
+    /// answer proves the root did.
+    ///
+    /// Nothing is fetched here. `roots/list` may only be issued while handling a client request
+    /// (SEP-2260), and a notification is not one; re-resolving lazily also means a request that is
+    /// already running finishes against the root it started with.
+    async fn on_roots_list_changed(&self, _: NotificationContext<RoleServer>) {
+        if self.config.root.is_some() {
+            tracing::info!(event = "roots_changed_ignored", reason = "root pinned by --root");
+            return;
+        }
+        self.session.lock().await.stale = true;
+        tracing::info!(event = "roots_changed");
     }
 }

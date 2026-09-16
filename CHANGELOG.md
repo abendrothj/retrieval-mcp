@@ -4,6 +4,57 @@ What shipped in each release of the `retrieval-mcp` binary. The findings behind 
 protocols and their caveats are in [experiments/README.md](experiments/README.md); this file records
 releases only.
 
+## Unreleased
+
+**`--root` is optional, and the recommended entry no longer carries a path.** Every configuration
+entry repeated the repository the client had already opened, as `--root .` resolved against
+whatever directory the client launched the server in — a copy of a fact the client holds, and the
+reason a user-scope entry was a guess rather than a setting. A session started without `--root` now
+resolves one on the first tool call: the client's first root if it reports any, otherwise the
+directory the client launched the server in, which is what every other stdio MCP server uses and
+the same directory `--root .` always meant. A roots-changed notification makes the next call
+resolve again, and the warm snapshot survives when the answer names the same directory. `--root`
+still wins, is never asked about and is never overridden, so it remains how an operator points a
+session at a repository the client did not open.
+
+Two launch directories are refused by name instead of indexed — a home directory and the filesystem
+root — because a corpus of everything is not a repository anyone meant to name, and `install.sh`
+already refused to register a local entry outside a work tree for the same reason. The installer's
+own registrations and every documented entry dropped `--root .`, and `RETRIEVAL_MCP_SCOPE` now
+defaults to `user`: with no path in the entry, one registration reads whichever project is open.
+
+`roots/list` is deprecated by SEP-2577 — advisory, no wire change, functional for at least a year
+past the deprecating spec version — so it has exactly one call site in `client_root`, with the
+launch directory behind it as the non-deprecated path. Both clients were read off a live handshake
+against a server started with no root at all: Claude Code 2.1.261 declares `roots.listChanged` on
+protocol `2025-11-25`, Codex 0.154.0 declares `roots: None` on `2025-06-18`, and both spawn the
+server with the opened project as its working directory — which is why the fallback, not the
+deprecated request, is what makes Codex work without a path. A client that declares roots and then never answers is bounded by `--timeout-seconds` and falls
+back to the launch directory, because without a deadline the first tool call never returns and
+every later one queues behind it. Six stdio tests cover the resolution chain, including that
+silence; no model session was run and no agent-level claim is made for it.
+
+**`search_concept` rejects unknown fields, like every other tool.** Its argument struct was the
+one without `deny_unknown_fields`, so a misspelled `limt` was silently ignored and the caller got
+a default page it never asked for. The README had claimed the strict behaviour for all seven tools
+since the surface froze; the code is now what the sentence said rather than the other way round.
+It is not free: across every archived run 14 of 977 `search_concept` calls carried a field the
+strict schema rejects - all of them a `project` the model invented, all in trials that answered
+correctly anyway - so the measured cost is a recovery turn on about 1.4% of concept calls, against
+a silent wrong-scope answer that this project has no way to detect.
+
+**The README has a shape contract, checked by `check_docs.py`.** An audit found it answering "how
+do I install this" for 131 lines before answering "what is this", explaining client registration
+in eight places — one a byte-identical duplicate — and carrying five claims the code contradicted:
+a 4 MiB cap on a ranker that starts no subprocess, a 20-result default that was 10 for
+`search_concept`, an SDK version, a checksum policy that disagreed with itself seventy lines
+later, and an ablation example that changed two variables while saying it changed one. The claims
+are fixed and the structure is now enforced: sections appear once each in a fixed order with proof
+before procedure, the install section has a line budget, no fenced block may appear twice, the
+client registration commands may appear in exactly one block, and the contents list must name
+every section. The quickstart's sample response is compared field by field against a live call, so
+the one output the README shows cannot go stale silently.
+
 ## 0.1.5
 
 **`cargo binstall retrieval-mcp` works.** The binstall metadata that points at the release archives

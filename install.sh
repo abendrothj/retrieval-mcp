@@ -8,7 +8,7 @@
 #   RETRIEVAL_MCP_INSTALL_DIR  install directory (default: ~/.local/bin)
 #   RETRIEVAL_MCP_REGISTER     register with these clients after installing: claude, codex, or
 #                              both comma-separated (default: none, the commands are printed)
-#   RETRIEVAL_MCP_SCOPE        local (this repository, the default) or user (every project)
+#   RETRIEVAL_MCP_SCOPE        user (every project, the default) or local (this repository only)
 #
 # No Rust toolchain, no `jq` and no GitHub token required. Unsupported platforms are reported
 # instead of silently falling back.
@@ -30,7 +30,7 @@ TARGETS="aarch64-apple-darwin, x86_64-apple-darwin, aarch64-unknown-linux-gnu,
          x86_64-unknown-linux-gnu, aarch64-unknown-linux-musl, x86_64-unknown-linux-musl"
 
 REGISTER="${RETRIEVAL_MCP_REGISTER:-}"
-SCOPE="${RETRIEVAL_MCP_SCOPE:-local}"
+SCOPE="${RETRIEVAL_MCP_SCOPE:-user}"
 case "$SCOPE" in
 local | user) ;;
 *)
@@ -307,7 +307,7 @@ register_claude() {
 	command -v claude >/dev/null 2>&1 ||
 		die "RETRIEVAL_MCP_REGISTER names claude, but the claude CLI is not on PATH"
 	claude mcp add --transport stdio --scope "$1" retrieval -- \
-		"$INSTALL_DIR/retrieval-mcp" --root . ||
+		"$INSTALL_DIR/retrieval-mcp" ||
 		die "claude mcp add failed; register by hand with the command printed above"
 	printf 'retrieval-mcp: registered with Claude Code at %s scope\n' "$1"
 }
@@ -316,20 +316,23 @@ register_codex() {
 	command -v codex >/dev/null 2>&1 ||
 		die "RETRIEVAL_MCP_REGISTER names codex, but the codex CLI is not on PATH"
 	# Codex keeps one server list in ~/.codex/config.toml; it has no project scope to choose.
-	codex mcp add retrieval -- "$INSTALL_DIR/retrieval-mcp" --root . ||
+	codex mcp add retrieval -- "$INSTALL_DIR/retrieval-mcp" ||
 		die "codex mcp add failed; register by hand with the command printed above"
 	printf 'retrieval-mcp: registered with Codex (user configuration)\n'
 }
 
-printf 'retrieval-mcp: register it from a repository you want it to read (--root is fixed at startup, so a local entry is per project):\n\n'
-printf '    claude mcp add --transport stdio --scope local retrieval -- retrieval-mcp --root .\n'
-printf '    codex mcp add retrieval -- retrieval-mcp --root .\n\n'
+# No path in either command: the server reads the repository the client reports, or the directory
+# the client launched it in, so one entry serves every project. `--root PATH` is for a repository
+# the client did not open.
+printf 'retrieval-mcp: register it with one of these, from anywhere:\n\n'
+printf '    claude mcp add --transport stdio --scope user retrieval -- retrieval-mcp\n'
+printf '    codex mcp add retrieval -- retrieval-mcp\n\n'
 
 if [ -z "$REGISTER" ]; then
 	printf 'retrieval-mcp: no configuration file was written and nothing was started. This installer\n'
 	printf '               copied one binary into %s; that is all it did.\n' "$INSTALL_DIR"
 	printf '               Pass RETRIEVAL_MCP_REGISTER=claude,codex to run those commands for you,\n'
-	printf '               and RETRIEVAL_MCP_SCOPE=user for an entry every project sees.\n'
+	printf '               and RETRIEVAL_MCP_SCOPE=local to confine the entry to this repository.\n'
 	exit 0
 fi
 
@@ -340,9 +343,8 @@ if [ "$SCOPE" = local ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1
        run this from a repository, or pass RETRIEVAL_MCP_SCOPE=user"
 fi
 
-# `--root .` is resolved once against the directory the client launches the server in, so one user
-# entry still reads whichever project is open. That is what makes a global registration coherent
-# for a server whose root is fixed at startup.
+# An entry with no path in it reads whichever project the client has open, so a user-scope
+# registration is coherent for a server that reads one repository per session.
 printf 'retrieval-mcp: registering %s at %s scope, from %s\n' "$REGISTER" "$SCOPE" "$PWD"
 saved_ifs=$IFS
 IFS=,

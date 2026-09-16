@@ -1,10 +1,11 @@
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
-from check_docs import (check_counts, check_links, check_paths, check_quickstart, check_surface,
-                        headings, rust_constants)
+from check_docs import (INSTALL_BUDGET, README_SECTIONS, check_counts, check_links, check_paths,
+                        check_quickstart, check_shape, check_surface, headings, rust_constants)
 
 CONFIG = '''
 pub const TOOLS: [&str; 3] = [
@@ -135,31 +136,112 @@ class QuickstartTests(unittest.TestCase):
     pushes with an empty result. The binary under test is the one in `target/release`.
     """
 
+    def build(self, repo, reply, readme):
+        (repo / "target/release").mkdir(parents=True)
+        built = repo / "target/release/retrieval-mcp"
+        built.write_text(f"#!/bin/sh\necho '{reply}'\n", encoding="utf-8")
+        built.chmod(0o755)
+        # An installed namesake that answers with nothing, exactly as a stale copy would.
+        elsewhere = repo / "bin"
+        elsewhere.mkdir()
+        installed = elsewhere / "retrieval-mcp"
+        installed.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        installed.chmod(0o755)
+        (repo / "README.md").write_text(readme, encoding="utf-8")
+        problems = []
+        original = os.environ.get("PATH", "")
+        os.environ["PATH"] = f"{elsewhere}{os.pathsep}{original}"
+        try:
+            check_quickstart(repo, problems)
+        finally:
+            os.environ["PATH"] = original
+        return problems
+
+    REPLY = ('{"result":{"isError":false,"structuredContent":'
+             '{"results":[{"path":"src/main.rs","caller":"main"}],"symbol_status":"indexed"}}}')
+    README = ("## Quickstart\n\n```sh\nretrieval-mcp\n```\n\nIt answers:\n\n```json\n"
+              '{"results": [{"path": "src/main.rs", "caller": "%s"}], '
+              '"symbol_status": "indexed"}\n```\n')
+
     def test_the_built_binary_answers_even_when_another_is_on_path(self):
         with tempfile.TemporaryDirectory() as directory:
-            repo = Path(directory)
-            (repo / "target/release").mkdir(parents=True)
-            built = repo / "target/release/retrieval-mcp"
-            built.write_text("#!/bin/sh\necho '{\"result\":{\"isError\":false}}'\n",
-                             encoding="utf-8")
-            built.chmod(0o755)
-            # An installed namesake that answers with nothing, exactly as a stale copy would.
-            elsewhere = repo / "bin"
-            elsewhere.mkdir()
-            installed = elsewhere / "retrieval-mcp"
-            installed.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
-            installed.chmod(0o755)
-            (repo / "README.md").write_text(
-                "## Quickstart\n\n```sh\ncargo build --release\nretrieval-mcp --root .\n```\n",
-                encoding="utf-8")
-            problems = []
-            original = os.environ.get("PATH", "")
-            os.environ["PATH"] = f"{elsewhere}{os.pathsep}{original}"
-            try:
-                check_quickstart(repo, problems)
-            finally:
-                os.environ["PATH"] = original
-            self.assertEqual(problems, [])
+            self.assertEqual(self.build(Path(directory), self.REPLY, self.README % "main"), [])
+
+    def test_a_sample_response_that_no_longer_matches_the_server_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            problems = self.build(Path(directory), self.REPLY, self.README % "renamed_caller")
+            self.assertEqual(len(problems), 1, problems)
+            self.assertIn("results[0].caller: documented 'renamed_caller'",
+                          problems[0]["detail"])
+
+    def test_a_quickstart_that_shows_no_response_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            problems = self.build(Path(directory), self.REPLY,
+                                  "## Quickstart\n\n```sh\nretrieval-mcp\n```\n")
+            self.assertEqual([problem["detail"] for problem in problems],
+                             ["the quickstart shows no sample response"])
+
+
+class ShapeTests(unittest.TestCase):
+    """The README's order, size and single-source rules, which an audit had to establish twice."""
+
+    def readme(self, sections=None, install="two commands\n", extra=""):
+        sections = sections or list(README_SECTIONS)
+        contents = " · ".join(
+            f"[{name}](#{re.sub(r'[^a-z0-9 -]', '', name.lower()).replace(' ', '-')})"
+            for name in README_SECTIONS if name != "Contents")
+        body = "# title\n\n"
+        for name in sections:
+            body += f"## {name}\n\n"
+            if name == "Contents":
+                body += contents + "\n\n"
+            elif name == "Install":
+                body += install
+                body += "```sh\nclaude mcp add --transport stdio retrieval -- retrieval-mcp\n```\n\n"
+            else:
+                body += f"prose for {name}\n\n"
+        return body + extra
+
+    def shape(self, text):
+        problems = []
+        check_shape(text, problems)
+        return [problem["detail"] for problem in problems]
+
+    def test_the_contract_shape_passes(self):
+        self.assertEqual(self.shape(self.readme()), [])
+
+    def test_procedure_before_proof_is_reported(self):
+        reordered = list(README_SECTIONS)
+        reordered.remove("Install")
+        reordered.insert(reordered.index("What it is"), "Install")
+        problems = self.shape(self.readme(reordered))
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("out of contract order", problems[0])
+
+    def test_an_unlisted_section_and_a_missing_one_are_named(self):
+        dropped = [name for name in README_SECTIONS if name != "Troubleshooting"]
+        problems = self.shape(self.readme(dropped + ["Frequently asked questions"]))
+        self.assertEqual(len(problems), 2, problems)
+        self.assertIn("Frequently asked questions", problems[0])
+        self.assertIn("Troubleshooting", problems[1])
+
+    def test_an_install_section_that_grew_back_into_reference_material_is_reported(self):
+        problems = self.shape(self.readme(install="filler\n" * (INSTALL_BUDGET + 1)))
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("over the", problems[0])
+
+    def test_a_second_registration_block_and_a_duplicated_block_are_reported(self):
+        repeated = ("```sh\nclaude mcp add --transport stdio retrieval -- retrieval-mcp\n```\n")
+        problems = self.shape(self.readme(extra=repeated))
+        self.assertEqual(len(problems), 2, problems)
+        self.assertIn("appears 2 times", problems[0])
+        self.assertIn("2 blocks carry a client registration command", problems[1])
+
+    def test_a_contents_list_that_forgot_a_section_is_reported(self):
+        text = self.readme().replace("[Tools](#tools) · ", "")
+        problems = self.shape(text)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("does not name every section in order", problems[0])
 
 
 if __name__ == "__main__":

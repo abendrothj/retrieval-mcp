@@ -71,7 +71,14 @@ impl Ranker {
 
 #[derive(Clone, Debug)]
 pub struct Config {
-    pub root: PathBuf,
+    /// The repository this session may read, when the operator pinned one.
+    ///
+    /// `None` means "ask the client": a stdio server is launched inside the project the user
+    /// opened, and the client already knows that directory, so a per-project configuration entry
+    /// spelling it out again is a copy that can go stale. The root is then resolved from the
+    /// client's own roots on the first tool call. An explicit `--root` still wins, and is the only
+    /// way to point a session at a directory the client did not open.
+    pub root: Option<PathBuf>,
     /// Exactly the tools this session exposes; anything else is absent and uncallable.
     pub tools: BTreeSet<String>,
     /// What the invocation log calls this tool set: a profile letter, or the tools themselves.
@@ -104,7 +111,7 @@ impl Config {
     pub fn parse() -> Result<Option<Self>> {
         let mut args = std::env::args().skip(1);
         let mut config = Self {
-            root: PathBuf::new(),
+            root: None,
             tools: DEFAULT_SURFACE.iter().map(|tool| (*tool).to_owned()).collect(),
             label: "default".into(),
             semantic_command: None,
@@ -119,7 +126,7 @@ impl Config {
         while let Some(flag) = args.next() {
             if flag == "--help" || flag == "-h" {
                 println!(
-                    "retrieval-mcp --root PATH [--tools name,name,...] [--profile A|B|C|D]\n  [--ranker lexical|semantic|hybrid] [--run-id ID] [--semantic-command '[\"program\",\"arg\"]']\n  [--timeout-seconds 30] [--log-file /absolute/path/events.jsonl] [--no-ignore]\n--no-ignore searches and indexes files that ignore files exclude; .git and hidden files stay out.\nTools: search_exact, read_source, inspect_symbol, find_symbol, find_callers,\n  trace_dependencies, search_concept.\nWithout --tools or --profile the default surface is search_exact, read_source,\n  find_callers and search_concept: the tools that measurably repaid their schema cost.\n  The other three stay available by naming them, or with --profile D.\nProfiles are presets over --tools from the original availability study: A exact+read,\n  B adds structure, C adds concept search, D all seven.\nJSON invocation logs go to stderr and optionally append to --log-file; stdout is reserved for MCP."
+                    "retrieval-mcp [--root PATH] [--tools name,name,...] [--profile A|B|C|D]\n  [--ranker lexical|semantic|hybrid] [--run-id ID] [--semantic-command '[\"program\",\"arg\"]']\n  [--timeout-seconds 30] [--log-file /absolute/path/events.jsonl] [--no-ignore]\n--root pins the only repository the session can read. Without it, the first tool call takes\n  the client's first reported root, or the directory the client started this server in when\n  it reports none, so a client that opens a project needs no path in its configuration. A\n  home directory or the filesystem root is refused instead of indexed.\n--no-ignore searches and indexes files that ignore files exclude; .git and hidden files stay out.\nTools: search_exact, read_source, inspect_symbol, find_symbol, find_callers,\n  trace_dependencies, search_concept.\nWithout --tools or --profile the default surface is search_exact, read_source,\n  find_callers and search_concept: the tools that measurably repaid their schema cost.\n  The other three stay available by naming them, or with --profile D.\nProfiles are presets over --tools from the original availability study: A exact+read,\n  B adds structure, C adds concept search, D all seven.\nJSON invocation logs go to stderr and optionally append to --log-file; stdout is reserved for MCP."
                 );
                 return Ok(None);
             }
@@ -139,7 +146,7 @@ impl Config {
                 .next()
                 .with_context(|| format!("missing value for {flag}"))?;
             match flag.as_str() {
-                "--root" => config.root = value.into(),
+                "--root" => config.root = Some(value.into()),
                 "--log-file" => config.log_file = Some(value.into()),
                 "--tools" => {
                     let requested: Vec<String> =
@@ -193,10 +200,6 @@ impl Config {
                 _ => bail!("unknown option: {flag}; use --help"),
             }
         }
-        ensure!(
-            !config.root.as_os_str().is_empty(),
-            "--root PATH is required"
-        );
         Ok(Some(config))
     }
 }

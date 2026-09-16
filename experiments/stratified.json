@@ -5,16 +5,16 @@
     "Cargo.toml": "f06a3bf02b5f6ccf2f593c8b994dc09c7cb1f50c4001400be67a945081129b01",
     "Cargo.lock": "f68eff15488f3a004397167e57caf237d3287538b4da984a34faa0f19e065359",
     "src/lib.rs": "3491d7f875642a69c473c5609a14c4671f9754ff0ef9e29b6ebacb6c2257d153",
-    "src/main.rs": "91420329e044b8c2316bf278a44147318df47a55b0eae6cb0a4857ab6beba1b2",
-    "src/config/mod.rs": "7bec1963b37e940ffd6e9445df1f837d8a4196560ec1edda8de90ba21c5104e7",
+    "src/main.rs": "df28de1c1685167cb125585ce22691c05c0ad1e6d3e2010e0ddc675ae57ba73d",
+    "src/config/mod.rs": "7ced7a9ae8e8bf7172d6efc5baa4b9cf3dd81a6259c222bb7e046e10225c098b",
     "src/index/mod.rs": "9c18014871f5423d01edd8996423cfd166fb86a1932b2b9165d1fd142080d07a",
     "src/logging/mod.rs": "45cc308d50c77ead9cebae858aba354613988dcf46fb76d8f9c0088eabf3ac8e",
     "src/search/mod.rs": "b90120e8ed00b2871344807d4f914beea1edf6e2ee1d00a400dda7aad80f2e5f",
     "src/search/lexical.rs": "87dbc11445a75715465ee4508873fe6db0e93821c7299e131efe2c939a400bd0",
     "src/search/process.rs": "e374206308a7df2ba39a1227e69b1f2749cec7cee21f63a59f8c5ef39086d770",
-    "src/search/semantic.rs": "b9eca5bb6518ce260be717c8ecbc57761e9bd3ec3fe10d1fd520c12ded78f57a",
+    "src/search/semantic.rs": "52b6b2c4324acf01539ff3371e0f441547bd92fcb8eef84263768ebcaf8a8474",
     "src/source/mod.rs": "82c7f29fd3cbcaf1803267be10f52dbe87d9f58d222d86265da27b04649bb30e",
-    "src/tools/mod.rs": "0e2fe9c14d34d29f9d6b90dcdb8d270439470a6bb49c42aa12583e67f61016c4",
+    "src/tools/mod.rs": "0294a2c155ffd06a8dec8618f4eeeb137c5733f02aae4d8f1c71c9b88e31029e",
     "examples/ollama_backend.rs": "413f40ece28b28f6d711062dc9d79e8f570b7cfcf72665ce46ff0f3db443717e",
     "examples/support/cache.rs": "56d98597c67919fd26c73dd696398712d989f46e39b58b2d2e68e9384dd377eb"
   },
@@ -377,9 +377,9 @@
         {
           "path": "src/tools/mod.rs",
           "contains": [
-            "self.index().await?.find_symbol",
-            "self.index().await?.find_callers",
-            "backend.search(&self.workspace",
+            "self.index(session).await?.find_symbol",
+            "self.index(session).await?.find_callers",
+            "backend.search(&session.workspace",
             "ws.read(args)"
           ]
         },
@@ -460,8 +460,8 @@
         {
           "path": "src/tools/mod.rs",
           "contains": [
-            "self.execute(&request.name",
-            "self.index().await?.find_symbol",
+            "self.execute(&session, &request.name",
+            "self.index(session).await?.find_symbol",
             "StructuralIndex::build("
           ]
         },

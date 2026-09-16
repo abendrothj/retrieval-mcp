@@ -17,6 +17,21 @@ These checks need no model and no network:
   Paths         - every repository-relative path a document points at exists.
   Links         - every cross-document link resolves, and every `#anchor` names a real heading.
   Quickstart    - the quickstart block runs against this build and returns a result, not an error.
+  README shape  - the contract below, which is about what a reader meets and in what order.
+
+The shape contract exists because an audit found the README answering "how do I install this"
+for 131 lines before answering "what is this", and explaining client registration in eight
+places - one of them a byte-identical duplicate of another. Duplication is how the `--root`
+change came to need edits in five places, and a reader who has to scroll past procedure to reach
+evidence is a reader who leaves. So:
+
+  Sections      - README_SECTIONS appear exactly once each, in that order, with nothing else at
+                  `##` level. Proof (`What it is`, `The result`) precedes procedure (`Install`).
+  Install size  - the install section stays within INSTALL_BUDGET lines; the detail belongs in
+                  `Platforms, updating, and removal`.
+  One of each   - no fenced block appears twice, and the client registration commands appear in
+                  exactly one block, so there is one place to edit when they change.
+  Contents      - the `## Contents` list names every `##` section after it, in document order.
 
 Exit status is nonzero when any check fails, so this runs as a build step.
 
@@ -37,6 +52,27 @@ OUTSIDE_DOC = "../README.md"
 PATH_PATTERN = re.compile(r'`((?:experiments|src|tests|examples)/[A-Za-z0-9_./*-]+)`')
 PLACEHOLDER = re.compile(r'\*|\{|/path/to/|/absolute/')
 LINK_PATTERN = re.compile(r'\[[^\]]*\]\(([^)\s#]*)(#[A-Za-z0-9-]+)?\)')
+# What a reader of README.md meets, in order. Proof before procedure; one troubleshooting surface;
+# install detail after the sections that say whether the thing is worth installing.
+README_SECTIONS = (
+    "Contents",
+    "What it is",
+    "The result",
+    "Install",
+    "Quickstart",
+    "Connect a client",
+    "Tools",
+    "Limits that change your answer",
+    "Troubleshooting",
+    "Platforms, updating, and removal",
+    "Build, test, and code layout",
+    "Research options — not needed to use the server",
+)
+# Lines from `## Install` to the next `##`. The whole point of the section is that installing is
+# two commands; anything longer has drifted back into reference material.
+INSTALL_BUDGET = 40
+REGISTRATION = re.compile(r'^(claude|codex) mcp add ', re.M)
+FENCE = re.compile(r'^```[a-z]*\n(.*?)^```', re.M | re.S)
 
 
 def headings(text):
@@ -170,6 +206,48 @@ def check_links(name, text, repo, problems):
                     "detail": f"{target or name}{anchor} names no heading in that document"})
 
 
+def check_shape(text, problems):
+    """Hold README.md to the order, size and single-source rules its audit produced."""
+    def report(detail):
+        problems.append({"document": "README.md", "check": "shape", "detail": detail})
+
+    sections = re.findall(r'^## (.+)$', text, re.M)
+    if sections != list(README_SECTIONS):
+        extra = [name for name in sections if name not in README_SECTIONS]
+        missing = [name for name in README_SECTIONS if name not in sections]
+        if extra:
+            report(f"sections not in the contract: {extra}")
+        if missing:
+            report(f"contract sections missing: {missing}")
+        if not extra and not missing:
+            report(f"sections out of contract order: {sections}")
+
+    install = re.search(r'^## Install$(.*?)(?=^## )', text, re.M | re.S)
+    if install and len(install.group(1).splitlines()) > INSTALL_BUDGET:
+        report(f"the install section is {len(install.group(1).splitlines())} lines, over the "
+               f"{INSTALL_BUDGET}-line budget; reference detail belongs in a later section")
+
+    blocks = [body.strip() for body in FENCE.findall(text)]
+    for body in sorted({body for body in blocks if blocks.count(body) > 1}):
+        report(f"this fenced block appears {blocks.count(body)} times: {body.splitlines()[0]!r}")
+
+    registering = [body for body in blocks if REGISTRATION.search(body)]
+    if len(registering) != 1:
+        report(f"{len(registering)} blocks carry a client registration command; exactly one may, "
+               "so a change to how the server is registered has one place to land")
+
+    listed = re.search(r'^## Contents$(.*?)(?=^## )', text, re.M | re.S)
+    if not listed:
+        report("no `## Contents` section")
+    else:
+        named = re.findall(r'\]\(#([a-z0-9-]+)\)', listed.group(1))
+        expected = [slug for slug in
+                    (re.sub(r'[^a-z0-9 -]', '', name.lower()).replace(' ', '-')
+                     for name in README_SECTIONS) if slug != "contents"]
+        if named != expected:
+            report(f"the contents list does not name every section in order: {named} != {expected}")
+
+
 def check_quickstart(repo, problems):
     """Run the quickstart exactly as written, so it cannot rot again unnoticed."""
     text = (repo / "README.md").read_text(encoding="utf-8")
@@ -183,7 +261,7 @@ def check_quickstart(repo, problems):
         problems.append({"document": "README.md", "check": "quickstart",
                          "detail": f"{binary} is not built; run the quickstart's cargo build first"})
         return
-    script = block.group(1).replace("cargo build", ": skip cargo build", 1)
+    script = block.group(1)
     # The quickstart calls `retrieval-mcp` by name, as a reader with `cargo install` would. Run it
     # with this build first on PATH: otherwise the check asks whatever binary happens to be
     # installed, which passed on a developer machine holding a two-day-old `~/.cargo/bin` copy
@@ -203,6 +281,33 @@ def check_quickstart(repo, problems):
             "document": "README.md", "check": "quickstart",
             "detail": "quickstart returned isError: "
                       f"{result.get('structuredContent', {}).get('error', '')!r}"})
+    documented = re.search(r'## Quickstart.*?```json\n(.*?)```', text, re.S)
+    if not documented:
+        problems.append({"document": "README.md", "check": "quickstart",
+                         "detail": "the quickstart shows no sample response"})
+        return
+    # The sample is printed as evidence, so it is compared against the live reply rather than
+    # trusted: every field the README shows must be the field the server just returned. Volatile
+    # positions - line, column, excerpt - are deliberately not printed, because a doc that rots on
+    # every edit above a call site teaches readers to ignore it.
+    live = result.get("structuredContent", {})
+    sample = json.loads(documented.group(1))
+    differences = [f"{key}: documented {value!r} != returned {live.get(key)!r}"
+                   for key, value in sample.items()
+                   if key != "results" and not isinstance(value, dict) and live.get(key) != value]
+    for key, value in ((k, v) for k, v in sample.items() if isinstance(v, dict)):
+        differences += [f"{key}.{field}: documented {shown!r} != returned "
+                        f"{live.get(key, {}).get(field)!r}"
+                        for field, shown in value.items() if live.get(key, {}).get(field) != shown]
+    returned_rows = live.get("results", [])
+    for index, row in enumerate(sample.get("results", [])):
+        actual = returned_rows[index] if index < len(returned_rows) else {}
+        differences += [f"results[{index}].{field}: documented {shown!r} != returned "
+                        f"{actual.get(field)!r}"
+                        for field, shown in row.items() if actual.get(field) != shown]
+    for difference in differences:
+        problems.append({"document": "README.md", "check": "quickstart",
+                         "detail": f"the sample response is stale - {difference}"})
 
 
 def main():
@@ -230,10 +335,13 @@ def main():
         check_links(name, text, repo, problems)
         if not args.skip_tests:
             check_counts(name, text, rust, python, problems)
+    # The shape contract is this repository's README, not every document the study ships.
+    check_shape((repo / "README.md").read_text(encoding="utf-8"), problems)
     if not args.skip_tests:
         check_quickstart(repo, problems)
 
     print(json.dumps({"documents": documents, "checked_outside_repo": OUTSIDE_DOC in documents,
+                      "readme_sections": len(README_SECTIONS),
                       "tools": len(tools), "default_surface": default,
                       "rust_tests": rust, "python_tests": python,
                       "problems": len(problems)}, indent=2))

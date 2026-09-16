@@ -83,7 +83,12 @@ async fn main() -> Result<()> {
         .with_max_level(tracing::Level::INFO)
         .init();
     let server = RetrievalServer::new(config)?;
-    tracing::info!(event = "server_start", tools = ?server.config.label);
+    // Says which repository this session reads, or that it will ask: a client that reports no
+    // roots makes every tool call fail, and "root: client" in the first line is where that is
+    // diagnosed.
+    tracing::info!(event = "server_start", tools = ?server.config.label,
+                   root = %server.config.root.as_deref().map_or_else(
+                       || "client".to_string(), |root| root.display().to_string()));
     let input = DrainingStdin {
         inner: tokio::io::stdin(),
         inflight: Arc::clone(&server.inflight),

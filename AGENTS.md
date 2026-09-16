@@ -59,7 +59,7 @@ what keeps the published numbers true.
 | `comparison_runner.py` | `prepare` (no model) then `run` (model, gated). A per-system `server` field pins a binary per arm and records its sha256. |
 | `end_to_end.py` | Scores an archived run: quality, tokens, calls, calls-to-first-evidence, `context_token_turns`, safety columns, per bucket. |
 | `regrade.py` | Applies a repaired grader to an archived run symmetrically and records what moved. |
-| `check_docs.py` | Doc, test-count and link consistency. Run before every docs commit. |
+| `check_docs.py` | Doc, test-count and link consistency, plus the README shape contract: `README_SECTIONS` in order, the install line budget, no duplicated fenced block, one registration block, a contents list naming every section, and a quickstart sample compared field by field against a live call. Run before every docs commit. |
 
 `runs/` and `corpora/` are gitignored: the repository publishes the record, not the bytes.
 

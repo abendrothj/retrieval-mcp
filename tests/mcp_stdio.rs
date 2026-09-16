@@ -1,7 +1,8 @@
 use serde_json::{Value, json};
+use std::sync::Arc;
 use std::{collections::HashMap, process::Stdio, time::Duration};
 use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},
 };
 
@@ -9,8 +10,40 @@ struct Client {
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
-    logs: tokio::task::JoinHandle<String>,
+    /// Events read off stderr as they are logged, so a test can wait for one the server handles
+    /// on its own task instead of in message order.
+    logs: Arc<tokio::sync::Mutex<Vec<Value>>>,
+    reader: tokio::task::JoinHandle<()>,
     id: u64,
+    /// What this client answers `roots/list` with. `None` declares no roots capability at all, so
+    /// a server that wants a root has nowhere to ask.
+    roots: Option<Vec<String>>,
+    /// How many times the server asked for them.
+    asked: usize,
+    /// Declared the capability and answers nothing, like a client that has hung.
+    mute: bool,
+}
+
+/// A local directory as the `file:` URI a client reports. Spaces are percent-escaped, because
+/// that is how a real client reports `~/My Projects` and a server that does not decode it looks
+/// for a directory that does not exist.
+fn file_uri(path: &std::path::Path) -> String {
+    format!("file://{}", path.to_str().unwrap().replace(' ', "%20"))
+}
+
+/// The field objects of every logged line naming `event`. An invocation-log record carries its
+/// fields at the top level; the server's own tracing events nest theirs under `fields`.
+fn logged<'a>(logs: &'a [Value], event: &str) -> Vec<&'a Value> {
+    logs.iter()
+        .filter_map(|line| {
+            let fields = if line["event"].is_string() {
+                line
+            } else {
+                &line["fields"]
+            };
+            (fields["event"] == event).then_some(fields)
+        })
+        .collect()
 }
 impl Client {
     async fn start(root: &std::path::Path, profile: &str) -> Self {
@@ -35,7 +68,31 @@ impl Client {
         }
         Self::spawn(command).await
     }
-    async fn spawn(mut command: Command) -> Self {
+    /// A client that reports roots, like Claude Code, for a server started without `--root`.
+    async fn start_with_roots(roots: &[&std::path::Path], profile: &str) -> Self {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"));
+        command.args([
+            "--profile",
+            profile,
+            "--run-id",
+            "integration",
+            "--timeout-seconds",
+            "120",
+        ]);
+        let reported = roots.iter().map(|root| file_uri(root)).collect();
+        Self::spawn_declaring(command, Some(reported)).await
+    }
+    async fn spawn(command: Command) -> Self {
+        Self::spawn_declaring(command, None).await
+    }
+    /// Declares the roots capability and then never answers, which is what a hung or buggy client
+    /// looks like from the server's side.
+    async fn spawn_mute(command: Command) -> Self {
+        let mut client = Self::spawn_declaring(command, Some(Vec::new())).await;
+        client.mute = true;
+        client
+    }
+    async fn spawn_declaring(mut command: Command, roots: Option<Vec<String>>) -> Self {
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -43,25 +100,83 @@ impl Client {
             .kill_on_drop(true)
             .spawn()
             .unwrap();
-        let mut stderr = child.stderr.take().unwrap();
-        let logs = tokio::spawn(async move {
-            let mut text = String::new();
-            stderr.read_to_string(&mut text).await.unwrap();
-            text
+        let mut stderr = BufReader::new(child.stderr.take().unwrap()).lines();
+        let logs: Arc<tokio::sync::Mutex<Vec<Value>>> = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        let collected = Arc::clone(&logs);
+        let reader = tokio::spawn(async move {
+            while let Some(line) = stderr.next_line().await.unwrap() {
+                let event: Value = serde_json::from_str(&line)
+                    .unwrap_or_else(|_| panic!("stderr must carry only JSON events: {line}"));
+                collected.lock().await.push(event);
+            }
         });
+        let capabilities = if roots.is_some() {
+            json!({"roots": {"listChanged": true}})
+        } else {
+            json!({})
+        };
         let mut client = Self {
             stdin: child.stdin.take().unwrap(),
             stdout: BufReader::new(child.stdout.take().unwrap()),
             child,
             logs,
+            reader,
             id: 0,
+            roots,
+            asked: 0,
+            mute: false,
         };
-        let init = client.request("initialize", json!({"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}})).await;
+        let init = client.request("initialize", json!({"protocolVersion":"2025-11-25","capabilities":capabilities,"clientInfo":{"name":"test","version":"1"}})).await;
         assert!(init.get("result").is_some(), "{init}");
         client
             .send(json!({"jsonrpc":"2.0","method":"notifications/initialized"}))
             .await;
         client
+    }
+    /// Answers a server-initiated request, and says whether it did.
+    ///
+    /// `roots/list` arrives as a request carrying the *server's* id, which can be the same number
+    /// as a client request's, so every read loop has to route on `method` before matching ids.
+    async fn serve(&mut self, message: &Value) -> bool {
+        if message["method"] != "roots/list" {
+            return false;
+        }
+        self.asked += 1;
+        if self.mute {
+            return true;
+        }
+        let roots: Vec<Value> = self
+            .roots
+            .clone()
+            .expect("the server asked a client that declared no roots capability")
+            .iter()
+            .map(|uri| json!({"uri": uri}))
+            .collect();
+        let id = message["id"].clone();
+        self.send(json!({"jsonrpc":"2.0","id":id,"result":{"roots":roots}}))
+            .await;
+        true
+    }
+    /// Reports a different set of roots and tells the server they moved.
+    async fn move_roots(&mut self, roots: &[&std::path::Path]) {
+        self.roots = Some(roots.iter().map(|root| file_uri(root)).collect());
+        self.send(json!({"jsonrpc":"2.0","method":"notifications/roots/list_changed"}))
+            .await;
+    }
+    /// Waits until the server has logged `event` at least `times`, so a test can act after a
+    /// notification it handles on a task of its own rather than in message order.
+    async fn await_event(&self, event: &str, times: usize) {
+        let seen = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                let seen = logged(&self.logs.lock().await, event).len();
+                if seen >= times {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await;
+        assert!(seen.is_ok(), "{event} was not logged {times} time(s)");
     }
     async fn send(&mut self, value: Value) {
         self.stdin
@@ -83,7 +198,10 @@ impl Client {
                 );
                 let value: Value =
                     serde_json::from_str(&line).expect("stdout must contain only MCP JSON");
-                if value["id"] == self.id {
+                if self.serve(&value).await {
+                    continue;
+                }
+                if value["id"] == self.id && value.get("method").is_none() {
                     return value;
                 }
             }
@@ -124,6 +242,9 @@ impl Client {
                 );
                 let value: Value =
                     serde_json::from_str(&line).expect("stdout must contain only MCP JSON");
+                if self.serve(&value).await {
+                    continue;
+                }
                 // Server-initiated notifications carry no id and answer no request.
                 let Some(id) = value["id"].as_u64() else {
                     continue;
@@ -150,16 +271,15 @@ impl Client {
     }
     async fn stop(mut self) -> Vec<Value> {
         drop(self.stdin);
-        tokio::time::timeout(Duration::from_secs(5), self.child.wait())
+        // Generous on purpose: nineteen of these run at once, each with its own server process
+        // and index build, and a five-second budget turned a loaded machine into a failed test
+        // that passed on rerun. A hung server still fails here, just later.
+        tokio::time::timeout(Duration::from_secs(30), self.child.wait())
             .await
-            .unwrap()
+            .expect("the server did not exit after stdin closed")
             .unwrap();
-        self.logs
-            .await
-            .unwrap()
-            .lines()
-            .map(|line| serde_json::from_str(line).unwrap())
-            .collect()
+        self.reader.await.unwrap();
+        self.logs.lock().await.clone()
     }
 }
 
@@ -943,5 +1063,233 @@ async fn real_ollama_semantic_over_stdio() {
             .unwrap()
             .contains("1 document embeddings reused, 0 embedded")
     );
+    client.stop().await;
+}
+
+/// A stdio server is launched inside the project the user opened, and the client already knows
+/// that directory, so a per-project entry repeating it as `--root .` is a copy that can go stale.
+/// The root arrives percent-escaped, so a directory with a space in its name is the case that
+/// proves it is decoded rather than handed to the filesystem as written.
+#[tokio::test]
+async fn a_session_without_a_root_flag_reads_the_repository_its_client_reports() {
+    let parent = tempfile::tempdir().unwrap();
+    let root = parent.path().join("My Projects");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(
+        root.join("sample.rs"),
+        "fn target() {}\nfn caller() { target(); }\n",
+    )
+    .unwrap();
+    let mut client = Client::start_with_roots(&[&root], "B").await;
+    let callers = client.tool("find_callers", json!({"name":"target"})).await;
+    assert_eq!(
+        callers["structuredContent"]["results"][0]["caller"], "caller",
+        "{callers}"
+    );
+    assert_eq!(
+        callers["structuredContent"]["results"][0]["path"], "sample.rs",
+        "{callers}"
+    );
+    assert_eq!(client.asked, 1, "the root is asked for once, then remembered");
+    let logs = client.stop().await;
+    let adopted = logged(&logs, "root_adopted");
+    assert_eq!(adopted.len(), 1, "{logs:?}");
+    assert!(
+        adopted[0]["root"].as_str().unwrap().ends_with("My Projects"),
+        "{:?}",
+        adopted[0]
+    );
+}
+
+/// The notification only says the list changed, which usually leaves this server's root alone:
+/// Claude Code sends one whenever a working directory is added, and the project stays first in
+/// the list. So an unmoved root must keep its snapshot - rebuilding costs seconds on a real
+/// repository - while a moved one must be followed, index and all.
+#[tokio::test]
+async fn a_moved_client_root_is_followed_and_an_unmoved_one_keeps_its_snapshot() {
+    let first = tempfile::tempdir().unwrap();
+    std::fs::write(
+        first.path().join("first.rs"),
+        "fn alpha() {}\nfn caller() { alpha(); }\n",
+    )
+    .unwrap();
+    let second = tempfile::tempdir().unwrap();
+    std::fs::write(
+        second.path().join("second.rs"),
+        "fn beta() {}\nfn caller() { beta(); }\n",
+    )
+    .unwrap();
+    let mut client = Client::start_with_roots(&[first.path()], "B").await;
+    let before = client.tool("find_symbol", json!({"name":"alpha"})).await;
+    assert_eq!(
+        before["structuredContent"]["results"][0]["path"], "first.rs",
+        "{before}"
+    );
+    let snapshot = before["structuredContent"]["coverage"]["snapshot_id"].clone();
+
+    client.move_roots(&[first.path()]).await;
+    client.await_event("roots_changed", 1).await;
+    let unmoved = client.tool("find_symbol", json!({"name":"alpha"})).await;
+    assert_eq!(
+        unmoved["structuredContent"]["coverage"]["snapshot_id"], snapshot,
+        "an unchanged root must not cost a rebuild: {unmoved}"
+    );
+
+    client.move_roots(&[second.path()]).await;
+    client.await_event("roots_changed", 2).await;
+    let moved = client.tool("find_symbol", json!({"name":"beta"})).await;
+    assert_eq!(
+        moved["structuredContent"]["results"][0]["path"], "second.rs",
+        "{moved}"
+    );
+    assert_ne!(
+        moved["structuredContent"]["coverage"]["snapshot_id"], snapshot,
+        "a moved root needs its own snapshot: {moved}"
+    );
+    let gone = client.tool("find_symbol", json!({"name":"alpha"})).await;
+    assert!(
+        gone["structuredContent"]["results"]
+            .as_array()
+            .unwrap()
+            .is_empty(),
+        "the old root is no longer readable: {gone}"
+    );
+    let logs = client.stop().await;
+    assert_eq!(logged(&logs, "root_changed").len(), 1, "{logs:?}");
+}
+
+/// A client that reports no roots has still told the server where it is: every stdio MCP server is
+/// launched in the project the user opened, which is the same directory `--root .` resolved
+/// against. Codex 0.154.0 declares no roots capability at all and is the reason this path exists;
+/// a client that declares the capability but reports an empty list lands in the same place.
+#[tokio::test]
+async fn a_client_that_reports_no_roots_reads_the_directory_it_launched_the_server_in() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(
+        root.path().join("sample.rs"),
+        "fn target() {}\nfn caller() { target(); }\n",
+    )
+    .unwrap();
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"));
+    command.args(["--profile", "B"]).current_dir(root.path());
+    let mut declaring = Client::spawn_declaring(command, Some(Vec::new())).await;
+    let answered = declaring.tool("find_symbol", json!({"name":"target"})).await;
+    assert_eq!(
+        answered["structuredContent"]["results"][0]["path"], "sample.rs",
+        "{answered}"
+    );
+    assert_eq!(declaring.asked, 1, "a declared capability is still asked");
+    let logs = declaring.stop().await;
+    assert_eq!(logged(&logs, "roots_empty").len(), 1, "{logs:?}");
+    assert_eq!(logged(&logs, "launch_directory").len(), 1, "{logs:?}");
+
+    // The Codex shape: no roots capability in the handshake, so nothing is asked at all.
+    let mut command = Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"));
+    command.args(["--profile", "B"]).current_dir(root.path());
+    let mut silent = Client::spawn(command).await;
+    let without_asking = silent.tool("find_symbol", json!({"name":"target"})).await;
+    assert_eq!(
+        without_asking["structuredContent"]["results"][0]["path"], "sample.rs",
+        "{without_asking}"
+    );
+    assert_eq!(silent.asked, 0, "a client without the capability is not asked");
+    silent.stop().await;
+}
+
+/// A client may declare roots and then never answer. Without a deadline the first tool call never
+/// returns and every later one queues behind it, so a silence is read as the absence it looks like
+/// and the launch directory answers instead.
+#[tokio::test]
+async fn a_client_that_declares_roots_and_never_answers_falls_back_rather_than_hanging() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(
+        root.path().join("sample.rs"),
+        "fn target() {}\nfn caller() { target(); }\n",
+    )
+    .unwrap();
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"));
+    command
+        .args(["--profile", "B", "--timeout-seconds", "1"])
+        .current_dir(root.path());
+    let mut client = Client::spawn_mute(command).await;
+
+    let answered = tokio::time::timeout(
+        Duration::from_secs(20),
+        client.tool("find_symbol", json!({"name":"target"})),
+    )
+    .await
+    .expect("a mute client must not hang the session");
+    assert_eq!(
+        answered["structuredContent"]["results"][0]["path"], "sample.rs",
+        "{answered}"
+    );
+    assert_eq!(client.asked, 1, "the declared capability is asked once");
+
+    let logs = client.stop().await;
+    assert_eq!(logged(&logs, "roots_timed_out").len(), 1, "{logs:?}");
+    assert_eq!(logged(&logs, "launch_directory").len(), 1, "{logs:?}");
+}
+
+/// Two launch directories are corpora of everything rather than repositories, and indexing them
+/// takes minutes to answer about files nobody asked about. An operator who means it says `--root`.
+#[tokio::test]
+async fn a_launch_directory_that_cannot_be_a_repository_is_refused_by_name() {
+    let home = tempfile::tempdir().unwrap();
+    for (directory, home_variable, named) in [
+        (home.path(), Some(home.path()), "your home directory"),
+        (std::path::Path::new("/"), None, "the filesystem root"),
+    ] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"));
+        command.args(["--profile", "B"]).current_dir(directory);
+        if let Some(home_variable) = home_variable {
+            command.env("HOME", home_variable);
+        }
+        let mut client = Client::spawn(command).await;
+        let refused = client.tool("find_symbol", json!({"name":"target"})).await;
+        assert_eq!(refused["isError"], true, "{named}: {refused}");
+        let reported = refused["structuredContent"]["error"].as_str().unwrap();
+        assert!(
+            reported.contains(named) && reported.contains("--root PATH"),
+            "{reported}"
+        );
+        client.stop().await;
+    }
+}
+
+/// `--root` is how an operator points a session at a directory the client did not open, so a
+/// pinned root is never asked about and never moved by a notification.
+#[tokio::test]
+async fn an_explicit_root_is_neither_asked_about_nor_overridden() {
+    let pinned = tempfile::tempdir().unwrap();
+    std::fs::write(pinned.path().join("pinned.rs"), "fn alpha() {}\n").unwrap();
+    let reported = tempfile::tempdir().unwrap();
+    std::fs::write(reported.path().join("reported.rs"), "fn beta() {}\n").unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"));
+    command.args([
+        "--root",
+        pinned.path().to_str().unwrap(),
+        "--profile",
+        "B",
+    ]);
+    let mut client =
+        Client::spawn_declaring(command, Some(vec![file_uri(reported.path())])).await;
+    let pinned_hit = client.tool("find_symbol", json!({"name":"alpha"})).await;
+    assert_eq!(
+        pinned_hit["structuredContent"]["results"][0]["path"], "pinned.rs",
+        "{pinned_hit}"
+    );
+    client.move_roots(&[reported.path()]).await;
+    client.await_event("roots_changed_ignored", 1).await;
+    let still_pinned = client.tool("find_symbol", json!({"name":"beta"})).await;
+    assert!(
+        still_pinned["structuredContent"]["results"]
+            .as_array()
+            .unwrap()
+            .is_empty(),
+        "the client's root must not replace --root: {still_pinned}"
+    );
+    assert_eq!(client.asked, 0, "a pinned session never asks for roots");
     client.stop().await;
 }

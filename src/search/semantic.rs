@@ -8,6 +8,7 @@ use std::{collections::BTreeMap, time::Duration};
 use tokio::process::Command;
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ConceptArgs {
     /// Natural-language description of the behavior or concept to locate.
     pub query: String,
