@@ -86,7 +86,7 @@ any of the four features it was found underneath.
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Twenty-eight defects in it have produced or nearly
+The harness is the second experimental subject. Thirty defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
 some penalised it, one was found inside its own single held-out loss, one would have made every
 brace-language caller question unauthorable, one scored three arms to zero on questions they had
@@ -125,6 +125,8 @@ ordinals.
 | Grader read `Server.method` but not `(*Server).method` | A Go caller list spelled the way Go spells it scored 0.33 - two misses and two extras - and the arm that wrote the source's own notation lost two trials to notation, not retrieval |
 | Oracle counted a helper named inside a format string as a call | An exhaustive gold demanding `server.go::register` as a caller of `RegisterService`, when the line is `s.printf("RegisterService(%q)", …)` |
 | Oracle refused any definition whose name is a control word in another language | `func (tw *storeTxnWrite) delete(...)` owned nothing, so every call inside a Go method named `delete` disappeared from the gold and the arms that found it were scored as inventing it |
+| Two-hop gold expanded through a namesake on the first hop | The leasing `acquire` pulled a rate limiter's callers into the gold; all three arms scored 0.60 on a question they answered as asked |
+| Two-hop question left it open whether a direct caller counts as reached in two hops | The gold took the union, one arm read the difference, and two cells moved on a reading rather than on retrieval |
 | A caller question excluded "the file that defines it" while that file's test twin called the helper | Every arm skipped `http_util_test.go` when told to skip `http_util.go` - 14 of 19 missing identities in one study, 6 of 6 for one arm - and the loss read as a retrieval difference |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
@@ -954,7 +956,7 @@ it then prints the exact validate/prepare/run/score commands. It calls no model.
 
 ### The habit that made the numbers trustworthy
 
-The twenty-eight entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
+The thirty entries in the [defect ledger](#harness-defect-ledger) run in both directions — some
 flattered this server, some penalised it, and the last was found inside its own single held-out loss.
 None was found by auditing on a schedule. Every one came from the same rule, which is the methodological
 claim this project would actually defend:
@@ -1238,6 +1240,58 @@ questions.
 
 Not run. It exists so that the next model spend buys a replication of the claim that is actually
 defended, on an independent corpus, rather than another rewording of a caller suite.
+
+### The replication, and the two criteria it missed
+
+`runs/etcd-mixed-20260915`, pre-registered before the first trial: 30 mixed-shape questions over the
+independent etcd client corpus, three arms, three repetitions, 270 trials, none failed or aborted.
+
+**As registered, pooled over three repetitions:**
+
+| | native control | zvec-grep | retrieval-mcp |
+|---|---:|---:|---:|
+| Resolved correct / 90 | 85 | **86** | 82 |
+| Graded credit | 0.976 | **0.981** | 0.950 |
+| Input tokens | 30.42 M | 25.24 M | **17.77 M** |
+| Retrieval calls | 396 | 447 | **318** |
+| Persistent context | 3,066 k | 2,720 k | **2,054 k** |
+| Answered without evidence | 3 | 2 | **1** |
+
+Efficiency **passes**: −41.6% input tokens against native, −29.6% against zvec-grep, replicated at
+−46.9%, −38.9% and −38.3% in the three repetitions. Quality **misses** by four answers. Safety
+**misses**: one unsupported answer where the criterion was zero, and the registered decision rule
+says a safety miss voids the efficiency claim. So the registered verdict is: **this run does not
+replicate the Django result**, and that is what it is published as.
+
+**Every loss in the study, in all three arms, is in one shape.** The other five shapes - 25
+questions, 75 trials per arm - are 75/75 for every arm in every repetition:
+
+| | native | zvec | retrieval-mcp |
+|---|---:|---:|---:|
+| Five shapes, 75 trials | 75/75 | 75/75 | **75/75** |
+| Two-hop questions, 15 trials | 10/15 | 11/15 | 7/15 |
+
+On those 25 the token gap is unchanged - −41.7% against native, −31.9% against zvec - so the
+efficiency result is not carried by the questions that broke.
+
+**What broke.** Two-hop golds are expanded by name, and that inherits everything name matching
+inherits. One question's first hop went through `client/v3/leasing/kv.go::acquire`, whose name is
+also a rate limiter's method, so the gold demanded callers of a namesake: all three arms scored 0.60
+on it, twice. Two more turned on whether a direct caller that itself calls another direct caller is
+"reached in two hops" - the gold says yes, this server's arm read the sentence as excluding them and
+lost two cells for it, while both text arms read it the gold's way. The last loss is real and is
+this project's known failure mode: the arm committed to `CheckAfterTest` when the question described
+`RegisterLeakDetection`, then answered from the wrong expansion - a premature commit, and the single
+safety flag.
+
+`validate_suite.py` now refuses both defects: a two-hop question whose first hop passes through an
+ambiguous name, and one whose direct callers are also two-hop callers without the question saying so
+in those words. The suite is repaired to 29 questions and is not comparable with this run.
+
+**What this study is worth.** The tie-plus-cheaper claim replicates on five of six shapes on an
+independent corpus, and the sixth is a shape whose gold this project cannot yet build reliably -
+which is a finding about the instrument, not about retrieval. A second run on the repaired suite
+would settle the two-hop column; nothing about the −41.6% depends on it.
 
 ## Three index changes, one survivor
 

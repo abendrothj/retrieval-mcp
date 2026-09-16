@@ -243,6 +243,27 @@ def check_question(task, index, counts, corpus):
                    f"the question excludes the defining file while {missing_twin[0]} calls "
                    f"{name}; a Go reader counts the twin as part of the file, so the question "
                    f"must name it or exclude nothing")
+        # A two-hop claim expands each direct caller by name, so a direct caller whose name is
+        # defined more than once in the corpus drags a namesake's callers into the gold: the
+        # leasing `acquire` pulled in a rate limiter's `acquire`, and all three arms were docked
+        # 0.60 for answering the question as asked.
+        if hops == 2:
+            for entry in direct:
+                leaf = entry.split("::")[-1]
+                if len(index.get(leaf, set())) > 1:
+                    report("answerability",
+                           f"two-hop expansion goes through {entry}, whose name is defined in "
+                           f"{len(index[leaf])} files, so the gold contains callers of a namesake")
+            # And when a direct caller is itself reachable in two hops - mutual recursion through a
+            # helper - "reaches it in two hops" is a set the question must name. The gold takes the
+            # union; an arm that answered the strict difference lost two cells for reading the
+            # sentence the other way.
+            overlap = {leafwise(entry) for entry in direct} & verified
+            if overlap and "also calls another direct caller" not in task["question"].lower():
+                report("answerability",
+                       f"{len(overlap)} direct callers also call another direct caller, so they "
+                       f"are in the gold twice over; the question must say so in those words, "
+                       f"because an arm that read \"two hops\" as excluding them lost the cell")
         claimed = {leafwise(identity) for identity in caller_identities if identity != helper}
         missing = claimed - verified
         if missing:

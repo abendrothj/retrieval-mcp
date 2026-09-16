@@ -124,5 +124,42 @@ class ValidateSuiteTests(unittest.TestCase):
             self.assertEqual(validate(questions, corpus)["problems"], 0)
 
 
+class TwoHopTests(unittest.TestCase):
+    """Two-hop expansion is by name, so it inherits every namesake and every set ambiguity."""
+
+    def _suite(self, root, question, answer):
+        path = root / "questions.json"
+        path.write_text(json.dumps([{
+            "id": "q", "category": "transitive_blast_radius", "set": "dev", "question": question,
+            "expected_json": {"answer": answer}, "helper": "leaf.go::target", "hops": 2,
+            "exhaustive": True, "include_defining_file": True,
+            "rejected_alternates": ["leaf.go::other"],
+            "evidence": [{"path": "leaf.go", "contains": "func target"}],
+            "author_notes": "fixture",
+        }]))
+        return path
+
+    def test_a_namesake_on_the_first_hop_makes_the_gold_unauthorable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            corpus = root / "corpus"
+            corpus.mkdir()
+            (corpus / "leaf.go").write_text(
+                "package p\n\nfunc target() {}\n\nfunc other() {}\n", encoding="utf-8")
+            (corpus / "mid.go").write_text(
+                "package p\n\nfunc acquire() { target() }\n", encoding="utf-8")
+            (corpus / "elsewhere.go").write_text(
+                "package p\n\nfunc acquire(n int) {}\n\nfunc user() { acquire(1) }\n",
+                encoding="utf-8")
+            questions = self._suite(root, "Every function reaching the leaf in two hops. Name "
+                                          "every function or method in the corpus that calls it.",
+                                    ["elsewhere.go::user"])
+
+            problems = validate(questions, corpus)["findings"]["q"]
+
+            self.assertIn("whose name is defined in 2 files",
+                          " ".join(problem["detail"] for problem in problems))
+
+
 if __name__ == "__main__":
     unittest.main()
