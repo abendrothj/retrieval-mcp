@@ -1293,6 +1293,46 @@ independent corpus, and the sixth is a shape whose gold this project cannot yet 
 which is a finding about the instrument, not about retrieval. A second run on the repaired suite
 would settle the two-hop column; nothing about the −41.6% depends on it.
 
+### The rerun on HEAD: the repaired suite, and a miss by one answer
+
+`runs/etcd-mixed-rerun-20260915`, pre-registered against the HEAD binary `7c12a264` rather than the
+0.1.5 tag, on the repaired 30-question suite. 270 trials, none failed or aborted.
+
+| pooled, three repetitions | native control | zvec-grep | retrieval-mcp |
+|---|---:|---:|---:|
+| Resolved correct / 90 | **89** | **89** | 87 |
+| Graded credit | 0.997 | 0.993 | 0.983 |
+| Input tokens | 32.08 M | 25.12 M | **17.79 M** |
+| Retrieval calls | 409 | 455 | **320** |
+| Persistent context | 2,510 k | 2,682 k | **2,033 k** |
+| Answered without evidence | 1 | 0 | **0** |
+
+Efficiency **passes**: −44.6% input tokens against native and −29.2% against zvec-grep, at −38.2%,
+−45.9% and −48.7% in the three repetitions. Safety **passes**: zero unsupported answers in 90
+trials. Quality **misses by one answer** — 87 against 89, where the criterion was within one — so
+the registered replication criterion, which needs both, is **not met**. That is the second study in
+a row to miss quality by a single answer, and it is published as a miss both times.
+
+**What the repair bought.** Against the previous run on the same corpus, the two-hop stratum went
+7/15 to 13/15 for this server and 10/15 to 14/15 for the native control: the losses there were the
+instrument, and repairing it lifted every arm. Outside that shape, 25 questions and 75 trials per
+arm, the standing is 75/75 native, 75/75 zvec-grep, 74/75 here, with the token gap unchanged at
+−46.0% and −32.7%.
+
+**The three remaining losses, all in one repetition.** One named `TestNewOnlyJWT` where the corpus
+defines `TestNewOnlyJWTExclusivity`. One answered a caller question with the helper itself included,
+which the question's own "including callers in the file that defines it" invites and the gold
+refuses, since a definition does not call itself. One answered a two-hop question with its one-hop
+set - the same question where zvec-grep scored 0.33 in that repetition, so the hard part is the
+question rather than the arm. None is a retrieval failure in the sense of missing evidence: the rows
+were returned in every case.
+
+**Where that leaves the claim.** On two independent corpora, three arms and 468 scored trials, the
+arms are within two answers of each other and this server spends 34-51% fewer input tokens in every
+comparison. Quality has never separated in either direction; the token gap has never failed to
+replicate. Saying more than that would need a suite where quality can separate, and this project has
+now twice found that such a suite is easier to bias than to build.
+
 ## Three index changes, one survivor
 
 After the surface was frozen, driving the server against an awkward repository suggested three
