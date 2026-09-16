@@ -6,6 +6,22 @@ releases only.
 
 ## Unreleased
 
+**A Go call qualified by an imported package names that package's definition, not its neighbour.**
+`icredentials.ClientHandshakeInfoFromContext(...)`, written on the second line of the corpus's own
+`ClientHandshakeInfoFromContext`, calls `internal/credentials` — and `find_callers` credited the
+definition directly above it, so the row said a function calls itself. The qualifier is now
+resolved through the file's own import list and the module path in `go.mod`: a call qualified by an
+import can only be satisfied by a definition in that import's directory. Aliases are resolved, not
+guessed — `otelinternaltracing` names `.../internal/tracing` — because matching the alias against
+directory names instead lost real callers in the first attempt, which is why that attempt was
+thrown away. A corpus that is not a module root claims nothing and filters nothing: dropping a
+candidate to sharpen a label is not worth losing a caller.
+
+Measured offline on the upstream grpc-go module, 20 symbols: no row removed, three rows moved from
+`ambiguous` with two candidates to `unique_name_candidate` with the right one, and the self-caller
+row is gone. On the two scoped corpora the benchmarks use — neither carries a `go.mod` — nothing
+changes at all, so no published number moves.
+
 **`--root` is optional, and the recommended entry no longer carries a path.** Every configuration
 entry repeated the repository the client had already opened, as `--root .` resolved against
 whatever directory the client launched the server in — a copy of a fact the client holds, and the

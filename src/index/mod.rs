@@ -414,6 +414,9 @@ pub trait StructuralBackend: Send + Sync {
 }
 
 pub struct StructuralIndex {
+    /// This module's import prefix, read from `go.mod`, when the corpus root is a Go module.
+    /// Without it a qualified call cannot be resolved to a directory and none is filtered.
+    module_path: Option<String>,
     symbols: BTreeMap<String, Vec<Symbol>>,
     references: Vec<Reference>,
     references_by_name: BTreeMap<String, Vec<usize>>,
@@ -424,6 +427,38 @@ pub struct StructuralIndex {
 }
 
 impl StructuralIndex {
+    /// The corpus-relative directory a qualified Go call names, when it can be known exactly.
+    ///
+    /// `icredentials.ClientHandshakeInfoFromContext(...)` written inside `credentials.go` calls
+    /// `internal/credentials`, not the definition on the line above it, and crediting the latter
+    /// makes a row say a function calls itself. Aliases make the qualifier useless on its own -
+    /// `otelinternaltracing` names `.../internal/tracing` - so the alias is resolved to its import
+    /// path and the module path from `go.mod` turns that into a directory in this corpus. Without
+    /// a module path nothing is claimed and nothing is filtered: a wrong drop costs a real caller,
+    /// which is worse than the row it would remove.
+    fn qualified_package_dir(&self, reference: &Reference) -> Option<String> {
+        if !reference.path.ends_with(".go") {
+            return None;
+        }
+        let module = self.module_path.as_deref()?;
+        let (qualifier, _) = reference.expression.split_once('.')?;
+        let qualifier = qualifier.trim();
+        if qualifier.is_empty() || !qualifier.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return None;
+        }
+        let target = self
+            .imports
+            .iter()
+            .filter(|import| import.path == reference.path)
+            .find_map(|import| import_target(&import.statement, qualifier))?;
+        // An import outside this module cannot be satisfied by any file in the corpus, so the
+        // empty directory it resolves to leaves the row `unresolved` - which is what it is.
+        Some(match target.strip_prefix(module).map(|rest| rest.trim_start_matches('/')) {
+            Some(relative) => relative.to_owned(),
+            None => String::new(),
+        })
+    }
+
     pub async fn build(workspace: Workspace, timeout: Duration, no_ignore: bool) -> Result<Self> {
         // The same walk `search_exact` uses, so both describe one corpus: ripgrep's `ignore`
         // crate, honouring ignore files unless told otherwise, hidden files and `.git`/`target`
@@ -465,6 +500,9 @@ impl StructuralIndex {
     fn from_files(workspace: &Workspace, files: Vec<String>, timeout: Duration) -> Result<Self> {
         let timestamp = now_ms();
         let mut index = Self {
+            // One read at snapshot time: a qualified Go call can only be resolved to a directory
+            // when the corpus root is the module those paths are written against.
+            module_path: module_path(workspace),
             symbols: BTreeMap::new(),
             references: Vec::new(),
             references_by_name: BTreeMap::new(),
@@ -718,6 +756,44 @@ impl StructuralIndex {
     }
 }
 
+/// The import path an alias or package name refers to, from one Go import statement.
+///
+/// Handles both spellings: `"a/b/tracing"`, whose qualifier is its last segment, and
+/// `otelinternaltracing "a/b/internal/tracing"`, whose qualifier is written in front of it.
+/// This corpus's Go module path, from `go.mod` at its root.
+///
+/// A corpus that is a subdirectory of a module, or not Go at all, has none, and a call qualified
+/// by a package alias is then left resolved by name alone - the conservative reading this server
+/// has always given it.
+fn module_path(workspace: &Workspace) -> Option<String> {
+    let text = std::fs::read_to_string(workspace.root().join("go.mod")).ok()?;
+    text.lines()
+        .find_map(|line| line.trim().strip_prefix("module "))
+        .map(|module| module.trim().to_owned())
+}
+
+
+fn import_target(statement: &str, qualifier: &str) -> Option<String> {
+    for line in statement.lines() {
+        let line = line.trim().trim_start_matches("import").trim();
+        let Some(start) = line.find('"') else { continue };
+        let rest = &line[start + 1..];
+        let Some(end) = rest.find('"') else { continue };
+        let target = &rest[..end];
+        let alias = line[..start].trim().trim_start_matches('(').trim();
+        let names_it = if alias.is_empty() {
+            target.rsplit('/').next() == Some(qualifier)
+        } else {
+            alias == qualifier
+        };
+        if names_it {
+            return Some(target.to_owned());
+        }
+    }
+    None
+}
+
+
 fn scope(workspace: &Workspace, path: Option<&str>) -> Result<String> {
     workspace.relative(&workspace.resolve(path.unwrap_or("."))?)
 }
@@ -885,9 +961,21 @@ impl StructuralBackend for StructuralIndex {
             .results
             .into_iter()
             .map(|reference| {
+                let package_dir = self.qualified_package_dir(&reference);
                 let candidates: Vec<_> = candidates
                     .iter()
                     .filter(|symbol| same_language_family(&symbol.path, &reference.path))
+                    // `syscall.Fdatasync(...)` written inside this corpus's own `Fdatasync` calls
+                    // the standard library, not the definition beside it, and reporting that
+                    // definition as a candidate makes the row say a function calls itself. When
+                    // the qualifier is a package this file imports, only a definition living in
+                    // that package can be what the call reached; a qualifier that is a receiver
+                    // or a local variable is left alone, because resolving those needs types.
+                    .filter(|symbol| match &package_dir {
+                        Some(directory) => Path::new(&symbol.path).parent()
+                            == Some(Path::new(directory)),
+                        None => true,
+                    })
                     .cloned()
                     .collect();
                 CallerHit {
@@ -1956,6 +2044,69 @@ mod tests {
             .unwrap();
         assert_eq!(hits[0].path, "fuse.rs");
         assert_eq!(hits[0].start_line, 2, "region is the definition, not the comment");
+    }
+
+    #[test]
+    fn a_call_qualified_by_an_imported_package_names_only_that_package() {
+        // `alias.Helper()` in a module whose root is the corpus resolves to one definition even
+        // though two files define the name, and the alias is not the directory it names.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("go.mod"), "module example.com/m\n\ngo 1.24\n").unwrap();
+        for (directory, body) in [
+            ("real", "package real\n\nfunc Helper() {}\n"),
+            ("decoy", "package decoy\n\nfunc Helper() {}\n"),
+        ] {
+            std::fs::create_dir(dir.path().join(directory)).unwrap();
+            std::fs::write(dir.path().join(directory).join("lib.go"), body).unwrap();
+        }
+        std::fs::write(
+            dir.path().join("use.go"),
+            "package m\n\nimport aliased \"example.com/m/real\"\n\nfunc Run() { aliased.Helper() }\n",
+        )
+        .unwrap();
+        let files = vec![
+            "real/lib.go".to_string(),
+            "decoy/lib.go".to_string(),
+            "use.go".to_string(),
+        ];
+
+        let ws = Workspace::new(dir.path()).unwrap();
+        let index =
+            StructuralIndex::from_files(&ws, files.clone(), Duration::from_secs(5)).unwrap();
+        let callers = index
+            .find_callers(
+                &ws,
+                CallerArgs {
+                    name: "Helper".into(),
+                    path: None,
+                    include_references: None,
+                    limit: None,
+                    offset: None,
+                },
+            )
+            .unwrap();
+        let hit = &callers.retrieval.page.results[0];
+        assert_eq!(hit.reference.caller.as_deref(), Some("Run"));
+        assert_eq!(hit.candidate_count, 1, "the decoy is not in `real`");
+        assert_eq!(hit.resolution, "unique_name_candidate");
+
+        // A corpus that is not a module root claims nothing: both definitions stay candidates,
+        // because dropping one would cost a real caller to save an ambiguous label.
+        std::fs::remove_file(dir.path().join("go.mod")).unwrap();
+        let index = StructuralIndex::from_files(&ws, files, Duration::from_secs(5)).unwrap();
+        let callers = index
+            .find_callers(
+                &ws,
+                CallerArgs {
+                    name: "Helper".into(),
+                    path: None,
+                    include_references: None,
+                    limit: None,
+                    offset: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(callers.retrieval.page.results[0].candidate_count, 2);
     }
 
     #[test]
