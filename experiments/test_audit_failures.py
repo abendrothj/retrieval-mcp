@@ -470,5 +470,43 @@ class GoKeywordNameTests(unittest.TestCase):
                 ["store.go::delete"])
 
 
+class GoPackageScopeTests(unittest.TestCase):
+    """An unexported Go name cannot be referenced outside its own directory."""
+
+    def test_an_unexported_namesake_in_another_package_is_not_a_caller(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "leasing").mkdir()
+            (root / "transport").mkdir()
+            (root / "leasing" / "kv.go").write_text(
+                "package leasing\n\nfunc acquire() {}\n\nfunc get() { acquire() }\n",
+                encoding="utf-8")
+            (root / "transport" / "limit.go").write_text(
+                "package transport\n\nfunc acquire() {}\n\nfunc Accept() { acquire() }\n",
+                encoding="utf-8")
+
+            self.assertEqual(
+                audit_failures.true_callers(root, "acquire", "leasing/kv.go"),
+                ["leasing/kv.go::get"] if False else [])
+            self.assertEqual(
+                audit_failures.true_callers(root, "acquire", "leasing/kv.go",
+                                            include_defining_file=True),
+                ["leasing/kv.go::get"])
+
+    def test_an_exported_name_still_crosses_packages(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "lib").mkdir()
+            (root / "app").mkdir()
+            (root / "lib" / "api.go").write_text("package lib\n\nfunc Acquire() {}\n",
+                                                 encoding="utf-8")
+            (root / "app" / "use.go").write_text(
+                'package app\n\nimport "x/lib"\n\nfunc Run() { lib.Acquire() }\n',
+                encoding="utf-8")
+
+            self.assertEqual(audit_failures.true_callers(root, "Acquire", "lib/api.go"),
+                             ["app/use.go::Run"])
+
+
 if __name__ == "__main__":
     unittest.main()

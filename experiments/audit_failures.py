@@ -546,6 +546,14 @@ def true_callers(corpus, name, defining_path, include_defining_file=False):
             continue
         if foreign_call(body, name, Path(corpus) / path, Path(corpus) / defining_path):
             continue
+        # Go scopes an unexported identifier to its own package, which is its own directory. A
+        # lower-case `acquire` defined under client/v3/leasing cannot be the `acquire` called in
+        # client/pkg/transport, whatever ripgrep sees, and counting it made a two-hop gold demand
+        # the callers of a namesake - a question every arm then lost for answering as asked. This
+        # is the language's rule, not a heuristic: no type inference is involved.
+        if defining_path.endswith(".go") and name[:1].islower() and \
+                Path(path).parent != Path(defining_path).parent:
+            continue
         # A declaration is not a call site. Python, Rust and the scripts say so with a keyword;
         # C, C++ and Java write a definition header or a member prototype in the same shape as a
         # call, so those are read with the same declaration rules the attribution uses. What

@@ -1284,9 +1284,9 @@ this project's known failure mode: the arm committed to `CheckAfterTest` when th
 `RegisterLeakDetection`, then answered from the wrong expansion - a premature commit, and the single
 safety flag.
 
-`validate_suite.py` now refuses both defects: a two-hop question whose first hop passes through an
-ambiguous name, and one whose direct callers are also two-hop callers without the question saying so
-in those words. The suite is repaired to 29 questions and is not comparable with this run.
+**Repaired without being made easier.** The namesake was not a hard problem, it was an unread language rule: Go scopes an unexported identifier to its own package, so a lower-case `acquire` under `client/v3/leasing` cannot be the `acquire` called in `client/pkg/transport`, whatever ripgrep sees. `true_callers` now drops those references, which is exact rather than heuristic - no type inference is involved - and `validate_suite.py` measures ambiguity only where an expansion could actually reach it. Applied to every suite in the repository it changes **no gold at all**: 39 etcd caller questions, 22 gRPC-Go questions and the 25 unaffected mixed questions are byte-identical afterwards. The only movement anywhere is the two impossible callers leaving the one broken gold, 5 identities to 3.
+
+So the suite is 30 questions again rather than 29 - the broken question returns with a correct gold instead of being deleted - and nothing about it got softer: the crawl gate still dissolves 11 of 30, `find_callers` alone still answers 6 of the 12 helper questions outright and no more, total gold identities go 69 to 67, and the only wording added anywhere is one sentence on the two questions whose answer set was genuinely ambiguous: *a direct caller that also calls another direct caller belongs in the answer*. That sentence states a set boundary; it names nothing and finds nothing. The suite is not comparable with this run, because a repaired instrument never is.
 
 **What this study is worth.** The tie-plus-cheaper claim replicates on five of six shapes on an
 independent corpus, and the sixth is a shape whose gold this project cannot yet build reliably -

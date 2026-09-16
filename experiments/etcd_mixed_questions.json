@@ -710,6 +710,53 @@
     "author_notes": "Four variants: solaris and unix are byte-identical Control/SetsockoptInt implementations, so neither could be singled out; the two refusing variants differ only in their error string and build tag. The question therefore targets the WASM/js one explicitly by build constraint and message, excluding the windows twin and both working implementations. Shared name never written (no phrase strips to it)."
   },
   {
+    "id": "etcdc-transitive-leasing-session-lease-accessor",
+    "category": "transitive_blast_radius",
+    "set": "dev",
+    "question": "In the leasing key-value wrapper, a tiny accessor method takes the read side of the mutex that guards the wrapper's cached lease bookkeeping, defers unlocking it, and hands back the lease currently held by the wrapper's session. I want its two-hop blast radius: the functions and methods that call its direct callers. Name every function or method in the corpus that reaches it in two hops, each as path::name. Count every call in the corpus, including callers in test files and in the file that defines it, and name each caller once.",
+    "helper": "client/v3/leasing/kv.go::leaseID",
+    "hops": 2,
+    "exhaustive": true,
+    "include_defining_file": true,
+    "expected_json": {
+      "answer": [
+        "client/v3/leasing/kv.go::get",
+        "client/v3/leasing/kv.go::revokeRange",
+        "client/v3/leasing/txn.go::revokeFallback"
+      ]
+    },
+    "rejected_alternates": [
+      "client/v3/leasing/kv.go::readySession",
+      "client/v3/leasing/kv.go::Close",
+      "client/v3/leasing/kv.go::Compact",
+      "client/v3/leasing/txn.go::Then",
+      "client/pkg/transport/limit_listen.go::release"
+    ],
+    "evidence": [
+      {
+        "path": "client/v3/leasing/kv.go",
+        "contains": "func (lkv *leasingKV) leaseID() v3.LeaseID {"
+      },
+      {
+        "path": "client/v3/leasing/kv.go",
+        "contains": "resp, err := lkv.acquire(ctx, key, v3.OpGet(key))"
+      },
+      {
+        "path": "client/v3/leasing/kv.go",
+        "contains": "return lkv.revokeLeaseKvs(ctx, leaseKeys.Kvs)"
+      },
+      {
+        "path": "client/v3/leasing/txn.go",
+        "contains": "_, err := txn.lkv.revokeLeaseKvs(txn.ctx, resp.GetResponseRange().Kvs)"
+      },
+      {
+        "path": "client/pkg/transport/limit_listen.go",
+        "contains": "func (l *limitListener) Accept() (net.Conn, error) {"
+      }
+    ],
+    "author_notes": "Hop-1 is the three in-file users of the session-lease accessor (acquire, monitorLease, revokeLeaseKvs); hop-2 is whoever calls those. Name-based resolution means the unrelated limitListener.acquire in client/pkg/transport/limit_listen.go and its caller Accept join the hop-2 set, which is exactly what the pinned hop2_verified list records; the answer is that list verbatim. Prose avoids 'leaseID'/'lease ID' and every gold name (Accept, acquire, get, revokeRange, revokeFallback), including under whitespace stripping."
+  },
+  {
     "id": "etcdc-transitive-pretest-goroutine-guard",
     "category": "transitive_blast_radius",
     "set": "dev",

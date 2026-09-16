@@ -249,11 +249,19 @@ def check_question(task, index, counts, corpus):
         # 0.60 for answering the question as asked.
         if hops == 2:
             for entry in direct:
-                leaf = entry.split("::")[-1]
-                if len(index.get(leaf, set())) > 1:
+                entry_path, leaf = entry.split("::")[0], entry.split("::")[-1]
+                # Only definitions the expansion could actually reach count as ambiguity. Go scopes
+                # an unexported name to its own directory, so a lower-case namesake in another
+                # package is unreachable and harmless; a namesake beside it is not.
+                reachable = index.get(leaf, set())
+                if entry_path.endswith(".go") and leaf[:1].islower():
+                    reachable = {p for p in reachable
+                                 if Path(p).parent == Path(entry_path).parent}
+                if len(reachable) > 1:
                     report("answerability",
-                           f"two-hop expansion goes through {entry}, whose name is defined in "
-                           f"{len(index[leaf])} files, so the gold contains callers of a namesake")
+                           f"two-hop expansion goes through {entry}, whose name is defined "
+                           f"{len(reachable)} times where that expansion can see it, so the gold "
+                           f"contains callers of a namesake")
             # And when a direct caller is itself reachable in two hops - mutual recursion through a
             # helper - "reaches it in two hops" is a set the question must name. The gold takes the
             # union; an arm that answered the strict difference lost two cells for reading the

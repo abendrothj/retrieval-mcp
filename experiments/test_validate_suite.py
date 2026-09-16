@@ -157,7 +157,7 @@ class TwoHopTests(unittest.TestCase):
 
             problems = validate(questions, corpus)["findings"]["q"]
 
-            self.assertIn("whose name is defined in 2 files",
+            self.assertIn("defined 2 times where that expansion can see it",
                           " ".join(problem["detail"] for problem in problems))
 
 
