@@ -1333,6 +1333,33 @@ comparison. Quality has never separated in either direction; the token gap has n
 replicate. Saying more than that would need a suite where quality can separate, and this project has
 now twice found that such a suite is easier to bias than to build.
 
+### Losses that are not the server's, recorded so they are not read as retrieval failures
+
+Three studies produced a handful of cells this server lost while holding the right rows. They are
+listed here with the evidence that the retrieval layer answered correctly, because a reader counting
+losses cannot otherwise tell them apart from a tool that failed to find something — and this project
+has already spent three question-set revisions on losses that turned out to be the instrument.
+
+| incident | what the server returned | what the arm did |
+|---|---|---|
+| `etcdc-transitive-pretest-goroutine-guard`, rerun rep-3 | `find_callers` rows name both `client_test.go::TestNewWithOnlyJWT` and `client_test.go::TestNewOnlyJWTExclusivity` | answered `TestNewOnlyJWT`, a name the corpus does not define |
+| `etcdc-callers-sort-enum-range-check`, rerun rep-3 | three rows, none of them the helper: `kv.go::Do`, `namespace/kv.go::Get`, `op_test.go::TestIsSortOptionValid` | added the helper itself to the caller list |
+| `etcdc-transitive-leasing-session-lease-accessor`, rerun rep-3 | every hop was served — the arm issued seven `find_callers` calls covering both hops | answered with the one-hop set; `zvec-grep` scored 0.33 on the same cell |
+| `etcdc-transitive-pretest-goroutine-guard`, first mixed run | `search_concept` ranked the intended helper **first**, 22.05 against 18.41, naming it in the `symbol` field | called `find_callers` on a symbol that appears in none of the rows, then answered from that expansion |
+| `gg-creds-handshake-attrs-from-ctx-callers`, Go pilot | the ranker answered the query it was given, correctly | the query described a different thing than the question asked; the arm then spent seven reads confirming the wrong file |
+
+Four of the five are one behaviour: **committing to a symbol and not revisiting**. It is the failure
+mode the frozen closure policy's disambiguation clause was written for, and that clause measurably
+fixed it once — 30/30 restored on the Django hard suite. It is not fixed everywhere, and the rate is
+what decides whether to touch a frozen instrument: **0 of 90 trials in the last run**, one in 90 in
+the run before, one in 72 in the Go pilot. Two anecdotes and a zero are not a rate, so nothing has
+been changed on their account, and nothing should be until a suite produces a denominator.
+
+The one server-side defect this line of audit did find — a call qualified by an imported package
+credited to a same-named definition next door — is fixed and in the changelog. The audit that found
+it is the same one that found seven evaluator defects: ask whether the bug you just fixed in the
+grader also exists in the code under test.
+
 ## Three index changes, one survivor
 
 After the surface was frozen, driving the server against an awkward repository suggested three

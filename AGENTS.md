@@ -47,6 +47,12 @@ what keeps the published numbers true.
   for being exactly right. `validate_suite.py` now refuses any caller question whose verified
   callers collapse that way, so this cannot reach a run again.
 
+- **A lost cell is not automatically a retrieval failure.** Three classes produce one: an
+  evaluator defect, a server defect, and an arm that held the right rows and answered past them.
+  Separate them before interpreting — `experiments/README.md` keeps the model-side incidents with
+  the evidence that the rows were correct, and the ledger keeps the other two. In this project the
+  first class has produced thirty entries, the second one, and the third five.
+
 ## The instruments (offline unless noted)
 
 | Script | What it answers |
