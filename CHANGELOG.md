@@ -6,6 +6,15 @@ releases only.
 
 ## Unreleased
 
+**The handshake stops routing to tools the session refuses.** A default install exposes four tools
+and its instructions named all seven, so every turn paid for three lines advising `find_symbol`,
+`inspect_symbol` and `trace_dependencies` — whose only possible answer is `unknown or disabled
+tool; use tools/list`. The routing block is now assembled from the enabled set, exactly as the
+catalogue always was, and the one line that describes a sequence rather than a tool is kept in the
+shape each surface can execute rather than deleted. The default surface's instructions drop 2,724
+to 2,361 characters, −13.3%, and `--profile D` still routes to all seven. No agent-level claim: the
+saving is prompt-prefix bytes, which this project has learned are not the same thing as a result.
+
 **A Go call qualified by an imported package names that package's definition, not its neighbour.**
 `icredentials.ClientHandshakeInfoFromContext(...)`, written on the second line of the corpus's own
 `ClientHandshakeInfoFromContext`, calls `internal/credentials` — and `find_callers` credited the

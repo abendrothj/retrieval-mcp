@@ -22,6 +22,8 @@ struct Client {
     asked: usize,
     /// Declared the capability and answers nothing, like a client that has hung.
     mute: bool,
+    /// The handshake's instructions, which every turn pays for.
+    instructions: String,
 }
 
 /// A local directory as the `file:` URI a client reports. Spaces are percent-escaped, because
@@ -125,9 +127,11 @@ impl Client {
             roots,
             asked: 0,
             mute: false,
+            instructions: String::new(),
         };
         let init = client.request("initialize", json!({"protocolVersion":"2025-11-25","capabilities":capabilities,"clientInfo":{"name":"test","version":"1"}})).await;
         assert!(init.get("result").is_some(), "{init}");
+        client.instructions = init["result"]["instructions"].as_str().unwrap_or_default().to_owned();
         client
             .send(json!({"jsonrpc":"2.0","method":"notifications/initialized"}))
             .await;
@@ -1230,6 +1234,38 @@ async fn a_client_that_declares_roots_and_never_answers_falls_back_rather_than_h
     let logs = client.stop().await;
     assert_eq!(logged(&logs, "roots_timed_out").len(), 1, "{logs:?}");
     assert_eq!(logged(&logs, "launch_directory").len(), 1, "{logs:?}");
+}
+
+/// Instructions are paid for in the prompt prefix of every turn, and a default install refuses
+/// three of the seven tools. Routing the model to a tool it cannot call is advice whose only
+/// possible outcome is an error.
+#[tokio::test]
+async fn handshake_instructions_name_only_the_tools_this_session_exposes() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("sample.rs"), "fn target() {}\n").unwrap();
+    let absent = ["find_symbol", "inspect_symbol", "trace_dependencies"];
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"));
+    command.arg("--root").arg(root.path());
+    let client = Client::spawn(command).await;
+    let default = client.instructions.clone();
+    client.stop().await;
+    for tool in absent {
+        assert!(!default.contains(tool), "default surface routes to {tool}: {default}");
+    }
+    for tool in ["search_exact", "read_source", "find_callers", "search_concept"] {
+        assert!(default.contains(tool), "default surface omits {tool}: {default}");
+    }
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"));
+    command.arg("--root").arg(root.path()).args(["--profile", "D"]);
+    let client = Client::spawn(command).await;
+    let everything = client.instructions.clone();
+    client.stop().await;
+    for tool in absent {
+        assert!(everything.contains(tool), "profile D omits {tool}: {everything}");
+    }
+    assert!(default.len() < everything.len(), "a smaller surface is cheaper to describe");
 }
 
 /// Two launch directories are corpora of everything rather than repositories, and indexing them

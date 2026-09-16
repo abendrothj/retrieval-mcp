@@ -32,21 +32,52 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::{Mutex, OnceCell};
 
-const ROUTING_INSTRUCTIONS: &str = "\
-Route repository retrieval by the question's intent:
-- Known literal, identifier, error, filename, or exhaustive occurrence list: use search_exact.
-- Behavior or concept whose spelling or location is unknown: start with search_concept.
-- Exact declaration or namesake disambiguation: use find_symbol.
-- A symbol's relationships when you have a candidate name: start with inspect_symbol. It returns \
-definitions, callers, callees, and members in one capped call, so you never have to guess the \
-direction first.
-- Direct callers or references, once the direction is known: use find_callers; do not approximate \
-relationships with search_exact.
-- Transitive callers, callees, dependencies, impact, or call chains: use trace_dependencies.
-- Mixed discovery plus structure: search_concept, then inspect_symbol, then find_callers or \
-trace_dependencies, and verify material edges with read_source.
-- Read a known location or verify retrieved evidence with read_source. Stop when evidence is sufficient.
-Write conceptual queries in the vocabulary the code is likely to use, not the vocabulary of the \
+const ROUTING_HEADER: &str = "Route repository retrieval by the question's intent:";
+
+/// One routing line per tool, emitted only when this session exposes that tool.
+///
+/// A default install refuses `find_symbol`, `inspect_symbol` and `trace_dependencies` and told the
+/// model to use all three anyway - advice whose only possible outcome is "unknown or disabled
+/// tool", paid for in the prompt prefix of every turn. The catalogue has always been filtered by
+/// the allowlist; the routing advice now is too.
+const ROUTING_LINES: &[(&str, &str)] = &[
+    (
+        "search_exact",
+        "- Known literal, identifier, error, filename, or exhaustive occurrence list: use search_exact.",
+    ),
+    (
+        "search_concept",
+        "- Behavior or concept whose spelling or location is unknown: start with search_concept.",
+    ),
+    (
+        "find_symbol",
+        "- Exact declaration or namesake disambiguation: use find_symbol.",
+    ),
+    (
+        "inspect_symbol",
+        "- A symbol's relationships when you have a candidate name: start with inspect_symbol. It returns definitions, callers, callees, and members in one capped call, so you never have to guess the direction first.",
+    ),
+    (
+        "find_callers",
+        "- Direct callers or references, once the direction is known: use find_callers; do not approximate relationships with search_exact.",
+    ),
+    (
+        "trace_dependencies",
+        "- Transitive callers, callees, dependencies, impact, or call chains: use trace_dependencies.",
+    ),
+    (
+        "read_source",
+        "- Read a known location or verify retrieved evidence with read_source. Stop when evidence is sufficient.",
+    ),
+];
+
+/// The multi-tool route, in the two shapes the surfaces can actually execute. Deleting it on the
+/// default surface would drop the only line that describes a sequence rather than a single tool,
+/// which is the part no per-tool description can carry.
+const MIXED_ROUTE_FULL: &str = "- Mixed discovery plus structure: search_concept, then inspect_symbol, then find_callers or trace_dependencies, and verify material edges with read_source.";
+const MIXED_ROUTE_DEFAULT: &str = "- Mixed discovery plus structure: search_concept to find the definition, then find_callers on the name it returns, and verify material edges with read_source.";
+
+const ROUTING_BODY: &str = "Write conceptual queries in the vocabulary the code is likely to use, not the vocabulary of the \
 question: name the identifiers, API terms, constants, and implementation concepts a programmer \
 would have written for the described behaviour, and include several plausible spellings. \
 Repeating the user's phrasing verbatim retrieves poorly. When results name a symbol you did not \
@@ -190,6 +221,33 @@ impl RetrievalServer {
         let session = Arc::new(Session::new(workspace));
         state.current = Some(Arc::clone(&session));
         Ok(session)
+    }
+
+    /// The routing advice for exactly the tools this session exposes, and nothing else.
+    fn routing_instructions(&self) -> String {
+        let mut text = String::from(ROUTING_HEADER);
+        for (tool, line) in ROUTING_LINES {
+            if self.config.tools.contains(*tool) {
+                text.push('\n');
+                text.push_str(line);
+            }
+        }
+        if self.config.tools.contains("search_concept") && self.config.tools.contains("find_callers")
+        {
+            text.push('\n');
+            text.push_str(
+                if self.config.tools.contains("inspect_symbol")
+                    && self.config.tools.contains("trace_dependencies")
+                {
+                    MIXED_ROUTE_FULL
+                } else {
+                    MIXED_ROUTE_DEFAULT
+                },
+            );
+        }
+        text.push('\n');
+        text.push_str(ROUTING_BODY);
+        text
     }
 
     pub fn definitions(&self) -> Vec<Tool> {
@@ -597,7 +655,7 @@ impl ServerHandler for RetrievalServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
-            .with_instructions(ROUTING_INSTRUCTIONS)
+            .with_instructions(self.routing_instructions())
     }
 
     async fn list_tools(
