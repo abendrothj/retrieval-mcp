@@ -21,7 +21,7 @@ worker count comes from `std::thread::available_parallelism` and cannot be pinne
 environment, so the contrast is not reproducible on the machine that published it.
 
 **The README states the offer in the reader's terms, not the benchmark's.** The opening now says
-what a user gets - the same answers for 34–45% fewer input tokens and 22–47% fewer tool calls,
+what a user gets - the same answers for 34–42% fewer input tokens and 22–47% fewer tool calls,
 explicitly not better answers, with the one study where the native tools finished an answer ahead
 named - and the result section carries the second corpus, the criterion that study missed, and
 which binary produced each number. No measurement changed; what changed is that none of it has to
