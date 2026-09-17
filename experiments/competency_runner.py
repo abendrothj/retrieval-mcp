@@ -149,7 +149,7 @@ def run(args):
             "--log-file", str(attempt/"server.jsonl"), "--run-id", f"probe-{index:04d}",
             "--timeout-seconds", str(args.tool_timeout)]
         semantic = args.semantic_command if args.client == "claude" else [sys.executable,
-            str(Path(__file__).with_name("test_experiments.py")), "--fake-semantic"]
+            str(Path(__file__).resolve().parent / "fixture_backends.py"), "--fake-semantic"]
         if "search_concept" in TOOLS[args.profile]:
             if args.client == "claude" and not args.semantic_command:
                 raise ValueError("profiles with search_concept require an explicit semantic backend")
@@ -214,7 +214,7 @@ def main():
     base = Path(__file__).resolve().parent
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--root", type=Path, default=base/"competency_repo")
-    parser.add_argument("--questions", type=Path, default=base/"competency_questions.json")
+    parser.add_argument("--questions", type=Path, default=base/"suites/competency_questions.json")
     parser.add_argument("--server", type=Path, default=base.parent/"target/debug/retrieval-mcp")
     parser.add_argument("--profile", choices=tuple(TOOLS), default="B")
     parser.add_argument("--help-levels", default="baseline,primer")

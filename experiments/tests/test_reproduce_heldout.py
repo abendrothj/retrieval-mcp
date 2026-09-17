@@ -6,11 +6,11 @@ from pathlib import Path
 
 import reproduce_heldout
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parents[1]
 
 
 def pinned_manifest():
-    manifest = json.loads((HERE / "django_suite_manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((HERE / "suites/django_suite_manifest.json").read_text(encoding="utf-8"))
     return manifest
 
 
@@ -58,7 +58,7 @@ class ShippedPinsTests(unittest.TestCase):
         manifest = pinned_manifest()
         for name, filename in (("development", "django_development_questions.json"),
                                ("heldout", "django_heldout_questions.json")):
-            digest = hashlib.sha256((HERE / filename).read_bytes()).hexdigest()
+            digest = hashlib.sha256((HERE / "suites" / filename).read_bytes()).hexdigest()
             self.assertEqual(digest, manifest[name]["sha256"], filename)
 
 

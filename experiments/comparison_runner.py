@@ -553,7 +553,7 @@ def run(args):
 def common(parser):
     base = Path(__file__).resolve().parent
     parser.add_argument("--workspace", type=Path, required=True)
-    parser.add_argument("--systems", type=Path, default=base / "comparison_systems.json")
+    parser.add_argument("--systems", type=Path, default=base / "systems/comparison_systems.json")
     parser.add_argument("--server", type=Path, default=base.parent / "target/release/retrieval-mcp")
     parser.add_argument("--semantic-command", type=benchmark.command_array, required=True)
 
@@ -567,7 +567,7 @@ def main():
     prepare_parser.add_argument("--prepare-timeout", type=int, default=1800)
     run_parser = commands.add_parser("run", help="run the prepared paired comparison")
     common(run_parser)
-    run_parser.add_argument("--questions", type=Path, default=Path(__file__).with_name("comparison_questions.json"))
+    run_parser.add_argument("--questions", type=Path, default=Path(__file__).resolve().parent / "suites/comparison_questions.json")
     run_parser.add_argument("--output", type=Path, required=True)
     run_parser.add_argument("--client", choices=("command", "claude"), default="command")
     run_parser.add_argument("--agent-command", type=benchmark.command_array)

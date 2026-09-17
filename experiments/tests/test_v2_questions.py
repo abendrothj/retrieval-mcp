@@ -11,10 +11,10 @@ import unittest
 
 import benchmark
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parents[1]
 SUITE = HERE.parent.parent/"runs/projects-v2-suite/coreutils"
 CORPUS = SUITE/"corpus"
-QUESTIONS = json.loads((HERE/"v2_questions_draft.json").read_text())
+QUESTIONS = json.loads((HERE/"suites/v2_questions_draft.json").read_text())
 CATEGORIES = {"exact_lookup", "conceptual_lookup", "symbol_resolution",
               "direct_caller_lookup", "transitive_blast_radius", "mixed_discovery_structure"}
 

@@ -63,7 +63,7 @@ def main():
     if output.is_relative_to(snapshots):
         parser.error("runs must be outside the snapshot directory")
     project_root = Path(__file__).resolve().parents[1]
-    prepared = prepare_questions(snapshots, Path(__file__).with_name("project_questions.json"), output, args.phase == "pilot")
+    prepared = prepare_questions(snapshots, Path(__file__).resolve().parent / "suites/project_questions.json", output, args.phase == "pilot")
     for project in prepared:
         options = SimpleNamespace(root=snapshots/project/"corpus", output=output/project,
             questions=output/f"{project}-questions.json", server=project_root/"target/release/retrieval-mcp",

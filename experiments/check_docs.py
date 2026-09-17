@@ -52,6 +52,24 @@ OUTSIDE_DOC = "../README.md"
 PATH_PATTERN = re.compile(r'`((?:experiments|src|tests|examples)/[A-Za-z0-9_./*-]+)`')
 PLACEHOLDER = re.compile(r'\*|\{|/path/to/|/absolute/')
 LINK_PATTERN = re.compile(r'\[[^\]]*\]\(([^)\s#]*)(#[A-Za-z0-9-]+)?\)')
+# The result section's figures are bound to `published_results.json`, which `publish_numbers.py`
+# derives from the archived reports. Before this existed, nothing compared a published number with
+# its own evidence - `runs/` is gitignored, so CI never saw it - and the table drifted to 147 tool
+# calls where the report said 146, while the indexing counts outlived four new grammars.
+PUBLISHED = "experiments/published_results.json"
+# Row label -> the extract field it publishes, and the precision the README prints it at.
+RESULT_ROWS = {
+    "Correct": ("correct", 0),
+    "Input tokens": ("input_tokens", 2),
+    "Tool calls": ("calls", 0),
+    "Persistent context": ("context_token_turns", 2),
+    "Calls to first evidence": ("calls_to_first_evidence", 1),
+    "Answered without evidence": ("answered_without_evidence", 0),
+}
+# Column order of the result table, which the header row is checked against.
+RESULT_ARMS = ("native-control", "zvec-grep", "retrieval-mcp")
+FIGURE = re.compile(r'^\*{0,2}([0-9]+(?:\.[0-9]+)?)\s*([Mk])?\*{0,2}$')
+PERCENT = re.compile(r'[-−]([0-9]+(?:\.[0-9]+)?)%')
 # What a reader of README.md meets, in order. Proof before procedure; one troubleshooting surface;
 # install detail after the sections that say whether the thing is worth installing.
 README_SECTIONS = (
@@ -248,6 +266,89 @@ def check_shape(text, problems):
             report(f"the contents list does not name every section in order: {named} != {expected}")
 
 
+def figure(cell):
+    """Parse a published cell into (value, tolerance) at the precision it is printed to.
+
+    `764 k` promises 764,000 to the nearest thousand, not 763,744 exactly, so the tolerance is half
+    the last printed digit in the printed unit. Without that this check would demand the README
+    print raw trial sums, which no reader wants.
+    """
+    match = FIGURE.match(cell.strip())
+    if not match:
+        return None
+    digits, unit = match.group(1), match.group(2)
+    scale = {"M": 1e6, "k": 1e3, None: 1}[unit]
+    decimals = len(digits.split(".")[1]) if "." in digits else 0
+    return float(digits) * scale, 0.5 * 10 ** -decimals * scale
+
+
+def published_comparisons(arms):
+    """Every ratio a reader could legitimately quote from one study, as a percentage."""
+    ratios = set()
+    fields = ("input_tokens", "input_tokens_with_cache_reads", "calls", "context_token_turns")
+    for field in fields:
+        for left in arms.values():
+            for right in arms.values():
+                if right.get(field):
+                    ratios.add((left[field] / right[field] - 1) * 100)
+    return ratios
+
+
+def check_published(text, extract, problems):
+    """Bind the result section's figures to the extract derived from the archived reports."""
+    def report(detail):
+        problems.append({"document": "README.md", "check": "published numbers", "detail": detail})
+
+    section = re.search(r'\n## The result\n(.*?)\n## ', text, re.S)
+    if not section:
+        return report("no result section found")
+    body = section.group(1)
+    heldout = extract["studies"]["heldout"]["arms"]
+    header = re.search(r'\n\|([^\n]*native[^\n]*)\|\n', body)
+    if not header:
+        return report("the result table has no header row naming the native control")
+    order = [cell.strip() for cell in header.group(1).split("|")]
+    if not (len(order) == 4 and "zvec" in order[2] and "retrieval-mcp" in order[3]):
+        return report(f"unexpected result table columns {order}; expected native, zvec, "
+                      f"retrieval-mcp")
+    seen = set()
+    for line in body.split("\n"):
+        cells = [cell.strip() for cell in line.split("|")[1:-1]] if line.startswith("|") else []
+        if len(cells) != 4:
+            continue
+        label = next((key for key in RESULT_ROWS if cells[0].startswith(key)), None)
+        if label is None:
+            continue
+        field, _ = RESULT_ROWS[label]
+        seen.add(label)
+        for arm, cell in zip(RESULT_ARMS, cells[1:]):
+            parsed, actual = figure(cell), heldout[arm][field]
+            if parsed is None:
+                report(f"{label!r} for {arm} is not a readable figure: {cell!r}")
+                continue
+            shown, tolerance = parsed
+            if abs(shown - actual) > tolerance + 1e-9:
+                report(f"{label!r} for {arm} says {cell.strip('*')} but the run report says "
+                       f"{actual} (tolerance +/-{tolerance:g})")
+    for missing in sorted(set(RESULT_ROWS) - seen):
+        report(f"the result table no longer publishes {missing!r}")
+    # Any percentage in the section must be a comparison the studies actually support, at the
+    # precision it is printed to. A figure computed under one token definition and printed beside
+    # another was how -33.5% and -44.6% came to share a sentence. A percentage that is not a run
+    # comparison at all - instruction bytes, say - has to be declared in the extract with its
+    # provenance, so an undeclared one fails rather than passing unnoticed.
+    allowed = set()
+    for study in extract["studies"].values():
+        allowed |= published_comparisons(study["arms"])
+    declared = {float(value) for value in extract.get("declared_percentages", {})}
+    for quoted in PERCENT.findall(body):
+        value = -float(quoted)
+        tolerance = 0.5 * 10 ** -(len(quoted.split(".")[1]) if "." in quoted else 0)
+        if not any(abs(value - candidate) <= tolerance for candidate in allowed | declared):
+            report(f"-{quoted}% is not a comparison the archived reports produce, and is not "
+                   f"declared in {PUBLISHED}")
+
+
 def check_quickstart(repo, problems):
     """Run the quickstart exactly as written, so it cannot rot again unnoticed."""
     text = (repo / "README.md").read_text(encoding="utf-8")
@@ -336,7 +437,15 @@ def main():
         if not args.skip_tests:
             check_counts(name, text, rust, python, problems)
     # The shape contract is this repository's README, not every document the study ships.
-    check_shape((repo / "README.md").read_text(encoding="utf-8"), problems)
+    readme = (repo / "README.md").read_text(encoding="utf-8")
+    check_shape(readme, problems)
+    # Published figures are checked against the extract, never against prose memory.
+    extract_path = repo / PUBLISHED
+    if extract_path.exists():
+        check_published(readme, json.loads(extract_path.read_text(encoding="utf-8")), problems)
+    else:
+        problems.append({"document": PUBLISHED, "check": "published numbers",
+                         "detail": "missing; regenerate it with publish_numbers.py"})
     if not args.skip_tests:
         check_quickstart(repo, problems)
 

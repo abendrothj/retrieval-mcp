@@ -86,11 +86,12 @@ any of the four features it was found underneath.
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Thirty defects in it have produced or nearly
+The harness is the second experimental subject. Thirty-one defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
 some penalised it, one was found inside its own single held-out loss, one would have made every
 brace-language caller question unauthorable, one scored three arms to zero on questions they had
-answered exactly right, twice, and the seven newest were found by an audit built to admit five
+answered exactly right, twice, one survived its own repair by moving up one scope level, and the
+seven newest before it were found by an audit built to admit five
 new languages, by the release that followed it and by the Go pilot that ran on them — five in the
 evaluator, two in the server. Each is
 pinned by a test. This table is the authoritative list; prose below refers to it rather than to
@@ -128,8 +129,50 @@ ordinals.
 | Two-hop gold expanded through a namesake on the first hop | The leasing `acquire` pulled a rate limiter's callers into the gold; all three arms scored 0.60 on a question they answered as asked |
 | Two-hop question left it open whether a direct caller counts as reached in two hops | The gold took the union, one arm read the difference, and two cells moved on a reading rather than on retrieval |
 | A caller question excluded "the file that defines it" while that file's test twin called the helper | Every arm skipped `http_util_test.go` when told to skip `http_util.go` - 14 of 19 missing identities in one study, 6 of 6 for one arm - and the loss read as a retrieval difference |
+| A caller question scoped its exclusion by "module" while the gold counted a caller in the helper's own directory | `cu-callers-02`'s own repair: all three retrieval trials found `parse_signed_num.rs::parse_count`, excluded it because it sits in `features/parser/`, and scored 0.667 three times against the native arm's 1.000 — a replicated, entirely false reading that the structural surface is worse at exhaustive caller questions |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
+
+## Where things live
+
+One flat directory had grown to 120 files, so the data moved out of the instruments' way on
+2026-09-16. Nothing was renamed and nothing was deleted:
+
+| Path | Holds |
+|---|---|
+| `experiments/*.py` | the instruments, one concern each, plus `experiments/fixture_backends.py`, the scripted agent and semantic backend the harness tests drive |
+| `experiments/suites/` | question sets and their manifests, including `experiments/suites/stratified.json` |
+| `experiments/systems/` | arm definitions: one file per study, differing only in `id` and `server` where a study says so |
+| `experiments/tests/` | the test modules; discovery is unchanged, `-m unittest discover -s experiments -p 'test_*.py'` |
+| `experiments/competency_repo/`, `experiments/sample_repo/` | the two synthetic fixture repositories |
+
+Archived run artifacts under `runs/` name the pre-move paths - `experiments/<suite>.json` rather
+than `experiments/suites/<suite>.json` - because a registration is a record of what was run and is
+not rewritten. Every such file is still one directory away under the same name.
+
+### Why the 45 scripts stay flat
+
+They cannot be foldered as they are. Every instrument is run as `python3 experiments/<name>.py`,
+which puts `experiments/` on `sys.path` and is why `import benchmark` resolves; 35 of the 45 import
+a sibling and 32 are imported by a sibling or a test, so only `make_mechanical_suite.py` and
+`notation_diagnostic.py` would survive a move. Copying `end_to_end.py` one directory down and
+running it fails on `ModuleNotFoundError: No module named 'quality_pass'`. Subdirectories would
+therefore need either a `sys.path` shim in every script or a package conversion that turns every
+documented command into `python3 -m experiments.<name>` and invalidates the command recorded beside
+every archived run. Neither is worth a tidier listing, so the roster is documented instead.
+
+| Role | Scripts |
+|---|---|
+| The instruments the current protocol uses | `experiments/validate_suite.py`, `experiments/cut_corpora.py`, `experiments/study_a.py`, `experiments/study_b.py`, `experiments/lexical_oracle.py`, `experiments/language_audit.py`, `experiments/comparison_runner.py`, `experiments/end_to_end.py`, `experiments/regrade.py`, `experiments/check_docs.py` |
+| Shared modules, imported rather than run | `experiments/benchmark.py` (25 importers), `experiments/quality_pass.py` (13), `experiments/audit_failures.py`, `experiments/analyze.py` |
+| Clients, gates and fixtures a run launches | `experiments/codex_wrapper.py`, `experiments/opencode_wrapper.py`, `experiments/comparison_gate.py`, `experiments/policy_gate.py`, `experiments/warm_semantic.py`, `experiments/fixture_backends.py` |
+| Suite and corpus authoring | `experiments/make_reformulations.py`, `experiments/make_mechanical_suite.py`, `experiments/prepare_stratified.py`, `experiments/reproduce_heldout.py`, `experiments/snapshot_projects.py` |
+| Superseded generations, kept because archived runs were produced by them | the factor/competency protocol in [FACTOR_PROTOCOL.md](FACTOR_PROTOCOL.md) - `experiments/competency_runner.py`, `experiments/factor_runner.py`, `experiments/plan_factors.py`, `experiments/score_competency.py`, `experiments/analyze_factors.py`, `experiments/query_pathology.py`, `experiments/notation_diagnostic.py`; the three-project study - `experiments/run_projects.py`, `experiments/analyze_projects.py`, `experiments/research_review.py`; the a-series navigation studies - `experiments/study_a1.py`, `experiments/study_a2.py`, `experiments/study_a3.py`; and the one-off readouts `experiments/audit_answers.py`, `experiments/closure_audit.py`, `experiments/failure_modes.py`, `experiments/schema_ablation.py`, `experiments/tool_reachability.py`, `experiments/analyze_comparison.py` |
+
+One script is referenced by nothing at all - no importer, no test, no document, no archived run:
+`experiments/tool_suitability.py`. It stays anyway, decided 2026-09-16: deleting one orphan buys a
+listing one line shorter, and every other file here is load-bearing for some archived run, so
+nothing in this directory is removed on tidiness grounds.
 
 ## Corpora
 
@@ -138,12 +181,12 @@ No suite validates against an upstream checkout. `corpora/` holds the three chec
 | Question set | Pinned corpus | Files |
 |---|---|---|
 | `django_*_questions.json` (all seven) | `../runs/django-suite/corpus` | 276, scoped to `django/db`, `core`, `utils`, `dispatch`, `apps` |
-| `comparison_questions.json`, `v2_questions_draft.json` | `../runs/projects-v2-suite/coreutils/corpus` | 673 |
+| `experiments/suites/comparison_questions.json`, `experiments/suites/v2_questions_draft.json` | `../runs/projects-v2-suite/coreutils/corpus` | 673 |
 | `../runs/vscode-platform-suite/authored-questions*.json` | `../runs/vscode-platform-suite/corpus` | 472 |
-| `stratified.json` | `../runs/stratified-v1-suite/corpus` | 15 |
+| `experiments/suites/stratified.json` | `../runs/stratified-v1-suite/corpus` | 15 |
 | v1 ModelShare / pig / Sigil | `../runs/projects-v1-suite/*/corpus` | — |
 
-Scope, upstream commit, and corpus hash for the Django suite are in `django_suite_manifest.json`; for coreutils, in [CORPUS_V2.md](CORPUS_V2.md). `comparison_questions.json` predates `validate_suite.py` and does not pass it — it was frozen under the earlier human-review gate described in [Freeze gate](#freeze-gate), and is kept as recorded rather than retrofitted.
+Scope, upstream commit, and corpus hash for the Django suite are in `experiments/suites/django_suite_manifest.json`; for coreutils, in [CORPUS_V2.md](CORPUS_V2.md). `experiments/suites/comparison_questions.json` predates `validate_suite.py` and does not pass it — it was frozen under the earlier human-review gate described in [Freeze gate](#freeze-gate), and is kept as recorded rather than retrofitted.
 
 ## Offline work: no Claude calls
 
@@ -156,7 +199,7 @@ python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*
 python3 experiments/audit_answers.py /path/to/project-results --output /path/to/new-answer-audit.json
 ```
 
-The fake agent and semantic fixture in `test_experiments.py` exercise real MCP transport and all four profiles without inference. Rust tests cover bounded reads, path escapes, lexical pagination, structural ambiguity, subprocess failures, and embedding-cache persistence with synthetic vectors. The live Ollama test is ignored by default. Offline builds require dependencies already cached.
+The fake agent and semantic backend in `experiments/fixture_backends.py` exercise real MCP transport and all four profiles without inference. Rust tests cover bounded reads, path escapes, lexical pagination, structural ambiguity, subprocess failures, and embedding-cache persistence with synthetic vectors. The live Ollama test is ignored by default. Offline builds require dependencies already cached.
 
 `audit_answers.py` reads saved project answers and frozen gold, records input hashes, and writes a separate post-hoc report without overwriting existing files. It compares exactly one JSON payload even when preceded by prose; multiple objects, duplicate keys, malformed JSON, and unsupported shapes require manual review. Typed values, set uniqueness, and ordered call chains keep the original comparison rules. This is a sensitivity check, not a replacement for frozen scores or a review of contradictory prose. It excludes unfinished trials and never invokes a model. Resuming model trials remains separate work; these commands do not resume them.
 
@@ -238,7 +281,7 @@ does an agent consume before it reaches a correct answer". Three arms — OpenCo
 grep/read/glob/bash tools, zvec-grep 0.2.2, and `retrieval-mcp` profile D — run the same authored
 questions over one byte-identical corpus, each until it answers or exhausts its call budget.
 
-`comparison_systems_three.json` is that three-arm subset of `comparison_systems.json`, with the
+`experiments/systems/comparison_systems_three.json` is that three-arm subset of `experiments/systems/comparison_systems.json`, with the
 zvec install pinned to a local package file so preparation needs no registry. `codex_wrapper.py`
 drives Codex CLI and `opencode_wrapper.py` drives OpenCode; both translate their client's event
 stream into the harness transcript shape and keep the raw stream beside the trial for scoring.
@@ -247,12 +290,12 @@ stream into the harness transcript shape and keep the raw stream beside the tria
 # 1. Prepare one corpus copy per arm, with warm indexes and recorded versions. No model calls.
 python3 experiments/comparison_runner.py prepare \
   --source-root /path/to/corpus --workspace /path/to/workspace \
-  --systems experiments/comparison_systems_three.json \
+  --systems experiments/systems/comparison_systems_three.json \
   --semantic-command '["/path/to/target/release/examples/ollama_backend"]'
 
 # 2. Run the matrix. Requires explicit model approval; writes one directory per trial.
 python3 experiments/comparison_runner.py run \
-  --workspace /path/to/workspace --systems experiments/comparison_systems_three.json \
+  --workspace /path/to/workspace --systems experiments/systems/comparison_systems_three.json \
   --questions /path/to/authored-questions.json \
   --semantic-command '["/path/to/target/release/examples/ollama_backend"]' \
   --client command --model gpt-5.6-luna --allow-model-usage \
@@ -367,7 +410,7 @@ python3 experiments/validate_suite.py --questions /path/to/questions.json --corp
 
 # Every pinned suite passes; see Corpora above for which corpus each set requires.
 python3 experiments/validate_suite.py \
-  --questions experiments/django_heldout_questions.json --corpus ../runs/django-suite/corpus
+  --questions experiments/suites/django_heldout_questions.json --corpus ../runs/django-suite/corpus
 ```
 
 It checks four things, tagged by severity in the output.
@@ -418,10 +461,10 @@ caller question.
 
 ### The Django suite
 
-`django_development_questions.json` and `django_heldout_questions.json` are the rebuilt instrument
+`experiments/suites/django_development_questions.json` and `experiments/suites/django_heldout_questions.json` are the rebuilt instrument
 the VS Code audit demanded: 30 development and 30 held-out questions over a 276-file, five-package
 subset of Django 5.1.4 (`django/db`, `django/core`, `django/utils`, `django/dispatch`,
-`django/apps`), pinned with corpus and suite hashes in `django_suite_manifest.json`. Both sets
+`django/apps`), pinned with corpus and suite hashes in `experiments/suites/django_suite_manifest.json`. Both sets
 compile clean. Each question was authored from source by a separate agent per package, with
 evidence anchors and author notes recording why each distractor is wrong; the two sets are
 disjoint and balanced across the same seven categories, one null-answer question each.
@@ -508,7 +551,7 @@ that. The prompt is identical across arms, so it is not an asymmetry in wording 
 asymmetry in cost, and it should be fixed before the held-out run.
 
 **The intervention.** One `prompt_policy` string, no protocol change, no ranking change. The two
-arms in `comparison_systems_closure.json` are byte-identical apart from `id` and this text:
+arms in `experiments/systems/comparison_systems_closure.json` are byte-identical apart from `id` and this text:
 
 > Stopping rule. Every row this server returns is a verified source fact: it names a real
 > definition with its file, and `counts`, `has_more` and the relation labels state how complete the
@@ -599,7 +642,7 @@ that the navigation study showed mattered for transitive questions — so it is 
 
 ### Does closure survive uncertainty? The hard suite
 
-A stopping rule tested where nothing can be lost is not tested. `django_hard_questions.json` is
+A stopping rule tested where nothing can be lost is not tested. `experiments/suites/django_hard_questions.json` is
 30 further development questions authored against an explicit difficulty contract: the first
 plausible symbol must be a distractor, or the answer must combine two definitions, or need a
 two-hop traversal, or discriminate between namesakes. Difficulty had to come from code structure,
@@ -673,11 +716,11 @@ and `djh-backends-literal-default-hook-override` (`quote_value` → `prepare_def
 same number of calls as before. Calls fell by four while quality rose, so the clause is not buying
 correctness with turns. Input tokens nevertheless rose 8%, dominated by one trial that spent eight
 extra `read_source` calls confirming a caller list; that is reported as a caveat, not as a saving.
-The clause is now frozen into `comparison_systems_closure.json` and every later arm carries it.
+The clause is now frozen into `experiments/systems/comparison_systems_closure.json` and every later arm carries it.
 
 ### A suite that was supposed to separate retrieval strategies, and a validator for it
 
-`django_retrieval_strategy_questions.json` is 12 development questions aimed at capability
+`experiments/suites/django_retrieval_strategy_questions.json` is 12 development questions aimed at capability
 boundaries rather than stopping behaviour: caller/callee orientation, two-hop traversal,
 container/member distinction, same-name definitions where the path decides, an interface whose two
 overrides are textually identical, evidence combined from distant definitions, and a lexical
@@ -758,7 +801,7 @@ Most of those fall to a *single* `search_concept` call on the question text. Hal
 built to separate retrieval strategies was never about retrieval strategy at all.
 
 **What lexical results do not encode.** A grep hit carries a path and a line; it does not carry the
-definition that encloses the line. `django_necessity_questions.json` is ten questions built on that
+definition that encloses the line. `experiments/suites/django_necessity_questions.json` is ten questions built on that
 asymmetry: each names a helper behaviourally and demands *every* enclosing definition outside its
 module that calls it, as `path::name`, exhaustively. Five to six callers spread over four to five
 files means a search-and-read arm pays one read per file to name them, while one structural call
@@ -811,7 +854,7 @@ indentation bound on every shallower statement fixed that, and then credited the
 whenever a decorator or a wrapped signature sat between the call and its `def`, because those lines
 are not statements in the parent block. Third, `true_callers` counted `Field.set_cached_value()`
 written inside a comment as a call site, which would have demanded that an exhaustive gold name a
-caller that does not exist. All three are pinned by `test_audit_failures.py`, and all four existing
+caller that does not exist. All three are pinned by `experiments/tests/test_audit_failures.py`, and all four existing
 suites still compile clean under the corrected verifier, so no shipped gold depended on the bugs.
 Those are three more [ledger](#harness-defect-ledger) entries, found by disbelieving agreement between
 two tools rather than a single result.
@@ -841,7 +884,7 @@ anything, and `definition_set` checks a namesake enumeration against the definit
 than trusting it. The oracle also learned `--with-tool find_callers`, so a class claimed for
 another tool must survive a crawl that can already enumerate callers.
 
-`django_tool_trial_questions.json` is ten questions in three claimed classes — container plus
+`experiments/suites/django_tool_trial_questions.json` is ten questions in three claimed classes — container plus
 exhaustive callers for `inspect_symbol`, two-hop transitive callers for `trace_dependencies`,
 namesake enumeration for `find_symbol`. All ten compile, all ten are reachable, and all ten survive
 the baseline-surface crawl. Four arms: the frozen baseline, and the baseline plus one tool.
@@ -902,7 +945,7 @@ by a stdio test. The other three are un-defaulted, not removed: naming them in `
 ## The held-out comparison
 
 The set stayed sealed through every development cycle in this file: 30 questions, zero model runs,
-its hash pinned in `django_suite_manifest.json` and absent from all 40 prior run manifests. It was
+its hash pinned in `experiments/suites/django_suite_manifest.json` and absent from all 40 prior run manifests. It was
 opened once, after the retrieval architecture, the closure policy and the default tool surface were
 all frozen, and it will not be used again.
 
@@ -950,7 +993,7 @@ saving is the result. The set is spent; nothing further is tuned against it.
 
 No corpus is shipped, so `reproduce_heldout.py` rebuilds it: a blobless sparse clone of the pinned
 Django revision, the five scoped packages, and a hard failure unless the result matches the
-fingerprint in `django_suite_manifest.json` byte for byte. It was run against a fresh clone and
+fingerprint in `experiments/suites/django_suite_manifest.json` byte for byte. It was run against a fresh clone and
 returns `038e9fdd…` over 276 files, the same corpus every number in this file was measured on, and
 it then prints the exact validate/prepare/run/score commands. It calls no model.
 
@@ -1014,7 +1057,7 @@ name inside a `reference_declarator`. The evaluator credited Redis' `TEST("...")
 blocks with the calls inside them, credited a C++ constructor's initialiser list to the member
 rather than the constructor, missed one-line definitions entirely, and counted prototypes, Java
 interface signatures, `.d.ts` method signatures and LevelDB's `EXCLUSIVE_LOCKS_REQUIRED(mutex_)`
-annotations as call sites. Each is pinned by a test in `test_audit_failures.py`.
+annotations as call sites. Each is pinned by a test in `experiments/tests/test_audit_failures.py`.
 
 **What still disagrees, and why it is not a defect.** Rows the server reports and the oracle misses
 are real calls a line-based reader cannot attribute — `(*func)(reader.LastRecordOffset(), record,
@@ -1222,7 +1265,7 @@ mixed-shape suite - 30 held-out Django questions across six shapes, where the ar
 and `retrieval-mcp` spent 33.5% fewer input tokens than the native control and 23.7% fewer than
 zvec-grep. One corpus, one language, one snapshot.
 
-`experiments/etcd_mixed_questions.json` is the second: 30 questions over 311 Go files of etcd
+`experiments/suites/etcd_mixed_questions.json` is the second: 30 questions over 311 Go files of etcd
 (`client/v3`, `client/pkg`, `server/proxy`, `server/auth`, `server/embed`, `pkg/flags`,
 `etcdctl/ctlv3`) sharing no file with any suite authored here, in the held-out suite's exact shape
 proportions - 8 conceptual lookup, 6 symbol resolution, 6 direct caller, 5 transitive blast radius,
@@ -1332,6 +1375,51 @@ arms are within two answers of each other and this server spends 34-51% fewer in
 comparison. Quality has never separated in either direction; the token gap has never failed to
 replicate. Saying more than that would need a suite where quality can separate, and this project has
 now twice found that such a suite is easier to bias than to build.
+
+### Two handshake sentences, measured and rejected
+
+The one prompt-side change left untested was the handshake itself: does a single added sentence
+change how many caller questions an agent resolves? `runs/instructions-ab-rerun-20260916` answers
+no, and the way it answers is the point.
+
+Three arms, one variable each — control is `0.1.6`'s instructions, `disambiguate` adds a rule about
+choosing between plausible candidates before answering, `verbatim` adds one about copying symbol
+names exactly as the rows spell them. No arm carries a `prompt_policy`, so the sentence under test
+is the only place the advice appears. 39 questions from the etcd caller suite, 27 attribution-hard
+and 12 local controls, three repetitions, seeds 61/62/63, `gpt-5.6-luna`: **351 trials, none failed
+or aborted.**
+
+| arm | resolved / 117 | per repetition | median input | paired vs control | median token delta |
+|---|---:|---|---:|---|---:|
+| control | 115 | 38 / 39 / 38 | 321,624 | — | — |
+| disambiguate | 115 | 38 / 38 / 39 | 321,313 | 2 wins, 2 losses, 113 ties | −11,114 (−3.5%) |
+| verbatim | 115 | 39 / 38 / 38 | 318,745 | 1 win, 1 loss, 115 ties | −5,711 (−1.8%) |
+
+The registered bar was +3 resolved of 117. Both arms came in at **+0**, so neither sentence ships;
+the cost bar of +10% was never in danger, since both treatments were marginally *cheaper*. Strata
+are flat — every arm resolved 79 of 81 attribution-hard and 36 of 36 local — median calls per trial
+is 8 on all three arms, and no arm answered without evidence in any of the 351 trials.
+
+**Why this is the most useful negative in the file.** Two repetitions of the superseded study read
+as a win on its way to shipping: control 75/78, `disambiguate` 77/78, `verbatim` **78/78**, with
+`verbatim` sitting exactly on the +3 bar at a +3.2% token cost against a +10% allowance. The third
+repetition, on binaries serving byte-identical instructions, turned that into 115/115/115 — and the
+cost delta did not shrink, it **changed sign**, from +3.2% and +2.3% to −1.8% and −3.5%. With 29 of
+117 paired trials above +50k tokens and 39 below −50k for `disambiguate`, the per-question
+distribution is heavy-tailed in both directions, and a median over 78 trials was not measuring the
+sentence at all. The stability rule — three repetitions decide, a difference carried by fewer is
+unstable — is the only reason a noise artifact did not become a shipped instruction change.
+
+**What it cost to get the answer honestly.** The original study's treatment binaries were built in
+`/tmp` and a reboot took them; they were not reproducible from the record, because the source edit
+had been reverted after building and the physical layout of one string literal is unrecoverable.
+Control rebuilt to its pinned hash exactly, which localised the loss, and sixteen rebuilds across
+five insertion placements and four line-count variants failed to reproduce either treatment. Rather
+than argue the pins away, the study's own remedy was applied: a superseding registration, fresh
+arms pinned *and preserved outside `/tmp`*, and all three repetitions re-run. The treatment's
+identity is evidenced rather than assumed — `rep-1` of the superseded study recorded each arm's
+served instructions, and the new arms handshake to byte-identical strings, 2,361 / 2,613 / 2,603
+characters. Three hours of model time, $0 on a subscription client.
 
 ### Losses that are not the server's, recorded so they are not read as retrieval failures
 
@@ -1478,7 +1566,7 @@ buckets with n = 6 support any statement at all.
 
 ### Layer 2: four arms, 120 trials, `claude-sonnet-4-6`
 
-`comparison_systems_perf_v020.json` declares `native-control`, `zvec-grep`, `retrieval-v011` and
+`experiments/systems/comparison_systems_perf_v020.json` declares `native-control`, `zvec-grep`, `retrieval-v011` and
 `retrieval-v020`. The two retrieval arms are byte-identical except for the pinned binary — same four
 visible tools, same closure stopping rule copied verbatim from the held-out systems file, no semantic
 backend on either, so the only difference in the treatment is the doc-comment chunk. `comparison_runner.py`
@@ -1733,6 +1821,74 @@ but it no longer discriminates *against this server*, which is why the next call
 should not be invented until a suite exists that can see one fail.
 
 
+### The repair of that ceiling was itself defective, and it took a paid run to see it
+
+`runs/cu-callers-02-confirm-20260916`, pre-registered before the first trial: the repaired
+`cu-callers-02` alone, one question, two arms, three repetitions, 6 trials, `claude-sonnet-4-6`,
+seed 42, on the `cu-text` corpus whose fingerprint `1e2b3838` reproduces the perf-v020 pin.
+Criteria: full credit in at least 4 of 6 trials **and** no trial showing the old ceiling. Result
+**3 of 6, three trials at exactly 0.667**, so the criteria are missed and the negative result is
+what stands.
+
+| arm | rep 1 | rep 2 | rep 3 |
+|---|---:|---:|---:|
+| native-control | 1.000 | 1.000 | 1.000 |
+| retrieval-mcp | 0.667 | 0.667 | 0.667 |
+
+Read at face value that table says the structural surface is worse at exhaustive caller questions,
+consistently, across repetitions. The answers say something else. All three retrieval trials
+**found** `parse_signed_num.rs::parse_count` and excluded it on purpose, quoting the question back:
+*"The callers in parse_signed_num.rs and parse_size.rs are within the same features/parser module
+and are excluded."* The gold counts it. The first repair had named the `#[cfg(test)]` boundary and
+then scoped the rest as *"outside the parser's own module"* - and `parse_count` lives in the
+defining file's own directory, so "module" named the defining module, which the gold meant, and the
+enclosing `parser` module, which the file paths show, with equal right. The arms did not disagree
+about the corpus. They disagreed about the question, and the arm whose evidence made the directory
+most visible - `find_callers` rows carry full paths - is the arm the wording punished.
+
+So the original defect survived its own repair by moving one scope level up. Three consequences,
+all of them recorded rather than argued:
+
+- The wording is restated a second time, in the question's `author_notes`: the exclusion is now a
+  **file** boundary, and neighbouring files of the same directory are said to count in so many words.
+- `validate_suite.py` refuses the old wording. A caller question that scopes an exclusion by module
+  while a verified caller sits in the helper's own directory is now a build failure, with a
+  regression test that fails on the wording this run used and passes on the restatement.
+- The question stayed out of every caller-bucket number until a second 6-trial confirmation passed.
+  It has: `runs/cu-callers-02-confirm-2-20260916`, below.
+
+The run cost $0.8846 against a $0.30 estimate, which is worth recording as its own small lesson: the
+estimate used a pooled median trial cost, and this study's arms are not interchangeable. The native
+arm spent 9-18 calls and $0.13-$0.34 per trial to grep and read its way to the same answer the
+retrieval arm reached in 3 calls for $0.05-$0.10.
+
+#### The second restatement passes, 6 of 6
+
+`runs/cu-callers-02-confirm-2-20260916`, registration copied unchanged before the first trial, all
+four pins re-verified at run time - suite `097fb8be`, binary `65aa8389`, backend `11b8af2a`,
+systems file `95a88f0a` - same corpus, same arms, same seed, only the wording different. The
+threshold was raised to 5 of 6 because the first run's failure was deterministic per arm rather
+than noisy, so 4 of 6 could not have distinguished a repaired question from one arm still reading
+it the other way.
+
+| arm | rep 1 | rep 2 | rep 3 |
+|---|---:|---:|---:|
+| native-control | 1.000 | 1.000 | 1.000 |
+| retrieval-mcp | 1.000 | 1.000 | 1.000 |
+
+**6 of 6, no ceiling value, both criteria met**, $0.9627 against a $0.90 estimate built from the
+first run's per-arm rates. All six answers name `parse_signed_num.rs::parse_count`, the caller the
+previous wording taught three trials to exclude, and two of them quote the new clause back:
+*"neighboring file, same directory - explicitly counts per the question"*. So the earlier loss was
+the wording and nothing else, and `cu-callers-02` is gradeable again - by an arm with structural
+tools and by one with grep, which is what the two-arm design was for.
+
+It licenses nothing else. One question, one model, one corpus, six trials. The call and cost
+columns do separate - retrieval 3 calls and $0.05-$0.10 per trial against native's 14-18 calls and
+$0.20-$0.27 - and that is an observation about one question, not a measurement; the efficiency
+claim rests on the mixed-shape suites.
+
+
 ### Four backlog items, measured
 
 Driving the server against Django rather than a scoped corpus produced a backlog of four candidates
@@ -1943,10 +2099,10 @@ The manifest pins `deepseek/deepseek-v4-flash`, the `high` reasoning variant, an
 
 ### Question set
 
-`comparison_questions.json` is the frozen, pre-registered workload: the twelve reviewed
-`v2_questions_draft.json` tasks plus ten authored in `comparison_questions_new.json` (ids prefixed
+`experiments/suites/comparison_questions.json` is the frozen, pre-registered workload: the twelve reviewed
+`experiments/suites/v2_questions_draft.json` tasks plus ten authored in `experiments/suites/comparison_questions_new.json` (ids prefixed
 `comp-`). Every gold answer is verified against the pinned corpus by reading source and by
-independent ripgrep; `test_comparison_questions.py` re-checks each anchor, stratum, and null answer
+independent ripgrep; `experiments/tests/test_comparison_questions.py` re-checks each anchor, stratum, and null answer
 without touching the indexes under test.
 
 Distribution by category and stratum:
@@ -1970,7 +2126,7 @@ prior study found the dominant failure is ~27% cheaper in calls than success.
 
 ### Freeze gate
 
-Before any model run, review the answer key, not the model's behavior. `test_comparison_questions.py`
+Before any model run, review the answer key, not the model's behavior. `experiments/tests/test_comparison_questions.py`
 proves mechanical grounding (anchors exist, paths and strata match, no answer leakage, null answers
 have no candidate definition), but a human still owns semantic correctness:
 
@@ -1987,7 +2143,7 @@ Only after that review is the set frozen for a comparison run.
 
 For post-hoc within-ModelShare comparisons, run `python3 experiments/research_review.py /path/to/project-results --output /path/to/new-research-analysis.json`. This preserves frozen scores, reports supplemental payload matches, retains every paired observation, separates all-eligible and both-matching subsets, and includes per-question/category mean/median savings and leave-one-question-out checks. Input run records, transcripts, server logs, and questions are hashed. It makes no model calls and does not infer verification from source-read overlap. Repetitions remain repeated observations of questions, not independent tasks.
 
-`project_questions.json` freezes 36 questions over committed ModelShare, pig, and Sigil source: two per category per repository. Each question has a source-evidence checklist and a typed gold answer. `snapshot_projects.py` exports committed `.rs`/`.py` blobs only; uncommitted edits, untracked files, and non-source files such as credential files, databases, datasets, and documentation are not copied. This extension allowlist is not a secret scanner; review committed source for embedded credentials before sharing it with a model provider. The snapshot manifests retain revisions and per-file hashes. Corpus contents are never executed.
+`experiments/suites/project_questions.json` freezes 36 questions over committed ModelShare, pig, and Sigil source: two per category per repository. Each question has a source-evidence checklist and a typed gold answer. `snapshot_projects.py` exports committed `.rs`/`.py` blobs only; uncommitted edits, untracked files, and non-source files such as credential files, databases, datasets, and documentation are not copied. This extension allowlist is not a secret scanner; review committed source for embedded credentials before sharing it with a model provider. The snapshot manifests retain revisions and per-file hashes. Corpus contents are never executed.
 
 ```sh
 python3 experiments/snapshot_projects.py --output /path/to/new-project-snapshots
@@ -2010,7 +2166,7 @@ The first project pilot used `json-answer-v1` and exposed correct fenced JSON pr
 
 ## Stratified suite
 
-`stratified.json` contains 24 source-checked questions, four in each category:
+`experiments/suites/stratified.json` contains 24 source-checked questions, four in each category:
 
 | Category | What it tests |
 |---|---|
@@ -2065,7 +2221,7 @@ cargo build --locked --release --bin retrieval-mcp --example ollama_backend
 # Use a new output path outside the indexed repository.
 python3 experiments/benchmark.py \
   --root /path/to/retrieval-mcp/experiments/sample_repo \
-  --questions /path/to/retrieval-mcp/experiments/questions.example.json \
+  --questions /path/to/retrieval-mcp/experiments/suites/questions.example.json \
   --server /path/to/retrieval-mcp/target/release/retrieval-mcp \
   --semantic-command '["/path/to/retrieval-mcp/target/release/examples/ollama_backend"]' \
   --model YOUR_EXPLICIT_MODEL_ID \

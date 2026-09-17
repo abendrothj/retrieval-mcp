@@ -381,7 +381,7 @@ def report(directories, questions_path, corpus):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directories", nargs="+")
-    parser.add_argument("--questions", default="experiments/v2_questions_draft.json")
+    parser.add_argument("--questions", default="experiments/suites/v2_questions_draft.json")
     parser.add_argument("--corpus", default="../runs/projects-v2-suite/coreutils/corpus")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()

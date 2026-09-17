@@ -13,85 +13,17 @@ import comparison_runner
 import quality_pass
 
 HERE = Path(__file__).resolve()
-
-
-def fake_server(name="native_search"):
-    for line in sys.stdin:
-        request = json.loads(line)
-        if "id" not in request:
-            continue
-        method = request["method"]
-        if method == "initialize":
-            result = {"protocolVersion": "2025-11-25", "capabilities": {"tools": {}},
-                      "serverInfo": {"name": "comparison-fixture", "version": "1"}}
-        elif method == "tools/list":
-            result = {"tools": [
-                {"name": name, "description": "Return fixture evidence.",
-                 "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}},
-                                 "required": ["query"]}},
-                {"name": f"{name}_admin", "description": "Must be filtered.",
-                 "inputSchema": {"type": "object", "properties": {}}},
-            ]}
-        elif method == "tools/call":
-            result = {"isError": False, "content": [{"type": "text", "text": f"fixture evidence from {name}"}],
-                      "structuredContent": {"answer": "ok", "served_by": name}}
-        elif method == "ping":
-            result = {}
-        else:
-            result = {"isError": True, "content": [{"type": "text", "text": "unsupported"}]}
-        print(json.dumps({"jsonrpc": "2.0", "id": request["id"], "result": result}), flush=True)
-
-
-def fake_agent(config_path, answer):
-    servers = json.loads(Path(config_path).read_text())["mcpServers"]
-    if "retrieval" not in servers:
-        print(json.dumps({"type": "result", "is_error": False, "result": answer,
-                          "usage": {"input_tokens": 1, "output_tokens": 1}}), flush=True)
-        return
-    server = servers["retrieval"]
-    with open(os.devnull, "w") as stderr:
-        client = benchmark.MCP([server["command"], *server["args"]], os.environ.copy(), Path.cwd(), stderr, 20)
-        try:
-            client.request("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
-                                          "clientInfo": {"name": "comparison-agent-fixture", "version": "1"}})
-            client.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
-            names = [tool["name"] for tool in client.request("tools/list", {})["tools"]]
-            if any(name.endswith("_admin") for name in names) or not names:
-                raise ValueError("gate did not filter administrative tools")
-            print(json.dumps({"type": "system", "subtype": "init",
-                              "tools": [f"mcp__retrieval__{name}" for name in names],
-                              "mcp_servers": [{"name": "retrieval", "status": "connected"}]}), flush=True)
-            # Call every exposed tool so a bundled arm exercises both upstreams on one budget.
-            for index, name in enumerate(names, 1):
-                print(json.dumps({"type": "assistant", "message": {"content": [{
-                    "type": "tool_use", "id": str(index), "name": f"mcp__retrieval__{name}",
-                    "input": {"query": "fixture"}}]}}), flush=True)
-                result = client.request("tools/call", {"name": name, "arguments": {"query": "fixture"}})
-                print(json.dumps({"type": "user", "message": {"content": [{
-                    "type": "tool_result", "tool_use_id": str(index), "content": result}]}}), flush=True)
-            print(json.dumps({"type": "result", "is_error": False, "result": answer,
-                              "usage": {"input_tokens": 1, "output_tokens": 1}}), flush=True)
-        finally:
-            client.close()
-
-
-def broke_agent():
-    """An agent whose provider refuses to serve: the shape opencode_wrapper emits for a 402."""
-    print(json.dumps({"type": "result", "is_error": True, "subtype": "provider_error:402",
-                      "provider_detail": "Insufficient Balance", "result": None,
-                      "usage": {}}), flush=True)
+EXPERIMENTS = HERE.parents[1]
 
 
 def upstream(identifier, tool):
     return {
         "id": identifier,
-        "command": [sys.executable, str(HERE), "--fake-server", tool, "{listen}"],
+        "command": [sys.executable, str(EXPERIMENTS / "fixture_backends.py"), "--fake-server", tool, "{listen}"],
         "environment": {},
         "visible_tools": [tool],
         "expected_upstream_tools": [tool, f"{tool}_admin"],
     }
-
-
 def systems(path):
     single = {
         "mcp_enabled": True, "upstreams": [upstream("one", "native_search")],
@@ -200,7 +132,7 @@ class ComparisonTests(unittest.TestCase):
             answer = json.dumps({"answer": "ok"})
             result = comparison_runner.run(SimpleNamespace(
                 client="command", allow_model_usage=True, model="fixture-model", variant="high",
-                agent_command=[sys.executable, str(HERE), "--fake-agent", "{mcp_config}", answer],
+                agent_command=[sys.executable, str(EXPERIMENTS / "fixture_backends.py"), "--comparison-agent", "{mcp_config}", answer],
                 max_budget_usd=1, timeout=30, tool_timeout=20, max_calls=3, max_bytes=10000,
                 workspace=workspace, output=output, systems=systems_path,
                 questions=questions, server=Path(sys.executable), semantic_command=["fixture"],
@@ -271,7 +203,7 @@ class ComparisonTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "provider failure"):
                 comparison_runner.run(SimpleNamespace(
                     client="command", allow_model_usage=True, model="fixture-model", variant=None,
-                    agent_command=[sys.executable, str(HERE), "--broke-agent"],
+                    agent_command=[sys.executable, str(EXPERIMENTS / "fixture_backends.py"), "--refusing-agent"],
                     max_budget_usd=1, timeout=30, tool_timeout=20, max_calls=3, max_bytes=10000,
                     workspace=workspace, output=output, systems=systems_path,
                     questions=questions, server=Path(sys.executable), semantic_command=["fixture"],
@@ -337,14 +269,14 @@ class ComparisonTests(unittest.TestCase):
 
     def test_a_pinned_server_path_may_be_relative_to_the_repository(self):
         system = {"id": "pinned", "server": "experiments/comparison_runner.py"}
-        self.assertEqual(comparison_runner.system_server(system, Path(sys.executable)), HERE.parent / "comparison_runner.py")
+        self.assertEqual(comparison_runner.system_server(system, Path(sys.executable)), EXPERIMENTS / "comparison_runner.py")
         self.assertEqual(comparison_runner.system_server({"id": "plain"}, Path(sys.executable)),
                          Path(sys.executable))
         with self.assertRaises(FileNotFoundError):
             comparison_runner.system_server({"id": "gone", "server": "runs/no-such-binary"}, Path(sys.executable))
 
     def test_the_perf_v020_systems_file_differs_only_by_binary_between_retrieval_arms(self):
-        document = comparison_runner.load_systems(HERE.parent / "comparison_systems_perf_v020.json")
+        document = comparison_runner.load_systems(EXPERIMENTS / "systems/comparison_systems_perf_v020.json")
         arms = {system["id"]: system for system in document["systems"]}
         self.assertEqual(list(arms), ["native-control", "zvec-grep", "retrieval-v011", "retrieval-v020"])
         first, second = arms["retrieval-v011"], arms["retrieval-v020"]
@@ -353,7 +285,7 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual({key: value for key, value in first.items() if key not in ("id", "server")},
                          {key: value for key, value in second.items() if key not in ("id", "server")})
         self.assertNotEqual(first["server"], second["server"])
-        held_out = comparison_runner.load_systems(HERE.parent / "comparison_systems_heldout.json")
+        held_out = comparison_runner.load_systems(EXPERIMENTS / "systems/comparison_systems_heldout.json")
         retrieval = next(s for s in held_out["systems"] if s["id"] == "retrieval-mcp")
         self.assertEqual(first["prompt_policy"], retrieval["prompt_policy"])
         # No registry access during preparation: the zvec arm must copy a cached install, never install one.
@@ -377,11 +309,4 @@ class ComparisonTests(unittest.TestCase):
                 comparison_runner.load_systems(path)
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["--fake-server"]:
-        fake_server(sys.argv[2])
-    elif sys.argv[1:2] == ["--fake-agent"]:
-        fake_agent(sys.argv[2], sys.argv[3])
-    elif sys.argv[1:2] == ["--broke-agent"]:
-        broke_agent()
-    else:
-        unittest.main()
+    unittest.main()

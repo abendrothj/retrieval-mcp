@@ -11,10 +11,10 @@ import unittest
 import analyze
 import benchmark
 import prepare_stratified
-from test_experiments import event
+from tests.test_experiments import event
 
-ROOT = Path(__file__).resolve().parents[1]
-SUITE = Path(__file__).with_name("stratified.json")
+ROOT = Path(__file__).resolve().parents[2]
+SUITE = Path(__file__).resolve().parents[1] / "suites/stratified.json"
 
 
 class GradingTests(unittest.TestCase):

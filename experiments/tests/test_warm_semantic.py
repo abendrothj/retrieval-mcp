@@ -7,9 +7,9 @@ import unittest
 import benchmark
 from warm_semantic import warm
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parents[1]
 SERVER = HERE.parent/"target/debug/retrieval-mcp"
-FAKE = [sys.executable, str(HERE/"test_experiments.py"), "--fake-semantic"]
+FAKE = [sys.executable, str(HERE/"fixture_backends.py"), "--fake-semantic"]
 
 
 class WarmSemanticTests(unittest.TestCase):

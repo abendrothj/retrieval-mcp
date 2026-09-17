@@ -87,8 +87,8 @@ def run(args):
     manifest = {"version":"factor-runner-v1", "client":args.client, "model":args.model if args.client == "claude" else "scripted-no-inference",
         "effort":"medium" if args.client == "claude" else None, "root":str(root), "corpus":before,
         "server":str(server), "server_sha256":digest(server), "questions_sha256":digest(args.questions),
-        "code_sha256":{name:digest(Path(__file__).with_name(name)) for name in
-            ("factor_runner.py", "policy_gate.py", "plan_factors.py", "benchmark.py", "test_experiments.py")},
+        "code_sha256":{name:digest(Path(__file__).resolve().parent / name) for name in
+            ("factor_runner.py", "policy_gate.py", "plan_factors.py", "benchmark.py", "fixture_backends.py")},
         "timeout":args.timeout, "tool_timeout":args.tool_timeout, "max_calls":args.max_calls,
         "max_bytes":args.max_bytes, "max_budget_usd":args.max_budget_usd, "repetitions":args.repetitions,
         "seed":args.seed, "semantic_command":args.semantic_command,
@@ -143,7 +143,7 @@ def run(args):
                 "--timeout-seconds", str(args.tool_timeout)]
             if "search_concept" in benchmark.TOOLS[cell["availability"]]:
                 semantic = args.semantic_command if args.client == "claude" else [sys.executable,
-                    str(Path(__file__).with_name("test_experiments.py")), "--fake-semantic"]
+                    str(Path(__file__).resolve().parent / "fixture_backends.py"), "--fake-semantic"]
                 command += ["--semantic-command", json.dumps(semantic)]
             gate_config = {"profile":cell["availability"], "policy":cell["routing"], "max_calls":args.max_calls,
                 "max_bytes":args.max_bytes, "gate_log":str(attempt/"policy.jsonl"), "stderr":str(attempt/"server-stderr.log"),
@@ -215,7 +215,7 @@ def main():
     base = Path(__file__).resolve().parent
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--root", type=Path, default=base/"sample_repo")
-    parser.add_argument("--questions", type=Path, default=base/"factor_smoke.json")
+    parser.add_argument("--questions", type=Path, default=base/"suites/factor_smoke.json")
     parser.add_argument("--server", type=Path, default=base.parent/"target/debug/retrieval-mcp")
     parser.add_argument("--client", choices=("scripted", "claude"), default="scripted")
     parser.add_argument("--allow-model-usage", action="store_true")

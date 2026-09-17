@@ -11,12 +11,12 @@ import unittest
 
 import benchmark
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parents[1]
 SUITE = HERE.parent.parent / "runs/projects-v2-suite/coreutils"
 CORPUS = SUITE / "corpus"
-QUESTIONS = json.loads((HERE / "comparison_questions.json").read_text())
-DRAFT = json.loads((HERE / "v2_questions_draft.json").read_text())
-NEW = json.loads((HERE / "comparison_questions_new.json").read_text())
+QUESTIONS = json.loads((HERE / "suites/comparison_questions.json").read_text())
+DRAFT = json.loads((HERE / "suites/v2_questions_draft.json").read_text())
+NEW = json.loads((HERE / "suites/comparison_questions_new.json").read_text())
 
 
 def symbol_path(qualified):

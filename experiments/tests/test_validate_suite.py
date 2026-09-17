@@ -123,6 +123,52 @@ class ValidateSuiteTests(unittest.TestCase):
 
             self.assertEqual(validate(questions, corpus)["problems"], 0)
 
+    def test_a_module_scoped_exclusion_over_a_sibling_caller_is_a_build_failure(self):
+        """"Module" names the defining module and its directory equally well; a gold cannot pick."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            corpus = root / "corpus"
+            (corpus / "parser").mkdir(parents=True)
+            (corpus / "far").mkdir()
+            (corpus / "parser" / "size.py").write_text("def with_allow_list(parser):\n    return parser\n")
+            (corpus / "parser" / "signed.py").write_text(
+                "from .size import with_allow_list\n\n\ndef parse_count(text):\n"
+                "    return with_allow_list(text)\n")
+            (corpus / "far" / "sort.py").write_text(
+                "from ..parser.size import with_allow_list\n\n\ndef parse_byte_count(text):\n"
+                "    return with_allow_list(text)\n")
+            question = {
+                "id": "q",
+                "category": "direct_caller_lookup",
+                "set": "dev",
+                "question": ("Name every function outside the parser's own module that configures a parser "
+                             "through the whitelist method, each as a qualified symbol of the form "
+                             "path::function. Exclude code under test."),
+                "expected_json": {"answer": ["far/sort.py::parse_byte_count",
+                                             "parser/signed.py::parse_count"]},
+                "helper": "parser/size.py::with_allow_list",
+                "exhaustive": True,
+                "rejected_alternates": ["parser/size.py::with_allow_list"],
+                "evidence": [{"path": "far/sort.py", "contains": "return with_allow_list(text)"}],
+                "author_notes": "The gold counts the sibling in the helper's own directory.",
+            }
+            questions = root / "questions.json"
+            questions.write_text(json.dumps([question]))
+
+            ambiguous = validate(questions, corpus)
+
+            self.assertEqual(ambiguous["questions_with_problems"], 1)
+            self.assertIn("scopes its exclusion by module while parser/signed.py calls",
+                          " ".join(problem["detail"] for problem in ambiguous["findings"]["q"]))
+
+            question["question"] = ("Name every function that configures a parser through the whitelist "
+                                    "method, each as a qualified symbol of the form path::function. "
+                                    "Exclude the file that defines that method, and exclude code under "
+                                    "test; a caller in a neighbouring file of the same directory counts.")
+            questions.write_text(json.dumps([question]))
+
+            self.assertEqual(validate(questions, corpus)["problems"], 0)
+
 
 class TwoHopTests(unittest.TestCase):
     """Two-hop expansion is by name, so it inherits every namesake and every set ambiguity."""

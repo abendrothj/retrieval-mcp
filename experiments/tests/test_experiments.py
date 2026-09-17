@@ -23,40 +23,6 @@ def event(seq, tool, kind, arguments=None, locations=None, count=1, error=None):
     return value
 
 
-def fake_agent(config):
-    """Only for transport tests; never described as a model benchmark."""
-    settings = json.loads(Path(config).read_text())["mcpServers"]["retrieval"]
-    import os
-    env = dict(os.environ, **settings.get("env", {}))
-    command = [settings["command"], *settings["args"]]
-    with open("fake-server-stderr.log", "w") as stderr:
-        client = benchmark.MCP(command, env, Path.cwd(), stderr, 10)
-        try:
-            client.request("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
-                                          "clientInfo": {"name": "fake-agent", "version": "1"}})
-            client.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
-            tools = [tool["name"] for tool in client.request("tools/list", {})["tools"]]
-            if "find_callers" in tools:
-                name, arguments = "find_symbol", {"name": "delay"}
-            elif "search_concept" in tools:
-                name, arguments = "search_concept", {"query": "waiting longer after failures"}
-            else:
-                name, arguments = "search_exact", {"query": "delay"}
-            print(json.dumps({"type": "assistant", "message": {"content": [
-                {"type": "tool_use", "id": "t1", "name": f"mcp__retrieval__{name}", "input": arguments}]}}), flush=True)
-            result = client.request("tools/call", {"name": name, "arguments": arguments})
-            print(json.dumps({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": result}]}}), flush=True)
-            if result.get("isError"):
-                raise RuntimeError(result)
-            result = client.request("tools/call", {"name": "read_source", "arguments": {"path": "policy.py"}})
-            if result.get("isError"):
-                raise RuntimeError(result)
-            print(json.dumps({"type": "result", "result": "32", "usage": {"input_tokens": 42},
-                              "is_error": False, "test_only": True}), flush=True)
-        finally:
-            client.close()
-
-
 class AnalysisTests(unittest.TestCase):
     def test_fallback_redundancy_and_verification_are_distinct(self):
         data = []
@@ -108,7 +74,7 @@ class AnalysisTests(unittest.TestCase):
 
 class HarnessTests(unittest.TestCase):
     def test_real_mcp_all_profiles_transcripts_and_analysis(self):
-        server = Path(__file__).resolve().parents[1] / "target/debug/retrieval-mcp"
+        server = Path(__file__).resolve().parents[2] / "target/debug/retrieval-mcp"
         self.assertTrue(server.exists(), "run cargo build --bin retrieval-mcp before these tests")
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -118,8 +84,8 @@ class HarnessTests(unittest.TestCase):
             questions = directory / "questions.json"
             questions.write_text(json.dumps([{"id":"delay","question":"What is the delay cap? Answer an integer.","expected":"32"}]))
             args = SimpleNamespace(root=root, output=directory/"runs", questions=questions, server=server,
-                model="test-only", client="command", agent_command=[sys.executable,str(Path(__file__).resolve()),"--fake-agent","{mcp_config}"],
-                semantic_command=[sys.executable,str(Path(__file__).resolve()),"--fake-semantic"],
+                model="test-only", client="command", agent_command=[sys.executable,str(Path(__file__).resolve().parents[1] / "fixture_backends.py"),"--fake-agent","{mcp_config}"],
+                semantic_command=[sys.executable,str(Path(__file__).resolve().parents[1] / "fixture_backends.py"),"--fake-semantic"],
                 profiles=list("ABCD"),repetitions=1,seed=42,timeout=15,tool_timeout=10,max_budget_usd=1,
                 semantic_cache="warm",dry_run=False)
             with contextlib.redirect_stdout(io.StringIO()):
@@ -159,12 +125,4 @@ class HarnessTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] and sys.argv[1] == "--fake-agent":
-        sys.stdin.read()
-        fake_agent(sys.argv[2])
-    elif sys.argv[1:] and sys.argv[1] == "--fake-semantic":
-        request = json.load(sys.stdin)
-        print(json.dumps({"protocol_version":1,"backend":"test-only","index_note":"fixture, no model",
-                          "has_more":False,"results":[{"path":"policy.py","start_line":1,"end_line":2,"score":0.5}]}))
-    else:
-        unittest.main()
+    unittest.main()

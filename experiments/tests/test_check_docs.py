@@ -5,7 +5,8 @@ import unittest
 from pathlib import Path
 
 from check_docs import (INSTALL_BUDGET, README_SECTIONS, check_counts, check_links, check_paths,
-                        check_quickstart, check_shape, check_surface, headings, rust_constants)
+                        check_published, check_quickstart, check_shape, check_surface, headings,
+                        rust_constants)
 
 CONFIG = '''
 pub const TOOLS: [&str; 3] = [
@@ -180,6 +181,81 @@ class QuickstartTests(unittest.TestCase):
                                   "## Quickstart\n\n```sh\nretrieval-mcp\n```\n")
             self.assertEqual([problem["detail"] for problem in problems],
                              ["the quickstart shows no sample response"])
+
+
+class PublishedNumberTests(unittest.TestCase):
+    """A published figure is checked against the run report it came from, not against memory.
+
+    Three releases shipped a table claiming 147 tool calls where its own report said 146, because
+    `runs/` is gitignored and nothing compared the two. These are the drifts that must fail.
+    """
+
+    EXTRACT = {
+        "version": "published-results-v1",
+        "declared_percentages": {"-13.3": "instruction bytes, not a run comparison"},
+        "studies": {"heldout": {"arms": {
+            "native-control": {"correct": 28, "input_tokens": 1149139, "calls": 146,
+                               "context_token_turns": 175220, "calls_to_first_evidence": 1.793,
+                               "answered_without_evidence": 0,
+                               "input_tokens_with_cache_reads": 2173618},
+            "zvec-grep": {"correct": 29, "input_tokens": 1000501, "calls": 78,
+                          "context_token_turns": 227059, "calls_to_first_evidence": 1.345,
+                          "answered_without_evidence": 0,
+                          "input_tokens_with_cache_reads": 1831191},
+            "retrieval-mcp": {"correct": 29, "input_tokens": 763744, "calls": 77,
+                              "context_token_turns": 149877, "calls_to_first_evidence": 1.172,
+                              "answered_without_evidence": 0,
+                              "input_tokens_with_cache_reads": 1387245}}}},
+    }
+    TABLE = ("| | native `Read`/`Grep`/`Glob` | zvec-grep 0.2.2 | **retrieval-mcp** |\n"
+             "|---|---:|---:|---:|\n"
+             "| Correct / 30 | 28 | **29** | **29** |\n"
+             "| Input tokens | 1.15 M | 1.00 M | **764 k** |\n"
+             "| Tool calls | 146 | 78 | **77** |\n"
+             "| Persistent context (tok·turns) | 175 k | 227 k | **150 k** |\n"
+             "| Calls to first evidence | 1.79 | 1.35 | **1.17** |\n"
+             "| Answered without evidence | **0** | **0** | **0** |\n")
+
+    def published(self, table=None, prose=""):
+        text = f"\n## The result\n\n{table if table is not None else self.TABLE}\n{prose}\n## Next\n"
+        problems = []
+        check_published(text, self.EXTRACT, problems)
+        return [problem["detail"] for problem in problems]
+
+    def test_the_table_as_measured_passes_at_the_precision_it_prints(self):
+        self.assertEqual(self.published(), [])
+
+    def test_a_rounded_cell_is_accepted_but_a_wrong_one_is_not(self):
+        """`764 k` promises 763,744 to the nearest thousand; `750 k` promises something else."""
+        self.assertEqual(self.published(self.TABLE.replace("**764 k**", "**763.7 k**")), [])
+        self.assertIn("says 750 k but the run report says 763744",
+                      " ".join(self.published(self.TABLE.replace("**764 k**", "**750 k**"))))
+
+    def test_the_call_count_drift_that_actually_shipped_is_caught(self):
+        stale = self.TABLE.replace("| Tool calls | 146 | 78 | **77** |",
+                                   "| Tool calls | 147 | 78 | **78** |")
+        details = " ".join(self.published(stale))
+        self.assertIn("'Tool calls' for native-control says 147", details)
+        self.assertIn("'Tool calls' for retrieval-mcp says 78", details)
+
+    def test_a_percentage_no_study_supports_is_reported(self):
+        self.assertEqual(self.published(prose="**−33.5% input tokens**, −47% tool calls.\n"), [])
+        self.assertIn("-62% is not a comparison",
+                      " ".join(self.published(prose="and −62% tool calls.\n")))
+
+    def test_a_declared_non_run_percentage_is_allowed(self):
+        """Instruction bytes are measured somewhere else; the extract says so, so it passes."""
+        self.assertEqual(self.published(prose="the routing filter is −13.3% of bytes.\n"), [])
+
+    def test_a_dropped_row_is_reported(self):
+        rows = self.TABLE.replace("| Correct / 30 | 28 | **29** | **29** |\n", "")
+        self.assertIn("no longer publishes 'Correct'", " ".join(self.published(rows)))
+
+    def test_a_reordered_or_renamed_column_is_refused_rather_than_misread(self):
+        swapped = self.TABLE.replace("| | native `Read`/`Grep`/`Glob` | zvec-grep 0.2.2 | "
+                                     "**retrieval-mcp** |",
+                                     "| | native tools | **retrieval-mcp** | zvec-grep 0.2.2 |")
+        self.assertIn("unexpected result table columns", " ".join(self.published(swapped)))
 
 
 class ShapeTests(unittest.TestCase):

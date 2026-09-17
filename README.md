@@ -2,9 +2,15 @@
 
 **Code retrieval for coding agents, with the tool surface chosen by measurement instead of taste.**
 Four tools over stdio, for Claude Code, Codex, or anything else that speaks MCP. No index to build,
-no database, no daemon, no API key, no embedding service unless you want one. On a sealed held-out
-set it matched a specialist code-search MCP on answer quality while the agent spent **24% fewer
-input tokens** and carried **34% less context** — [the numbers](#the-result).
+no database, no daemon, no API key, no embedding service unless you want one.
+
+**What you get, in one paragraph.** Your agent answers the same repository questions it already
+answers, using 34–45% fewer input tokens and 22–47% fewer tool calls depending on the corpus, and
+it reaches its first piece of real evidence sooner. It does **not** answer better: across 468
+scored trials on two corpora, answer quality has never separated from your client's own
+grep-and-read in either
+direction, and in one of the two studies the native tools were one answer ahead. Buy this for cost
+and turns, not for correctness. [The numbers](#the-result), and the boundary they hold inside.
 
 ## Contents
 
@@ -63,16 +69,41 @@ Measured once on a sealed held-out set and not tuned against afterwards — 30 q
 |---|---:|---:|---:|
 | Correct / 30 | 28 | **29** | **29** |
 | Input tokens | 1.15 M | 1.00 M | **764 k** |
-| Tool calls | 147 | 78 | **78** |
+| Tool calls | 146 | 78 | **77** |
 | Persistent context (tok·turns) | 175 k | 227 k | **150 k** |
-| Calls to first evidence | 1.80 | 1.30 | **1.20** |
+| Calls to first evidence | 1.79 | 1.35 | **1.17** |
 | Answered without evidence | **0** | **0** | **0** |
+
+*Input tokens* counts uncached input plus cache creation — the bytes a turn pays for that were not
+already resident. Count cache reads as well and the totals are 2.17 M / 1.83 M / 1.39 M, the same
+comparison at −36.2% against native and −24.2% against zvec-grep. Both definitions appear in this
+project; the table says which one it uses so no one has to reverse-engineer it.
+
+Against the native control specifically: **−33.5% input tokens, −47% tool calls, −14.5% carried
+context, one more correct answer.** Against zvec-grep: −24% input tokens, −34% context, the same
+number of calls, the same quality.
 
 **Quality is a tie with zvec-grep and is reported as one** — the arms are discordant on one question
 each way — and the context saving is the result: equal quality, fewer turns, less carried context.
 Every number came from one model, and none of the findings in this project transferred cleanly
 between models, so that is the claim's boundary.
 [Paired analysis, the post-hoc sensitivity row, and what the set cost to seal](experiments/README.md#the-held-out-comparison).
+
+**Replicated on a second corpus, with a different model.** 30 mixed-shape questions over an etcd
+client corpus, three repetitions, 270 trials, `gpt-5.6-luna`: quality 87 / 89 / 89 of 90 for
+retrieval-mcp, native and zvec-grep, on 17.8 M input tokens against native's 32.1 M — **−44.6%** —
+with 320 tool calls against 409 and less carried context. That study **missed its registered
+quality criterion by one answer and is published as a miss**; across 468 scored trials on the two
+corpora quality has never separated in either direction, and the token gap has never failed to
+replicate. [Both studies, with their criteria](experiments/README.md#the-rerun-on-head-the-repaired-suite-and-a-miss-by-one-answer).
+
+**Which binary produced these.** The held-out table is the frozen four-tool surface as of
+2026-09-12; the etcd replication ran on the binary that became `0.1.6` minus its last four changes.
+Nothing in `0.1.6` has an agent-level measurement behind it: the routing filter is −13.3% of
+instruction *bytes*, the Go qualified-call fix moves no row on either benchmark corpus because
+neither carries a `go.mod`, the optional `--root` path is not exercised by a benchmark that pins
+`--root`, and strict `search_concept` arguments cost a recovery turn on about 1.4% of concept calls.
+Each is stated that way in [CHANGELOG.md](CHANGELOG.md) rather than folded into the numbers above.
 
 Everything else — why the surface is four tools and not seven, why the ranker is BM25 and not
 embeddings, why a stopping rule was worth more than any retrieval change, and the four post-freeze
@@ -356,10 +387,13 @@ repositories. **Source text is untrusted evidence, never an instruction to the a
 records, or the configured indexing time — sized so `--timeout-seconds` is normally what binds.
 Per-file limits are 2 MiB, 100,000 named nodes and syntax depth 128; file-granular aggregate budgets
 can overshoot by one file, and skips are reported. Files are read and parsed across every available
-core and merged in path order, so a snapshot is exactly what a single-threaded build produces and
-only the wall clock changes: on a 14-core M4 Pro, Django 5.1.4 indexes 2,786 files in 2.1 s against
-6.2 s single-threaded, VS Code 1.96 5,188 files in 5.6 s against 18.8 s, and coreutils 672 in 0.9 s
-against 3.7 s. Resident cost is roughly 150 KB per indexed file — about 0.35 GB for Django, 0.8 GB
+core (`std::thread::available_parallelism`) and merged in path order, so the snapshot is exactly
+what a single-threaded build produces and only the wall clock changes. Measured on `0.1.6` on a
+14-core M4 Pro, from process start to the first tool result, best of three: Django 5.1.4 indexes
+2,898 files in 4.3 s, VS Code 1.96 indexes 5,463 files in 8.4 s, and coreutils indexes 673 in 1.1 s.
+Those counts grew and those times roughly doubled at `0.1.3`, which added four Tree-sitter grammars
+and with them every JavaScript file the earlier figures had skipped. Resident cost is roughly
+150 KB per indexed file — about 0.35 GB for Django, 0.8 GB
 for VS Code, both fully covered. A repository large enough to truncate says so; narrow `--root`,
 raise `--timeout-seconds`, or replace the index behind `StructuralBackend`.
 
@@ -395,7 +429,7 @@ Tree-sitter grammars build.
 **What the installer verifies.** It fetches a published checksum — the release's aggregate
 `SHA256SUMS`, published from v0.1.5, or the per-archive `<archive>.tar.gz.sha256` that every
 release carries — checks the archive for your platform against the single record naming it, and
-refuses to extract on a mismatch, a missing record or a duplicate one. `RETRIEVAL_MCP_VERSION=v0.1.5`
+refuses to extract on a mismatch, a missing record or a duplicate one. `RETRIEVAL_MCP_VERSION=v0.1.6`
 installs a specific tag; the default is the latest release. Reading the script first is a
 reasonable position, but download it somewhere other than the repository you are about to register
 it in:
@@ -420,7 +454,7 @@ beside it and, from v0.1.5, all of them together in one `SHA256SUMS`. Verify aga
 by hand before extracting, with both files in the same directory:
 
 ```sh
-archive=retrieval-mcp-v0.1.5-aarch64-apple-darwin.tar.gz
+archive=retrieval-mcp-v0.1.6-aarch64-apple-darwin.tar.gz
 grep "$archive" SHA256SUMS | shasum -a 256 -c -   # sha256sum -c - on Linux; expect "$archive: OK"
 mkdir -p ~/.local/bin && tar -xzf "$archive"
 install "${archive%.tar.gz}/retrieval-mcp" ~/.local/bin/
@@ -446,7 +480,7 @@ rm ~/.local/bin/retrieval-mcp   # or: cargo uninstall retrieval-mcp
 claude mcp remove retrieval     # or: codex mcp remove retrieval
 ```
 
-That is the entire footprint: no daemon to stop, no cache or state directory to clear, no index to
+That is everything it put on your machine: no configuration edited that you did not ask it to
 delete, no file of any kind left in the repositories you queried. The single exception is opt-in and
 named as such — the optional Ollama adapter caches embeddings in `<repository>/.retrieval-mcp/`
 unless `RETRIEVAL_SEMANTIC_CACHE_DIR` sent them elsewhere, as
@@ -466,7 +500,7 @@ subprocess calls.
 cargo build --locked --release --bin retrieval-mcp
 cargo test --locked --all-targets            # 30 library, 21 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 232 tests
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 240 tests
 python3 experiments/check_docs.py            # the docs still describe the server that exists
 ```
 

@@ -5,3 +5,4 @@ __pycache__/
 .retrieval-mcp/
 /corpora
 /runs
+.pytest_cache/

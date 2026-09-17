@@ -13,9 +13,9 @@ SYNTAX = "literal-pipe,regex-alternation,regex-literal-pipe,paginate-entries,bou
 
 
 def arguments(**overrides):
-    base = SimpleNamespace(output=None, root=Path(__file__).with_name("competency_repo"),
-        questions=Path(__file__).with_name("competency_questions.json"),
-        server=Path(__file__).resolve().parent.parent/"target/debug/retrieval-mcp",
+    base = SimpleNamespace(output=None, root=Path(__file__).resolve().parents[1] / "competency_repo",
+        questions=Path(__file__).resolve().parents[1] / "suites/competency_questions.json",
+        server=Path(__file__).resolve().parents[2]/"target/debug/retrieval-mcp",
         profile="B", help_levels="baseline,primer", ids=SYNTAX, client="scripted",
         allow_model_usage=False, model=None, semantic_command=None, timeout=60, tool_timeout=10,
         max_calls=20, max_bytes=200000, max_budget_usd=1, seed=42)
@@ -80,7 +80,7 @@ class CompetencyRunnerTests(unittest.TestCase):
     def test_command_line_entry_point(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)/"probes"
-            result = subprocess.run([sys.executable, str(Path(__file__).with_name("competency_runner.py")),
+            result = subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / "competency_runner.py"),
                 "--output", str(output), "--ids", "regex-alternation", "--help-levels", "baseline"],
                 text=True, capture_output=True, timeout=90)
             self.assertEqual(result.returncode, 0, result.stderr)

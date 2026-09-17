@@ -26,16 +26,31 @@ what keeps the published numbers true.
   the API. Measure the prompt prefix (`cache_creation_input_tokens`), not the serialised tool list.
 - **"Input tokens" here means `input + cache_read + cache_creation`.** Raw `input_tokens` is ~5 per
   trial; everything else is cached prefix plus per-turn re-reads.
-- **`experiments/stratified.json` pins this repository's own source**, so any `src/` edit breaks
+- **`experiments/suites/stratified.json` pins this repository's own source**, so any `src/` edit breaks
   `test_stratified`. Repin only after checking every gold self-grades and every evidence anchor still
   resolves — the guard exists to force that review.
 - **A three-repetition cell can swing 1/3 to 3/3** on identical binary, seed and questions. One cell
-  plus a plausible mechanism is not a finding; re-run the exact configuration.
+  plus a plausible mechanism is not a finding; re-run the exact configuration. Two repetitions are
+  not enough either: `runs/instructions-ab-rerun-20260916` turned a two-repetition 78/78-against-75/78
+  handshake win into 115/115/115 on the third, and the token delta changed sign, +3.2% to −1.8%.
+- **Build an arm somewhere that survives a reboot.** The first `instructions-ab` treatment binaries
+  lived in `/tmp`, the source edit was reverted after building, and the physical layout of one
+  string literal is unrecoverable — so the pinned hashes could never be reproduced and all three
+  repetitions had to be re-run. Arms now live in the run directory's own `bin/`, re-hashed after
+  copying.
 - **No measured corpus contains a single markdown file.** Any claim about markdown is unmeasurable
   on this evidence base, whatever the code does.
 - **Caller golds exclude the helper's own defining module** (`audit_failures.true_callers`). A
   question that does not say so gets answered with in-module test callers included, and every arm
   loses credit for being right. That was `cu-callers-02`.
+- **State a caller question's scope as a file, never as a "module".** `cu-callers-02`'s repair
+  said "outside the parser's own module" while its gold counted a caller in the defining file's own
+  directory, and in `runs/cu-callers-02-confirm-20260916` all three retrieval trials found that
+  caller, excluded it by quoting the phrase back, and scored 0.667 against the native arm's 1.000 —
+  a replicated false reading that the structural surface is worse at caller questions. A repaired
+  question can carry the same defect one scope level up; `validate_suite.py` now refuses that
+  wording. The second restatement names the defining *file* and says neighbours count, and it
+  passed 6 of 6 in `runs/cu-callers-02-confirm-2-20260916`, so the question is back in the bucket.
 - **`acceptable_symbols` is forbidden** in question sets; the frozen grader cannot score any-of
   answers and `validate_suite.py` rejects it.
 - **Graders judge identities, not containers.** Both directions have been defects — a keyed object
@@ -65,7 +80,8 @@ what keeps the published numbers true.
 | `comparison_runner.py` | `prepare` (no model) then `run` (model, gated). A per-system `server` field pins a binary per arm and records its sha256. |
 | `end_to_end.py` | Scores an archived run: quality, tokens, calls, calls-to-first-evidence, `context_token_turns`, safety columns, per bucket. |
 | `regrade.py` | Applies a repaired grader to an archived run symmetrically and records what moved. |
-| `check_docs.py` | Doc, test-count and link consistency, plus the README shape contract: `README_SECTIONS` in order, the install line budget, no duplicated fenced block, one registration block, a contents list naming every section, and a quickstart sample compared field by field against a live call. Run before every docs commit. |
+| `check_docs.py` | Doc, test-count and link consistency, plus the README shape contract: `README_SECTIONS` in order, the install line budget, no duplicated fenced block, one registration block, a contents list naming every section, a quickstart sample compared field by field against a live call, and every figure in the result section compared against `published_results.json`. Run before every docs commit. |
+| `publish_numbers.py` | Derives `experiments/published_results.json` from the archived reports, so CI can check a published number without seeing `runs/`. Re-run it whenever a published study is added or re-graded; a percentage that is not a run comparison must be declared in it. |
 
 `runs/` and `corpora/` are gitignored: the repository publishes the record, not the bytes.
 
@@ -80,17 +96,20 @@ python3 experiments/check_docs.py
 
 ## Where the project stands
 
-Released `v0.1.5`; what shipped in each release is in `CHANGELOG.md`, and an unreleased section
-there describes the client-root work, the qualified-call fix and the routing filter. The default
-surface is four tools — `search_exact`, `read_source`, `find_callers`, `search_concept` — with the
-lexical ranker; the other three stay un-defaulted on replicated evidence.
+Released `v0.1.6`: the routing filter, the Go qualified-call fix, optional `--root`, strict
+`search_concept` arguments and the README shape contract. What shipped in each release is in
+`CHANGELOG.md`. The default surface is four tools — `search_exact`, `read_source`, `find_callers`,
+`search_concept` — with the lexical ranker; the other three stay un-defaulted on replicated evidence.
 
 The claim the evidence supports is **quality ties, input tokens 34–51% cheaper**, now on two
 independent corpora: the held-out Django suite (30 mixed-shape questions, 29/29/28, −33.5% against
 native) and an etcd client corpus (30 mixed-shape questions, three repetitions, 270 trials, 87/89/89,
 −44.6% against native and −29.2% against zvec-grep). Quality has never separated in either
 direction across 468 scored trials; the token gap has never failed to replicate. Two studies missed
-their registered quality criterion by a single answer and both are published as misses.
+their registered quality criterion by a single answer and both are published as misses. The
+handshake instructions are also settled: two candidate sentences were measured over 351 trials in
+`runs/instructions-ab-rerun-20260916` and both came in at +0 against a registered +3 bar, so the
+prompt side of this server has nothing left that measurement supports changing.
 
 Everything measured lives under `runs/`, which is gitignored and therefore local: each study
 directory holds its `preregistration.json`, per-repetition reports, and a note for any chunk that
@@ -100,12 +119,6 @@ bytes, and the corpora are re-cuttable from `corpora/` against the fingerprints 
 
 Open threads:
 
-- **One repetition is owed.** `runs/instructions-ab-20260916` tests two handshake sentences against
-  a control, one variable each, on the 39-question stratified caller suite. Repetitions 1 and 2 are
-  complete; the third stopped twice on the provider's capacity error and neither partial is
-  scoreable. Standing paired result on the hard stratum: `verbatim` 3 wins, 0 losses, median +10.1k
-  tokens; `disambiguate` 3 wins, 1 loss, median +7.8k. Neither meets the stability rule, which needs
-  three repetitions, so neither ships. The command is in `STATE.md`.
 - **`runs/etcd-caller-20260915` is built, gated and deliberately unrun**: 39 questions, 27
   attribution-hard and 12 local controls, enriched 2.4× over its corpus's own 38% base rate. It
   answers "does attribution change answers, or only cost", and that question has not been worth
@@ -114,6 +127,11 @@ Open threads:
   tool payloads identical across pinned, launch-directory and client-roots resolution), six stdio
   tests and one live Codex session. The benchmark pins `--root`, so the new path was never exercised
   under a model.
+- **`cu-callers-01` does not compile and blocks both coreutils suites.**
+  `src/uu/head/src/head.rs` defines `print_n_bytes` twice under opposing `#[cfg]` gates, so
+  `path::name` attribution cannot say which variant calls `send_n_bytes`. `validate_suite.py` has
+  refused it since the namesake guard landed. Repairing it means re-authoring the question or
+  dropping it, which changes the suite's bucket counts, so it is a decision rather than a fix.
 
 ## The line worth remembering
 

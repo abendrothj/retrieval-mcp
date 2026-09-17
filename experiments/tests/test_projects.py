@@ -36,7 +36,7 @@ class ProjectTests(unittest.TestCase):
                 snapshot(repo, base/"snapshot")
 
     def test_project_tasks_are_balanced_and_gold_values_are_well_formed(self):
-        suite = json.loads(Path(__file__).with_name("project_questions.json").read_text())
+        suite = json.loads((Path(__file__).resolve().parents[1] / "suites/project_questions.json").read_text())
         ids = set()
         for project, tasks in suite["projects"].items():
             self.assertEqual(len(suite["revisions"][project]), 40)

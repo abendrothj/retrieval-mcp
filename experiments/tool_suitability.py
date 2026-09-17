@@ -9,7 +9,7 @@ ROOT = Path("../runs/projects-v2-suite/coreutils/corpus").resolve()
 # an operator input, not a constant that could be correct on another machine.
 CACHE = Path(os.environ.get("RETRIEVAL_SEMANTIC_CACHE_DIR")
              or sys.exit("set RETRIEVAL_SEMANTIC_CACHE_DIR to the warm coreutils cache")).resolve()
-questions = json.load(open("experiments/v2_questions_draft.json"))
+questions = json.load(open("experiments/suites/v2_questions_draft.json"))
 server = Path("target/release/retrieval-mcp").resolve()
 backend = Path("target/release/examples/ollama_backend").resolve()
 env = dict(os.environ, RETRIEVAL_SEMANTIC_CACHE_DIR=str(CACHE))

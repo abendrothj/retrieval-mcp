@@ -6,6 +6,41 @@ releases only.
 
 ## Unreleased
 
+**Four published numbers were wrong, and the README now says what it measured.** An audit against
+the archived run records found the held-out table's tool-call column off by one in two arms — 146
+native and 77 retrieval-mcp, not 147 and 78 — and its "input tokens" row silently using a
+different definition (uncached input plus cache creation) from the one this project's own notes
+declare (those plus cache reads); both definitions are now printed, 1.15 M / 1.00 M / 764 k and
+2.17 M / 1.83 M / 1.39 M, with the comparison stated against the native control as well as against
+zvec-grep. The indexing figures were older still: Django was quoted at 2,786 files in 2.1 s and VS
+Code at 5,188 in 5.6 s, both measured before `0.1.3` added four grammars and with them every
+JavaScript file those counts had skipped. Re-measured on `0.1.6`, best of three from process start
+to first tool result: Django 2,898 files in 4.3 s, VS Code 5,463 in 8.4 s, coreutils 673 in 1.1 s.
+The single-threaded comparison that sat beside them is removed rather than restated, because
+worker count comes from `std::thread::available_parallelism` and cannot be pinned from the
+environment, so the contrast is not reproducible on the machine that published it.
+
+**The README states the offer in the reader's terms, not the benchmark's.** The opening now says
+what a user gets - the same answers for 34–45% fewer input tokens and 22–47% fewer tool calls,
+explicitly not better answers, with the one study where the native tools finished an answer ahead
+named - and the result section carries the second corpus, the criterion that study missed, and
+which binary produced each number. No measurement changed; what changed is that none of it has to
+be inferred from a table.
+
+**A published number is now checked against the run that produced it.** The reason four figures
+drifted is structural: `runs/` is gitignored, so CI has never been able to see the evidence behind
+a claim, and every release audited the README by hand. `experiments/publish_numbers.py` derives a
+small committed extract - `experiments/published_results.json`, per-arm totals for each published
+study, each report named with its sha256 - and `check_docs.py` now compares every figure in the
+README's result section against it at the precision the README prints: `764 k` may stand for
+763,744, but 750 k may not. Percentages are checked too, against every ratio the archived reports
+can produce; a figure that is not a run comparison, such as the routing filter's −13.3% of
+instruction bytes, has to be declared in the extract with its provenance, so an undeclared one
+fails the build. Seven tests cover it, including the exact drift that shipped: a table claiming
+147 tool calls where the report says 146.
+
+## 0.1.6
+
 **The handshake stops routing to tools the session refuses.** A default install exposes four tools
 and its instructions named all seven, so every turn paid for three lines advising `find_symbol`,
 `inspect_symbol` and `trace_dependencies` — whose only possible answer is `unknown or disabled

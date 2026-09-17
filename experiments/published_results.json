@@ -1,0 +1,108 @@
+{
+  "version": "published-results-v1",
+  "definitions": {
+    "input_tokens": "input + cache_creation",
+    "input_tokens_with_cache_reads": "input + cache_read + cache_creation"
+  },
+  "declared_percentages": {
+    "-13.3": "0.1.6 routing filter: handshake instructions 2,724 -> 2,361 characters, measured from src/tools/mod.rs. Prompt-prefix bytes, not a run result."
+  },
+  "studies": {
+    "heldout": {
+      "model": "claude-sonnet-4-6",
+      "questions": 30,
+      "repetitions": 1,
+      "note": "Sealed held-out Django set, measured once, frozen four-tool surface and grader.",
+      "sources": [
+        {
+          "report": "runs/heldout-final-20260912/end-to-end.json",
+          "sha256": "4ac240e4ded52ee4cd1e29dbf55973b28b4343b393fe3ff1d92466997c2b629e"
+        }
+      ],
+      "arms": {
+        "native-control": {
+          "trials": 30,
+          "correct": 28,
+          "input_tokens": 1149139,
+          "input_tokens_with_cache_reads": 2173618,
+          "calls": 146,
+          "context_token_turns": 175220,
+          "calls_to_first_evidence": 1.793,
+          "answered_without_evidence": 0
+        },
+        "retrieval-mcp": {
+          "trials": 30,
+          "correct": 29,
+          "input_tokens": 763744,
+          "input_tokens_with_cache_reads": 1387245,
+          "calls": 77,
+          "context_token_turns": 149877,
+          "calls_to_first_evidence": 1.172,
+          "answered_without_evidence": 0
+        },
+        "zvec-grep": {
+          "trials": 30,
+          "correct": 29,
+          "input_tokens": 1000501,
+          "input_tokens_with_cache_reads": 1831191,
+          "calls": 78,
+          "context_token_turns": 227059,
+          "calls_to_first_evidence": 1.345,
+          "answered_without_evidence": 0
+        }
+      }
+    },
+    "etcd-mixed-rerun": {
+      "model": "gpt-5.6-luna",
+      "questions": 30,
+      "repetitions": 3,
+      "note": "Independent etcd client corpus on HEAD; missed its registered quality criterion by one answer and is published as a miss.",
+      "sources": [
+        {
+          "report": "runs/etcd-mixed-rerun-20260915/report-rep-1.json",
+          "sha256": "43ad00f694044ad67cbadaeb66606933eb0b3a022b229ff6daf3546ec2834c61"
+        },
+        {
+          "report": "runs/etcd-mixed-rerun-20260915/report-rep-2.json",
+          "sha256": "53a4ffd008ee2a71c64b052ee3941c6e5a668d72934b8408cd3e8c9d7b68b7f6"
+        },
+        {
+          "report": "runs/etcd-mixed-rerun-20260915/report-rep-3.json",
+          "sha256": "e26406d021083b0b9cbc5a7e4d5a3024dd1ce58979bb955193e47d53a50d1b38"
+        }
+      ],
+      "arms": {
+        "native-control": {
+          "trials": 90,
+          "correct": 89,
+          "input_tokens": 17414256,
+          "input_tokens_with_cache_reads": 32082032,
+          "calls": 409,
+          "context_token_turns": 2510438,
+          "calls_to_first_evidence": 2.144,
+          "answered_without_evidence": 1
+        },
+        "retrieval-mcp": {
+          "trials": 90,
+          "correct": 87,
+          "input_tokens": 10024987,
+          "input_tokens_with_cache_reads": 17787931,
+          "calls": 320,
+          "context_token_turns": 2032802,
+          "calls_to_first_evidence": 2.122,
+          "answered_without_evidence": 0
+        },
+        "zvec-grep": {
+          "trials": 90,
+          "correct": 89,
+          "input_tokens": 13690023,
+          "input_tokens_with_cache_reads": 25116839,
+          "calls": 455,
+          "context_token_turns": 2681882,
+          "calls_to_first_evidence": 2.756,
+          "answered_without_evidence": 0
+        }
+      }
+    }
+  }
+}

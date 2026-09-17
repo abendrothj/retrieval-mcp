@@ -243,6 +243,24 @@ def check_question(task, index, counts, corpus):
                    f"the question excludes the defining file while {missing_twin[0]} calls "
                    f"{name}; a Go reader counts the twin as part of the file, so the question "
                    f"must name it or exclude nothing")
+        # "The parser's own module" named two boundaries at once: the module that defines the
+        # method, which is what the gold counted, and the directory that module sits in, which is
+        # what the file paths show. In runs/cu-callers-02-confirm-20260916 all three retrieval
+        # trials found the sibling caller, excluded it while quoting the phrase back, and lost a
+        # third of the credit; all three native trials counted it. The arms did not disagree about
+        # the corpus, they disagreed about the question, and graded at face value that reads as a
+        # replicated caller-quality defect in the server. So an exclusion scoped by module is a
+        # build failure whenever a verified caller is a neighbour inside the helper's own directory:
+        # the boundary has to be stated as a file.
+        module_scope = re.search(r"(outside|exclud\w+)[^.]{0,40}\bmodule\b", task["question"], re.I)
+        neighbours = sorted({entry.split("::")[0] for entry in verified
+                             if entry.split("::")[0] != path
+                             and Path(entry.split("::")[0]).parent == Path(path).parent})
+        if module_scope and neighbours:
+            report("answerability",
+                   f"the question scopes its exclusion by module while {neighbours[0]} calls "
+                   f"{name} from the defining file's own directory; \"module\" names the defining "
+                   f"module and the directory equally well, so the boundary must be a file")
         # A two-hop claim expands each direct caller by name, so a direct caller whose name is
         # defined more than once in the corpus drags a namesake's callers into the gold: the
         # leasing `acquire` pulled in a rate limiter's `acquire`, and all three arms were docked

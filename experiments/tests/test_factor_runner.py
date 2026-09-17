@@ -52,7 +52,7 @@ class FactorRunnerTests(unittest.TestCase):
 
     def test_debug_build_is_refused_unless_explicitly_allowed(self):
         with tempfile.TemporaryDirectory() as temporary:
-            script = Path(__file__).with_name("factor_runner.py")
+            script = Path(__file__).resolve().parents[1] / "factor_runner.py"
             result = subprocess.run([sys.executable, str(script), "--output", str(Path(temporary)/"m")],
                                     text=True, capture_output=True, timeout=60)
             self.assertEqual(result.returncode, 1)
@@ -61,7 +61,7 @@ class FactorRunnerTests(unittest.TestCase):
     def test_control_cell_runs_without_a_server_or_gate(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)/"control"
-            result = subprocess.run([sys.executable, str(Path(__file__).with_name("factor_runner.py")),
+            result = subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / "factor_runner.py"),
                 "--output", str(output), "--allow-debug-build", "--control",
                 "--cells", "A-free-baseline,N-free-baseline"], text=True, capture_output=True, timeout=90)
             self.assertEqual(json.loads(result.stdout)["planned"], 2, result.stderr)
@@ -93,7 +93,7 @@ class FactorRunnerTests(unittest.TestCase):
         self.assertEqual(benchmark.transcript_outcome(transcript)["mcp_failures"], [])
 
     def test_real_matrix_resume_and_interrupted_attempt_preservation(self):
-        script = Path(__file__).with_name("factor_runner.py")
+        script = Path(__file__).resolve().parents[1] / "factor_runner.py"
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)/"matrix"
             command = [sys.executable, str(script), "--output", str(output), "--allow-debug-build"]

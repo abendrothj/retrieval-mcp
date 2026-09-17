@@ -85,7 +85,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
-        result = prepare(args.source, args.output, Path(__file__).with_name("stratified.json"))
+        result = prepare(args.source, args.output, Path(__file__).resolve().parent / "suites/stratified.json")
         print(json.dumps(result, indent=2))
     except (ValueError, OSError, KeyError, TypeError) as error:
         parser.exit(2, f"prepare: {error}\n")

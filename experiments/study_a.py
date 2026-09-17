@@ -207,7 +207,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     base = Path(__file__).resolve().parent
     parser.add_argument("--root", type=Path, required=True)
-    parser.add_argument("--questions", type=Path, default=base / "comparison_questions.json")
+    parser.add_argument("--questions", type=Path, default=base / "suites/comparison_questions.json")
     parser.add_argument("--server", type=Path, default=base.parent / "target/release/retrieval-mcp")
     parser.add_argument("--semantic-command", type=benchmark.command_array, required=True)
     parser.add_argument("--rankers", nargs="+", default=list(RANKERS), choices=RANKERS)

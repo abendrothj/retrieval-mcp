@@ -62,10 +62,10 @@ def verify(destination, manifest):
         problems.append(f"corpus sha256 is {rebuilt['sha256']}, pinned {pinned['sha256']}")
     if rebuilt["files"] != pinned["files"]:
         problems.append(f"corpus has {rebuilt['files']} files, pinned {pinned['files']}")
-    here = Path(__file__).resolve().parent
+    suites = Path(__file__).resolve().parent / "suites"
     for name, filename in (("development", "django_development_questions.json"),
                            ("heldout", "django_heldout_questions.json")):
-        digest = hashlib.sha256((here / filename).read_bytes()).hexdigest()
+        digest = hashlib.sha256((suites / filename).read_bytes()).hexdigest()
         if digest != manifest[name]["sha256"]:
             problems.append(f"{filename} sha256 is {digest}, pinned {manifest[name]['sha256']}")
     return rebuilt, problems
@@ -75,18 +75,18 @@ def commands(destination, workspace, output, here):
     server = here.parent / "target/release/retrieval-mcp"
     semantic = here.parent / "target/release/examples/ollama_backend"
     return [
-        f"python3 {here}/validate_suite.py --questions {here}/django_heldout_questions.json"
+        f"python3 {here}/validate_suite.py --questions {here}/suites/django_heldout_questions.json"
         f" --corpus {destination}",
         f"python3 {here}/comparison_runner.py prepare --source-root {destination}"
-        f" --workspace {workspace} --systems {here}/comparison_systems_heldout.json"
+        f" --workspace {workspace} --systems {here}/systems/comparison_systems_heldout.json"
         f" --semantic-command '[\"{semantic}\"]'",
         f"python3 {here}/comparison_runner.py run --workspace {workspace}"
-        f" --systems {here}/comparison_systems_heldout.json"
-        f" --questions {here}/django_heldout_questions.json --output {output}"
+        f" --systems {here}/systems/comparison_systems_heldout.json"
+        f" --questions {here}/suites/django_heldout_questions.json --output {output}"
         f" --semantic-command '[\"{semantic}\"]' --client claude --model YOUR_EXPLICIT_MODEL_ID"
         f" --allow-model-usage --timeout 600 --seed 20260912",
         f"python3 {here}/end_to_end.py --run {output}"
-        f" --questions {here}/django_heldout_questions.json --output {output}/end-to-end.json",
+        f" --questions {here}/suites/django_heldout_questions.json --output {output}/end-to-end.json",
         f"# build first if needed: cargo build --release --manifest-path {here.parent}/Cargo.toml"
         f" (binary: {server})",
     ]
@@ -95,7 +95,7 @@ def commands(destination, workspace, output, here):
 def main():
     here = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--manifest", type=Path, default=here / "django_suite_manifest.json")
+    parser.add_argument("--manifest", type=Path, default=here / "suites/django_suite_manifest.json")
     parser.add_argument("--destination", type=Path, required=True,
                         help="new directory for the rebuilt corpus")
     parser.add_argument("--workdir", type=Path, required=True,

@@ -14,9 +14,9 @@ import unittest
 import benchmark
 
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parents[1]
 CORPUS = HERE / "competency_repo"
-QUESTIONS = json.loads((HERE / "competency_questions.json").read_text())
+QUESTIONS = json.loads((HERE / "suites/competency_questions.json").read_text())
 
 
 class CompetencyTests(unittest.TestCase):

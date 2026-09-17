@@ -104,7 +104,7 @@ class OpenCodeParserTests(unittest.TestCase):
             fake.chmod(0o755)
             env = dict(os.environ, PATH=f"{binary}{os.pathsep}{os.environ['PATH']}",
                        COMPARISON_OPENCODE_VARIANT="high")
-            wrapper = Path(__file__).with_name("opencode_wrapper.py")
+            wrapper = Path(__file__).resolve().parents[1] / "opencode_wrapper.py"
             process = subprocess.run(
                 [sys.executable, str(wrapper), "deepseek/deepseek-v4-flash",
                  str(mcp), str(prompt), str(run_dir)],
