@@ -5,12 +5,12 @@ Four tools over stdio, for Claude Code, Codex, or anything else that speaks MCP.
 no database, no daemon, no API key, no embedding service unless you want one.
 
 **What you get, in one paragraph.** Your agent answers the same repository questions it already
-answers, using 34–45% fewer input tokens and 22–47% fewer tool calls depending on the corpus, and
+answers, using 34–42% fewer input tokens and 22–47% fewer tool calls depending on the corpus, and
 it reaches its first piece of real evidence sooner. It does **not** answer better: across 468
 scored trials on two corpora, answer quality has never separated from your client's own
-grep-and-read in either
-direction, and in one of the two studies the native tools were one answer ahead. Buy this for cost
-and turns, not for correctness. [The numbers](#the-result), and the boundary they hold inside.
+grep-and-read in either direction, and in one of the two studies the native tools were one answer
+ahead. Install it to spend less context per answer, not to get better answers.
+[The numbers](#the-result), and the boundary they hold inside.
 
 ## Contents
 
@@ -91,8 +91,9 @@ between models, so that is the claim's boundary.
 
 **Replicated on a second corpus, with a different model.** 30 mixed-shape questions over an etcd
 client corpus, three repetitions, 270 trials, `gpt-5.6-luna`: quality 87 / 89 / 89 of 90 for
-retrieval-mcp, native and zvec-grep, on 17.8 M input tokens against native's 32.1 M — **−44.6%** —
-with 320 tool calls against 409 and less carried context. That study **missed its registered
+retrieval-mcp, native and zvec-grep, on 17.8 M input tokens against native's 32.1 M counting cache
+reads — **−44.6%**, or −42.4% on the table's narrower definition — with 320 tool calls against 409
+and less carried context. That study **missed its registered
 quality criterion by one answer and is published as a miss**; across 468 scored trials on the two
 corpora quality has never separated in either direction, and the token gap has never failed to
 replicate. [Both studies, with their criteria](experiments/README.md#the-rerun-on-head-the-repaired-suite-and-a-miss-by-one-answer).
