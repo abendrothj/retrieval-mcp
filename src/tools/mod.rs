@@ -1,7 +1,7 @@
-use crate::config::Ranker;
+use crate::config::{Ranker, Structural};
 use crate::index::{
-    CallerArgs, InspectArgs, InspectResult, RankedRegion, StructuralBackend, StructuralIndex,
-    SymbolArgs, TraceArgs,
+    CallerArgs, InspectArgs, InspectResult, RankedRegion, ScanIndex, StructuralBackend,
+    StructuralIndex, SymbolArgs, TraceArgs,
 };
 use crate::search::semantic::{CommandSemantic, ConceptArgs, SemanticBackend};
 use crate::{
@@ -337,16 +337,53 @@ impl RetrievalServer {
         }
     }
 
+    /// The backend this session answers name-addressed questions with, built once.
+    ///
+    /// `auto` has to build the snapshot to learn whether it covers the repository, and keeps it
+    /// either way: it is what `search_concept` ranks over and what `locate` answers from. What
+    /// truncation decides is whether caller and symbol questions are answered *from* it - which
+    /// is only honest while it is complete - or by scanning the repository for the name, which
+    /// covers a corpus no snapshot can hold. `scan` was chosen by an operator who needs no such
+    /// evidence, so it builds nothing until a question actually needs a snapshot.
     async fn index<'a>(&self, session: &'a Session) -> Result<&'a Arc<dyn StructuralBackend>> {
         session.structural.get_or_try_init(|| async {
-            let index = StructuralIndex::build(
-                session.workspace.clone(),
-                self.config.timeout,
-                self.config.no_ignore,
-            )
-            .await?;
-            tracing::info!(event = "index_built", coverage = %serde_json::to_value(&index.coverage)?);
-            Ok(Arc::new(index) as Arc<dyn StructuralBackend>)
+            let scan = |snapshot| {
+                Arc::new(ScanIndex::new(
+                    session.workspace.clone(),
+                    self.config.timeout,
+                    self.config.no_ignore,
+                    snapshot,
+                )) as Arc<dyn StructuralBackend>
+            };
+            if self.config.structural_mode == Structural::Scan {
+                tracing::info!(event = "index_mode", mode = "scan", snapshot = "deferred");
+                return Ok(scan(None));
+            }
+            let listing = session.workspace.clone();
+            let no_ignore = self.config.no_ignore;
+            let files = tokio::task::spawn_blocking(move || {
+                crate::index::repository_files(&listing, no_ignore)
+            })
+            .await??;
+            if self.config.structural_mode == Structural::Auto
+                && crate::index::exceeds_snapshot_files(&files)
+            {
+                tracing::info!(event = "index_mode", mode = "scan", files = files.len(),
+                               snapshot = "over budget, not built");
+                return Ok(scan(None));
+            }
+            let workspace = session.workspace.clone();
+            let timeout = self.config.timeout;
+            let index = tokio::task::spawn_blocking(move || {
+                StructuralIndex::from_files(&workspace, files, timeout)
+            })
+            .await??;
+            let scanning = self.config.structural_mode == Structural::Auto
+                && index.coverage.budget_truncated;
+            tracing::info!(event = "index_built",
+                           mode = if scanning { "scan" } else { "snapshot" },
+                           coverage = %serde_json::to_value(&index.coverage)?);
+            Ok(if scanning { scan(Some(index)) } else { Arc::new(index) as Arc<dyn StructuralBackend> })
         }).await
     }
 

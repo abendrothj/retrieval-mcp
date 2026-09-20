@@ -67,8 +67,7 @@ def call_sites(corpus, name):
 SCRIPT_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts")
 C_SUFFIXES = (".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx")
 BRACE_SUFFIXES = SCRIPT_SUFFIXES + C_SUFFIXES + (".rs", ".go", ".java")
-RAW_STRING = re.compile(r'r(#*)"')
-CHAR_LITERAL = re.compile(r"'(?:\\.|[^\\'])'")
+
 
 # Words that can stand exactly where a declaration's name would in a script, so a block they open
 # is anonymous rather than a definition. Without this, `if (x) {` would attribute every call
@@ -161,12 +160,17 @@ JAVA_DECLARATIONS = (
 
 # C and C++ name a function through its declarator: the identifier that opens the parameter
 # list, whose member half is the name when it is written `Engine::render`, and which may be a
-# destructor. A struct, class or namespace header names its own frame. A line continuing a
-# constructor's member-initialiser list (`: direction_(kForward),`) declares nothing - reading
-# it as a declaration named the frame after the member instead of the constructor.
+# destructor. A struct, class or namespace header names its own frame, but only where the line
+# really is a header: `struct folio *folio_walk_start(struct folio_walk *fw,` declares a function
+# returning a pointer to a struct, and reading its return type as the frame made `folio` the
+# caller of everything in that body - the shape most of the kernel writes a definition in. A
+# header's name is followed by its body, its base clause or a semicolon, and by nothing else. A
+# line continuing a constructor's member-initialiser list (`: direction_(kForward),`) declares
+# nothing - reading it as a declaration named the frame after the member instead of the
+# constructor.
 C_DECLARATIONS = (
     re.compile(r"\s*(?:typedef\s+)?(?:struct|union|enum|class|namespace)\s+"
-               r"(?:[A-Z][A-Z0-9_]*\s+)*([A-Za-z_]\w*)"),
+               r"(?:[A-Z][A-Z0-9_]*\s+)*([A-Za-z_]\w*)\s*(?:final\b\s*)?(?=[{;:]|$)"),
     re.compile(r"\s*(?![:,])[^=;]*?(?:\b[A-Za-z_]\w*::)?(~?\b[A-Za-z_]\w*)\s*\("),
 )
 
@@ -183,60 +187,6 @@ DECLARATIONS = {
 TYPE_RULES = frozenset({
     GO_DECLARATIONS[1], JAVA_DECLARATIONS[0], C_DECLARATIONS[0], SCRIPT_DECLARATIONS[1],
 })
-
-
-def without_literals(source, suffix=".ts"):
-    """Each line with its comments and string, char and raw-string literals blanked out.
-
-    Brace counting is only meaningful over code. A `{` inside a JSDoc block, a string or a Rust
-    raw string opens a scope that never closes, which would mis-attribute every call after it in
-    the file. Only Rust gets the lifetime exception: there `'a` is not a char literal and reading
-    it as one swallows the real braces that follow on the same line, while in a script `'...'` is
-    an ordinary string and must be blanked whole.
-    """
-    cleaned, in_block = [], False
-    for text in source:
-        out, index, length = [], 0, len(text)
-        while index < length:
-            if in_block:
-                if text.startswith("*/", index):
-                    in_block, index = False, index + 2
-                else:
-                    index += 1
-                continue
-            if text.startswith("/*", index):
-                in_block, index = True, index + 2
-                continue
-            if text.startswith("//", index):
-                break
-            raw = RAW_STRING.match(text, index) if suffix == ".rs" else None
-            if raw:
-                closing = '"' + raw.group(1)
-                position = text.find(closing, raw.end())
-                index = length if position < 0 else position + len(closing)
-                out.append(" ")
-                continue
-            character = text[index]
-            if character == "'" and suffix == ".rs" and not CHAR_LITERAL.match(text, index):
-                out.append(" ")
-                index += 1
-                continue
-            if character in "\"'`":
-                index += 1
-                while index < length:
-                    if text[index] == "\\":
-                        index += 2
-                        continue
-                    if text[index] == character:
-                        index += 1
-                        break
-                    index += 1
-                out.append(" ")
-                continue
-            out.append(character)
-            index += 1
-        cleaned.append("".join(out))
-    return cleaned
 
 
 # The rules whose match is a callable rather than a type, per language. C uses this to refuse a
@@ -337,7 +287,7 @@ def enclosing(path, line, detail=False):
     # Each frame is None, or (name, opened_by_a_callable_header).
     stack, pending, owner, depth = [], None, None, 0
     inline_owner = None
-    for text in without_literals(source, path.suffix)[:line]:
+    for text in quality_pass.without_literals(source, path.suffix)[:line]:
         inline_owner = None
         # Whether the line stands inside a body is judged as the line begins, exactly as its
         # owner is: a declaration that is still waiting for its brace holds the line, even though
@@ -532,7 +482,7 @@ def true_callers(corpus, name, defining_path, include_defining_file=False):
     found = subprocess.run(
         ["rg", "--no-config", "-n", "--no-heading", rf"\b{re.escape(name)}\s*\(", *globs, "."],
         cwd=corpus, capture_output=True, text=True, timeout=120)
-    callers = set()
+    callers, blanked = set(), {}
     for line in found.stdout.splitlines():
         path, _, rest = line.partition(":")
         number, _, body = rest.partition(":")
@@ -573,9 +523,18 @@ def true_callers(corpus, name, defining_path, include_defining_file=False):
         if annotation(statement, declared_name(body, Path(path).suffix), name):
             continue
         # Nor is prose. `Field.set_cached_value()` written inside a comment is documentation, and
-        # counting it demands that an exhaustive gold name a caller that does not exist.
+        # counting it demands that an exhaustive gold name a caller that does not exist. A `#` or
+        # `//` in front of the match says so on the line itself; a C block comment says it on
+        # continuation lines that carry no marker of their own - mm/vmpressure.c writes
+        # ` * shrink_node() just adds reclaimed pages` inside a function body, and counting it
+        # cost the kernel audit a real caller row. Brace languages are therefore read with the
+        # file's own comment state, which is the reading `enclosing` already attributes by.
         match = re.search(rf"\b{re.escape(name)}\s*\(", body)
         if match and re.search(r"#|//", body[:match.start()]):
+            continue
+        if Path(path).suffix in BRACE_SUFFIXES and not re.search(
+                rf"\b{re.escape(name)}\s*\(",
+                quality_pass.code_line(corpus, path, int(number), blanked)):
             continue
         owner, inside_body, callable_owner = enclosing(Path(corpus) / path, int(number),
                                                        detail=True)

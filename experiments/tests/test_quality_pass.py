@@ -161,6 +161,31 @@ class TypeScriptIndexTests(unittest.TestCase):
             self.assertNotIn(keyword, index, keyword)
 
 
+class CIndexTests(unittest.TestCase):
+    def test_a_name_written_in_a_block_comment_is_not_a_definition(self):
+        """Linux names helpers in `/* ... */` prose that ends in `)`, which reads as a declarator.
+
+        Indexing that prose invented `folio_put_testzero` as a symbol `mm/` does not define, and
+        `language_audit` sampled it and scored the server for not finding it.
+        """
+        if not shutil.which("rg"):
+            self.skipTest("ripgrep is required to build the definition index")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "swap.c").write_text(
+                "/*\n"
+                " * Release a reference on the folio. (Note that the caller of\n"
+                " * folio_put_testzero() has excluded any other users of the folio.)\n"
+                " */\n"
+                "void folio_batch_release(struct folio_batch *fbatch)\n"
+                "{\n"
+                "\tfolio_batch_reinit(fbatch);\n"
+                "}\n", encoding="utf-8")
+            index = definitions(root)
+        self.assertIn("folio_batch_release", index)
+        self.assertNotIn("folio_put_testzero", index)
+
+
 class CreditTests(unittest.TestCase):
     def test_sets_score_by_overlap_and_are_penalised_for_extras(self):
         gold = ["src/uu/fmt/src/linebreak.rs::break_lines", "src/uu/dd/src/diagnostics.rs::render"]

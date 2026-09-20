@@ -47,7 +47,10 @@ import comparison_runner
 import quality_pass
 
 CUTOFFS = (1, 3, 5, 10)
-SOURCE_SUFFIXES = (".rs", ".py", ".ts", ".tsx")
+# Every language the server indexes. A narrower list silently drops a whole suite's gold: the Go
+# etcd set graded zero questions under the four-suffix version this shared with `study_a`.
+SOURCE_SUFFIXES = (".rs", ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts",
+                   ".go", ".java", ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx")
 KINDS = ("mcp", "zvec")
 # `zg query` in 0.2.2 has no JSON output mode - the CLI emits "agent markdown" and `--human` only
 # makes it wordier. Its hit header is the machine-readable part: `#1 matchedBy=fts+vector a/b.rs:12-40`.

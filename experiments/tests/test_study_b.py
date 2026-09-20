@@ -262,6 +262,18 @@ class GradabilityTests(CorpusTests):
         task = question("q1", "generic_name", "lib/scoped.rs::shrink")
         self.assertIsNone(study_b.gradable(task, self.root))
 
+    def test_a_go_gold_is_gradable(self):
+        """Every gold this server can answer must be gradable, not only the first four languages.
+
+        Under a four-suffix list the whole etcd suite graded zero questions, and `study_a` then
+        died inside `statistics.fmean` rather than naming the reason.
+        """
+        (self.root / "client.go").write_text(
+            "package client\n\nfunc NewWatcher(endpoint string) *Watcher {\n\treturn nil\n}\n",
+            encoding="utf-8")
+        task = question("q1", "generic_name", "client.go::NewWatcher")
+        self.assertIsNone(study_b.gradable(task, self.root))
+
 
 class ArmTests(unittest.TestCase):
     def test_arm_specs_parse_and_bad_ones_are_refused(self):

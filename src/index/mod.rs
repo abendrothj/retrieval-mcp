@@ -13,7 +13,7 @@ use std::{
 };
 use tree_sitter::{Node, ParseOptions, Parser};
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SymbolArgs {
     /// Exact, case-sensitive definition name (for example parse_config).
@@ -26,7 +26,7 @@ pub struct SymbolArgs {
     pub offset: Option<usize>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CallerArgs {
     /// Unqualified symbol name. Results are syntactic candidates, not a proven call graph.
@@ -46,7 +46,7 @@ pub enum TraceDirection {
     Callees,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TraceArgs {
     /// Unqualified function or method name at the root of the trace.
@@ -96,13 +96,20 @@ pub struct Import {
     pub resolution: String,
 }
 
-/// Ceilings on one snapshot build, sized so that `--timeout-seconds` is the limit that normally
-/// binds rather than these. They exist so a pathological repository cannot exhaust memory; they are
-/// not a statement about what the tools can index. Measured cost is roughly 3 ms and 150 KB of
-/// resident memory per indexed file, so the byte ceiling corresponds to something like 1.4 GB
-/// resident in the worst case.
-/// When one of them stops the build, `Coverage::budget_truncated` says so rather than leaving a
-/// partial index indistinguishable from a complete one.
+/// Ceilings on one snapshot build. They exist so a pathological repository cannot exhaust memory;
+/// they are not a statement about what the tools can index. When one of them stops the build,
+/// `Coverage::budget_truncated` says so rather than leaving a partial index indistinguishable
+/// from a complete one.
+///
+/// Measured on Linux 6.12 (60,283 eligible files, 1.32 GB of C), an M4 Pro, release build: the
+/// record ceiling is the one that binds, and it binds first by a wide margin - 8,500 files, 52 MB
+/// of source, 57 s and 1.4 GB resident, with nine minutes of a ten-minute timeout still unspent.
+/// So `--timeout-seconds` is *not* the limit that normally binds on a large repository, and the
+/// 1.4 GB figure belongs to the record ceiling rather than to the byte ceiling, which that corpus
+/// never reached. Lifting all three indexes the whole kernel in 78-93 s and somewhere between 5.9
+/// and 7.9 GB resident - that spread is one binary and one corpus measured four times, so treat
+/// the number as "several gigabytes" and not as a figure. The ceilings are the difference between
+/// a partial answer and that, not between a fast answer and a slow one.
 pub struct Budget;
 
 impl Budget {
@@ -110,6 +117,15 @@ impl Budget {
     pub const BYTES: usize = 128 * 1024 * 1024;
     pub const RECORDS: usize = 2_000_000;
 }
+
+/// What the index can read, and what it cannot promise. Both modes say the same thing here,
+/// because both run the same parser over the same grammars.
+const LANGUAGES: [&str; 6] =
+    ["Rust", "Python", "JavaScript/TypeScript", "Go", "Java", "C/C++"];
+const SYNTAX_LIMITATIONS: &str = "Syntax only: no type checking, macro expansion, dynamic \
+    dispatch, alias/re-export or package resolution. Name matches are candidates, including when \
+    unique. Hidden files and .git are excluded; ignore files are honored unless the server runs \
+    with --no-ignore. Verify uncertain results with read_source.";
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct Coverage {
@@ -160,7 +176,7 @@ pub struct Orientation {
     pub note: Option<String>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct InspectArgs {
     /// Unqualified symbol name to orient around.
@@ -426,6 +442,48 @@ pub struct StructuralIndex {
     pub coverage: Coverage,
 }
 
+/// Every file in the repository, in path order. The same walk `search_exact` uses, so both
+/// describe one corpus: ripgrep's `ignore` crate, honouring ignore files unless told otherwise,
+/// hidden files and `.git`/`target` always excluded. No byte ceiling on the listing, so a
+/// repository large enough to matter reaches the snapshot budget and reports `budget_truncated`
+/// rather than failing on the size of its own file list.
+pub fn repository_files(workspace: &Workspace, no_ignore: bool) -> Result<Vec<String>> {
+    let mut overrides = ignore::overrides::OverrideBuilder::new(workspace.root());
+    overrides.add("!.git/**")?;
+    overrides.add("!target/**")?;
+    let mut walk = ignore::WalkBuilder::new(workspace.root());
+    walk.overrides(overrides.build()?).hidden(true).sort_by_file_path(Path::cmp);
+    if no_ignore {
+        walk.ignore(false)
+            .git_ignore(false)
+            .git_global(false)
+            .git_exclude(false)
+            .parents(false);
+    }
+    let mut files = Vec::new();
+    for entry in walk.build() {
+        let entry = entry.context("cannot walk the repository")?;
+        if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+            continue;
+        }
+        if let Ok(relative) = workspace.relative(entry.path()) {
+            files.push(relative);
+        }
+    }
+    Ok(files)
+}
+
+/// Whether a listing is already too large for one snapshot, decided before anything is parsed.
+///
+/// `auto` otherwise has to build a snapshot to discover that it was truncated, which on Linux is
+/// 57 seconds and 1.4 GB spent to learn that the answer will be partial. The file ceiling is the
+/// one a listing can check; the byte and record ceilings still take a build to reach, and a
+/// repository that hits those is handled the way it always was - build, observe the truncation,
+/// and answer by scanning from then on.
+pub fn exceeds_snapshot_files(files: &[String]) -> bool {
+    files.iter().filter(|file| source_language(file).is_some()).count() > Budget::FILES
+}
+
 impl StructuralIndex {
     /// The corpus-relative directory a qualified Go call names, when it can be known exactly.
     ///
@@ -459,45 +517,7 @@ impl StructuralIndex {
         })
     }
 
-    pub async fn build(workspace: Workspace, timeout: Duration, no_ignore: bool) -> Result<Self> {
-        // The same walk `search_exact` uses, so both describe one corpus: ripgrep's `ignore`
-        // crate, honouring ignore files unless told otherwise, hidden files and `.git`/`target`
-        // always excluded. No subprocess and no byte ceiling on the listing, so a repository large
-        // enough to matter reaches the snapshot budget and reports `budget_truncated` rather than
-        // failing on the size of its own file list.
-        let listing = workspace.clone();
-        let files = tokio::task::spawn_blocking(move || -> Result<Vec<String>> {
-            let mut overrides = ignore::overrides::OverrideBuilder::new(listing.root());
-            overrides.add("!.git/**")?;
-            overrides.add("!target/**")?;
-            let mut walk = ignore::WalkBuilder::new(listing.root());
-            walk.overrides(overrides.build()?)
-                .hidden(true)
-                .sort_by_file_path(Path::cmp);
-            if no_ignore {
-                walk.ignore(false)
-                    .git_ignore(false)
-                    .git_global(false)
-                    .git_exclude(false)
-                    .parents(false);
-            }
-            let mut files = Vec::new();
-            for entry in walk.build() {
-                let entry = entry.context("cannot walk the repository")?;
-                if !entry.file_type().is_some_and(|kind| kind.is_file()) {
-                    continue;
-                }
-                if let Ok(relative) = listing.relative(entry.path()) {
-                    files.push(relative);
-                }
-            }
-            Ok(files)
-        })
-        .await??;
-        tokio::task::spawn_blocking(move || Self::from_files(&workspace, files, timeout)).await?
-    }
-
-    fn from_files(workspace: &Workspace, files: Vec<String>, timeout: Duration) -> Result<Self> {
+    pub fn from_files(workspace: &Workspace, files: Vec<String>, timeout: Duration) -> Result<Self> {
         let timestamp = now_ms();
         let mut index = Self {
             // One read at snapshot time: a qualified Go call can only be resolved to a directory
@@ -512,14 +532,7 @@ impl StructuralIndex {
             coverage: Coverage {
                 snapshot_id: timestamp.to_string(),
                 indexed_at_ms: timestamp,
-                languages: vec![
-                    "Rust".into(),
-                    "Python".into(),
-                    "JavaScript/TypeScript".into(),
-                    "Go".into(),
-                    "Java".into(),
-                    "C/C++".into(),
-                ],
+                languages: LANGUAGES.iter().map(|name| (*name).to_owned()).collect(),
                 indexed_files: 0,
                 eligible_files: 0,
                 unsupported_files: 0,
@@ -529,7 +542,7 @@ impl StructuralIndex {
                 complete: false,
                 budget_truncated: false,
                 freshness: "Full snapshot built on first structural call; restart the server after edits to rebuild.".into(),
-                limitations: "Syntax only: no type checking, macro expansion, dynamic dispatch, alias/re-export or package resolution. Name matches are candidates, including when unique. Hidden files and .git are excluded; ignore files are honored unless the server runs with --no-ignore. Verify uncertain results with read_source.".into(),
+                limitations: SYNTAX_LIMITATIONS.into(),
             },
         };
         let started = Instant::now();
@@ -1167,6 +1180,296 @@ impl StructuralBackend for StructuralIndex {
     }
 }
 
+/// One symbol name as a regex that matches it as a whole word. `\b` is only a word boundary next
+/// to a word character, so a name that does not start or end with one - a C++ destructor written
+/// `~Engine` - anchors only on the side that has one; every other character is escaped so a name
+/// can never be read as a pattern.
+fn scan_pattern(name: &str) -> String {
+    let mut pattern = String::with_capacity(name.len() + 8);
+    let word = |c: char| c.is_alphanumeric() || c == '_';
+    if name.starts_with(word) {
+        pattern.push_str(r"\b");
+    }
+    for character in name.chars() {
+        if !word(character) {
+            pattern.push('\\');
+        }
+        pattern.push(character);
+    }
+    if name.ends_with(word) {
+        pattern.push_str(r"\b");
+    }
+    pattern
+}
+
+/// Every source file whose text names one of `names`, found by the walk `search_exact` uses, plus
+/// the number of source files that walk saw. Reading the corpus is what a caller question already
+/// costs; this stops one file short of that, because a file that never writes the name cannot
+/// call it.
+fn files_naming(
+    workspace: &Workspace,
+    names: &[&str],
+    timeout: Duration,
+    no_ignore: bool,
+) -> Result<(Vec<String>, usize)> {
+    use grep_searcher::{BinaryDetection, SearcherBuilder, Sink, SinkMatch};
+
+    struct Found<'a>(&'a mut bool);
+    impl Sink for Found<'_> {
+        type Error = std::io::Error;
+        fn matched(
+            &mut self,
+            _searcher: &grep_searcher::Searcher,
+            _matched: &SinkMatch<'_>,
+        ) -> Result<bool, std::io::Error> {
+            *self.0 = true;
+            Ok(false)
+        }
+    }
+
+    let alternatives = names
+        .iter()
+        .map(|name| scan_pattern(name))
+        .collect::<Vec<_>>()
+        .join("|");
+    ensure!(!alternatives.is_empty(), "a candidate scan needs at least one name");
+    let matcher = grep_regex::RegexMatcherBuilder::new()
+        .line_terminator(Some(b'\n'))
+        .build(&format!("(?:{alternatives})"))
+        .context("cannot build the candidate scan pattern")?;
+    let deadline = Instant::now() + timeout;
+    let mut overrides = ignore::overrides::OverrideBuilder::new(workspace.root());
+    overrides.add("!.git/**")?;
+    overrides.add("!target/**")?;
+    let mut walk = ignore::WalkBuilder::new(workspace.root());
+    walk.overrides(overrides.build()?)
+        .hidden(true)
+        .max_filesize(Some(2 * 1024 * 1024))
+        .sort_by_file_path(Path::cmp);
+    if no_ignore {
+        walk.ignore(false)
+            .git_ignore(false)
+            .git_global(false)
+            .git_exclude(false)
+            .parents(false);
+    }
+    let mut searcher = SearcherBuilder::new()
+        .binary_detection(BinaryDetection::quit(b'\x00'))
+        .line_number(false)
+        .build();
+    let (mut candidates, mut eligible) = (Vec::new(), 0usize);
+    for entry in walk.build() {
+        ensure!(
+            Instant::now() < deadline,
+            "candidate scan timed out; narrow --root or increase --timeout-seconds"
+        );
+        let entry = entry.context("cannot walk the repository")?;
+        if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+            continue;
+        }
+        let Ok(relative) = workspace.relative(entry.path()) else {
+            continue;
+        };
+        if source_language(&relative).is_none() {
+            continue;
+        }
+        eligible += 1;
+        let mut found = false;
+        if searcher.search_path(&matcher, entry.path(), Found(&mut found)).is_ok() && found {
+            candidates.push(relative);
+        }
+    }
+    Ok((candidates, eligible))
+}
+
+/// Structural answers seeded by a search instead of held in a snapshot.
+///
+/// A whole-repository snapshot is bounded by `Budget`, and on a repository the size of Linux that
+/// bound is reached after 14% of the files: every caller set is then partial by construction, and
+/// says so, which is honest and useless. A caller question is addressed by name, so the corpus can
+/// be searched for that name and only the files that write it parsed - typically one to thirty
+/// files even in a 60,000-file tree. Coverage becomes the whole repository and the cost becomes
+/// proportional to the answer.
+///
+/// The parsing, the attribution and the row construction are the snapshot's own: this builds a
+/// `StructuralIndex` over the candidate files and asks it the question, so a scanned answer and a
+/// snapshot answer differ in what they cover and in nothing else.
+///
+/// Two questions a name cannot seed stay with a whole-repository snapshot: `search_concept` ranks
+/// the corpus's definitions against a description, and `locate` is addressed by a line rather than
+/// by a name. That snapshot is built on the first such question and not before, because a session
+/// that only asks who calls what should not pay a minute and a gigabyte for an index it never
+/// reads. `auto` has already built one to discover that it was truncated, and hands it over.
+pub struct ScanIndex {
+    workspace: Workspace,
+    timeout: Duration,
+    no_ignore: bool,
+    snapshot: std::sync::OnceLock<StructuralIndex>,
+    /// What `coverage()` answers before any snapshot exists: a scan reads the repository per
+    /// question, so there is no standing index to describe.
+    unbuilt: Coverage,
+}
+
+impl ScanIndex {
+    pub fn new(
+        workspace: Workspace,
+        timeout: Duration,
+        no_ignore: bool,
+        snapshot: Option<StructuralIndex>,
+    ) -> Self {
+        let held = std::sync::OnceLock::new();
+        if let Some(index) = snapshot {
+            let _ = held.set(index);
+        }
+        Self {
+            workspace,
+            timeout,
+            no_ignore,
+            snapshot: held,
+            unbuilt: Coverage {
+                snapshot_id: "scan".into(),
+                indexed_at_ms: now_ms(),
+                languages: LANGUAGES.iter().map(|name| (*name).to_owned()).collect(),
+                indexed_files: 0,
+                eligible_files: 0,
+                unsupported_files: 0,
+                skipped_files: 0,
+                skipped_examples: Vec::new(),
+                parse_error_files: 0,
+                complete: false,
+                budget_truncated: false,
+                freshness: "No standing index: each structural question searches the repository \
+                            for its name and parses only the files that write it."
+                    .into(),
+                limitations: SYNTAX_LIMITATIONS.into(),
+            },
+        }
+    }
+
+    /// The whole-repository snapshot, built on first use. Two threads racing here both build and
+    /// one result is dropped: the alternative is holding a lock across a minute of parsing.
+    fn snapshot(&self) -> Result<&StructuralIndex> {
+        if let Some(index) = self.snapshot.get() {
+            return Ok(index);
+        }
+        let files = repository_files(&self.workspace, self.no_ignore)?;
+        let built = StructuralIndex::from_files(&self.workspace, files, self.timeout)?;
+        Ok(self.snapshot.get_or_init(|| built))
+    }
+
+    /// An index over exactly the files that name these symbols, reporting what it read.
+    fn scan(&self, names: &[&str]) -> Result<StructuralIndex> {
+        let (files, eligible) =
+            files_naming(&self.workspace, names, self.timeout, self.no_ignore)?;
+        let scanned = files.len();
+        let mut index = StructuralIndex::from_files(&self.workspace, files, self.timeout)?;
+        index.coverage.eligible_files = eligible;
+        index.coverage.freshness = "Resolved for this question: the repository was searched for \
+                                    the requested name and only the files that write it were \
+                                    parsed. Nothing is cached between calls."
+            .into();
+        index.coverage.limitations = format!(
+            "{} This answer parsed the {scanned} of {eligible} source files that name the \
+             requested symbol, so it covers the whole repository for this symbol: a caller absent \
+             here writes the name nowhere the walk can see.",
+            index.coverage.limitations
+        );
+        Ok(index)
+    }
+
+    /// An unrecognised name still deserves neighbours to try, and they come from the snapshot
+    /// rather than from the scan's own index. A scan holds only the files that write the name, so
+    /// its neighbours would be drawn from a different set of files per question - and on a corpus
+    /// the snapshot covers, that was the one field where a scanned answer differed from a held
+    /// one across 810 compared payloads. Taking the snapshot's list makes the two modes identical
+    /// wherever both can see the whole repository, which is what makes the differential a test.
+    fn suggest(&self, name: &str, status: &str, nearest: &mut Vec<String>) {
+        if status == "unknown_symbol"
+            && let Ok(snapshot) = self.snapshot()
+        {
+            *nearest = snapshot.nearest_names(name);
+        }
+    }
+}
+
+impl StructuralBackend for ScanIndex {
+    fn inspect_symbol(&self, workspace: &Workspace, args: InspectArgs) -> Result<InspectResult> {
+        self.scan(&[args.name.as_str()])?.inspect_symbol(workspace, args)
+    }
+
+    fn find_symbol(
+        &self,
+        workspace: &Workspace,
+        args: SymbolArgs,
+    ) -> Result<StructuralResult<Symbol>> {
+        let name = args.name.clone();
+        let mut found = self.scan(&[name.as_str()])?.find_symbol(workspace, args)?;
+        self.suggest(&name, &found.symbol_status, &mut found.nearest_indexed_names);
+        Ok(found)
+    }
+
+    fn find_callers(&self, workspace: &Workspace, args: CallerArgs) -> Result<CallersResult> {
+        let name = args.name.clone();
+        let mut found = self.scan(&[name.as_str()])?.find_callers(workspace, args)?;
+        self.suggest(&name, &found.retrieval.symbol_status,
+                     &mut found.retrieval.nearest_indexed_names);
+        Ok(found)
+    }
+
+    /// A trace reaches names the question never wrote, so one scan cannot seed it. Each round
+    /// scans for every name the previous round's edges named and re-traces over the union, which
+    /// converges: a hop adds names or it adds nothing, and the loop stops on either, bounded by
+    /// the depth the caller asked for.
+    fn trace_dependencies(
+        &self,
+        workspace: &Workspace,
+        args: TraceArgs,
+    ) -> Result<DependencyTraceResult> {
+        let mut names: BTreeSet<String> = BTreeSet::from([args.name.clone()]);
+        let rounds = args.depth.unwrap_or(3).clamp(1, 5);
+        let mut traced = {
+            let seeds: Vec<&str> = names.iter().map(String::as_str).collect();
+            self.scan(&seeds)?.trace_dependencies(workspace, args.clone())?
+        };
+        for _ in 1..rounds {
+            let mut grown = names.clone();
+            for edge in &traced.page.results {
+                grown.insert(edge.caller.clone());
+                grown.insert(edge.callee.clone());
+            }
+            if grown == names {
+                break;
+            }
+            names = grown;
+            let seeds: Vec<&str> = names.iter().map(String::as_str).collect();
+            traced = self.scan(&seeds)?.trace_dependencies(workspace, args.clone())?;
+        }
+        self.suggest(&args.name, &traced.symbol_status, &mut traced.nearest_indexed_names);
+        Ok(traced)
+    }
+
+    fn search_concept(
+        &self,
+        workspace: &Workspace,
+        query: &str,
+        path: Option<&str>,
+        wanted: usize,
+    ) -> Result<Vec<RankedRegion>> {
+        self.snapshot()?.search_concept(workspace, query, path, wanted)
+    }
+
+    fn locate(&self, path: &str, line: usize) -> Option<SymbolLocation> {
+        self.snapshot().ok()?.locate(path, line)
+    }
+
+    /// The snapshot's own coverage once one exists, and otherwise a description of the mode: a
+    /// scan has no standing index to report, and saying "zero files indexed" without saying why
+    /// would read as an empty corpus.
+    fn coverage(&self) -> &Coverage {
+        self.snapshot.get().map_or(&self.unbuilt, |snapshot| &snapshot.coverage)
+    }
+}
+
 impl StructuralIndex {
     /// Indexed names sharing tokens or a substring with an unrecognised request, best first.
     ///
@@ -1453,6 +1756,26 @@ fn holds_definition(language: SourceLanguage, node: Node<'_>) -> bool {
     })
 }
 
+/// `for_each_online_node(nid) { ... }` is a macro that expands to a loop, and the C grammar
+/// reads the line as a function definition: type `for_each_online_node`, declarator `(nid)`,
+/// body the loop. Nothing there declares a function - a real definition's declarator holds a
+/// `function_declarator` carrying its parameter list - so the block defines no symbol, and the
+/// calls inside it belong to the function that writes the loop. Linux writes that shape in
+/// 21,136 of its 34,657 `.c` files; reading it literally invented the symbol `nid` and made a
+/// loop variable the caller of everything inside the loop.
+///
+/// The test is the declarator, not the nesting: refusing every C definition written inside
+/// another one also dropped LevelDB's `Status::NotSupported` and a true Lua caller row, because
+/// both sit inside regions the grammar had already mis-parsed into one function.
+fn macro_block(language: SourceLanguage, node: Node<'_>) -> bool {
+    if language.family() != LanguageFamily::CFamily || node.kind() != "function_definition" {
+        return false;
+    }
+    node.child_by_field_name("declarator")
+        .and_then(|declarator| first_descendant(declarator, &["function_declarator"]))
+        .is_none()
+}
+
 fn terminal_name(mut node: Node<'_>) -> Option<Node<'_>> {
     for _ in 0..32 {
         if matches!(
@@ -1527,6 +1850,7 @@ fn enclosing_definition(
         if (is_definition(language, parent.kind())
             || (language == SourceLanguage::Rust && parent.kind() == "impl_item"))
             && holds_definition(language, parent)
+            && !macro_block(language, parent)
         {
             let name = definition_name(language, parent)
                 .or_else(|| parent.child_by_field_name("type").and_then(terminal_name));
@@ -1704,6 +2028,7 @@ fn parse_file(path: &str, source: &str, timeout: Duration) -> Result<ParsedFile>
         ensure!(start.elapsed() < timeout, "syntax budget exceeded");
         if is_definition(source_language, node.kind())
             && holds_definition(source_language, *node)
+            && !macro_block(source_language, *node)
             && let Some(name) = definition_name(source_language, *node)
         {
             definitions.insert(name.id());
@@ -1990,22 +2315,29 @@ mod tests {
 
     /// The file walk honors ignore rules by default and `--no-ignore` reopens them, so the
     /// index and search_exact keep describing the same corpus in both modes.
-    #[tokio::test]
-    async fn build_honors_ignore_rules_unless_told_otherwise() {
+    #[test]
+    fn build_honors_ignore_rules_unless_told_otherwise() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join(".ignore"), "skip.rs\n").unwrap();
         std::fs::write(dir.path().join("kept.rs"), "fn kept() {}\n").unwrap();
         std::fs::write(dir.path().join("skip.rs"), "fn skipped() {}\n").unwrap();
         let ws = Workspace::new(dir.path()).unwrap();
-        let honoring = StructuralIndex::build(ws.clone(), Duration::from_secs(5), false)
-            .await
-            .unwrap();
+        let honoring = StructuralIndex::from_files(
+            &ws,
+            repository_files(&ws, false).unwrap(),
+            Duration::from_secs(5),
+        )
+        .unwrap();
         assert_eq!(honoring.coverage.indexed_files, 1);
-        let reopened = StructuralIndex::build(ws, Duration::from_secs(5), true)
-            .await
-            .unwrap();
+        let reopened = StructuralIndex::from_files(
+            &ws,
+            repository_files(&ws, true).unwrap(),
+            Duration::from_secs(5),
+        )
+        .unwrap();
         assert_eq!(reopened.coverage.indexed_files, 2);
     }
+
     /// "frobnicate_the_widget" shares only "the" with most sentence-style test names; that must
     /// not qualify them. The one name sharing the rare token "widget" is the only suggestion.
     #[test]
@@ -2768,6 +3100,91 @@ mod tests {
         rows
     }
 
+    /// The whole promise of the scan backend: it covers a repository the snapshot cannot hold, and
+    /// on one the snapshot *can* hold it answers identically. Rows, resolutions, definitions and
+    /// counts are the snapshot's own code; only what was read differs, and coverage says so.
+    #[test]
+    fn a_scanned_answer_matches_the_snapshot_row_for_row() {
+        let (dir, workspace, index) = snapshot(&[
+            ("src/util.py", "def normalize(value):\n    return value\n"),
+            (
+                "src/service.py",
+                "from util import normalize\n\n\
+                 def handle(row):\n\
+                 \treturn normalize(row)\n\n\
+                 class Loader:\n\
+                 \tdef load(self, row):\n\
+                 \t\treturn normalize(row)\n",
+            ),
+            ("src/unrelated.py", "def spin():\n    return 1\n"),
+            ("docs/notes.txt", "normalize is described here\n"),
+        ]);
+        let scan = ScanIndex::new(
+            workspace.clone(),
+            Duration::from_secs(5),
+            false,
+            Some(StructuralIndex::from_files(&workspace, Vec::new(), Duration::from_secs(5))
+                .unwrap()),
+        );
+        let args = CallerArgs {
+            name: "normalize".into(),
+            path: None,
+            include_references: None,
+            limit: None,
+            offset: None,
+        };
+        let held = index.find_callers(&workspace, args.clone()).unwrap();
+        let scanned = scan.find_callers(&workspace, args).unwrap();
+        assert_eq!(
+            serde_json::to_value(&scanned.retrieval.page).unwrap(),
+            serde_json::to_value(&held.retrieval.page).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&scanned.candidate_definitions).unwrap(),
+            serde_json::to_value(&held.candidate_definitions).unwrap()
+        );
+        assert_eq!(scanned.retrieval.symbol_status, held.retrieval.symbol_status);
+        // And the coverage tells the truth about what each one read: the snapshot parsed every
+        // source file, the scan parsed the two that write the name, and both counted the same
+        // three eligible files - the text file is not one.
+        assert_eq!(held.retrieval.coverage.indexed_files, 3);
+        assert_eq!(scanned.retrieval.coverage.indexed_files, 2);
+        assert_eq!(scanned.retrieval.coverage.eligible_files, 3);
+        assert!(!scanned.retrieval.coverage.budget_truncated);
+        assert!(scanned.retrieval.coverage.limitations.contains("2 of 3 source files"));
+        drop(dir);
+    }
+
+    /// A name the corpus never writes is answered, not crashed into: the scan finds no candidate
+    /// file, parses nothing, and the empty index reports the unknown symbol the snapshot would.
+    #[test]
+    fn a_scan_for_a_name_nothing_writes_reports_an_unknown_symbol() {
+        let (_dir, workspace, _index) =
+            snapshot(&[("src/util.py", "def normalize(value):\n    return value\n")]);
+        let scan = ScanIndex::new(
+            workspace.clone(),
+            Duration::from_secs(5),
+            false,
+            Some(StructuralIndex::from_files(&workspace, Vec::new(), Duration::from_secs(5))
+                .unwrap()),
+        );
+        let found = scan
+            .find_callers(
+                &workspace,
+                CallerArgs {
+                    name: "absent_helper".into(),
+                    path: None,
+                    include_references: None,
+                    limit: None,
+                    offset: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(found.retrieval.symbol_status, "unknown_symbol");
+        assert_eq!(found.retrieval.coverage.indexed_files, 0);
+        assert_eq!(found.retrieval.coverage.eligible_files, 1);
+    }
+
     /// JavaScript and TypeScript are one language, written in eight extensions. Matching a call
     /// to a candidate definition by file extension would make a `.js` caller of a `.ts` helper
     /// unresolvable, and a specifier written `./util.js` - which every ESM build emits for a
@@ -3023,6 +3440,37 @@ mod tests {
         assert!(angled.candidate_files.is_empty(), "{angled:?}");
     }
 
+    /// A C iteration macro takes its body in braces, so the grammar reads
+    /// `for_each_online_node(nid) { ... }` as a function definition declaring `nid`. C cannot
+    /// nest a function definition inside a body, so the block is a macro: `nid` is no definition
+    /// and the calls inside the loop belong to the function that writes it. Linux writes this
+    /// shape in 21,136 of its 34,657 `.c` files, and reading it literally invented a symbol and
+    /// named a loop variable as the caller of everything in the loop.
+    #[test]
+    fn a_c_macro_block_is_not_a_definition_and_owns_no_calls() {
+        let (_dir, workspace, index) = snapshot(&[
+            (
+                "mm/cma.c",
+                "void cma_declare_contiguous_nid(unsigned long size, int nid) {}\n",
+            ),
+            (
+                "mm/hugetlb.c",
+                "#include \"cma.h\"\n\n\
+                 void hugetlb_cma_reserve(int order) {\n\
+                 \tint nid;\n\
+                 \tfor_each_online_node(nid) {\n\
+                 \t\tcma_declare_contiguous_nid(order, nid);\n\
+                 \t}\n\
+                 }\n",
+            ),
+        ]);
+        assert!(!index.symbols.contains_key("nid"), "{:?}", index.symbols.keys());
+        assert_eq!(
+            caller_rows(&index, &workspace, "cma_declare_contiguous_nid"),
+            vec!["mm/hugetlb.c::hugetlb_cma_reserve:unique_name_candidate".to_string()]
+        );
+    }
+
     /// A C++ method defined out of line carries its class in the declarator, not in an enclosing
     /// node: `std::string Engine::render(...)` sits at file scope, so without reading the
     /// qualified name the row names a method with no owner at all. `new Engine(8)` is a call
@@ -3096,3 +3544,4 @@ mod tests {
         );
     }
 }
+

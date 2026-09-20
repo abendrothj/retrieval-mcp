@@ -67,6 +67,77 @@ PATH_TOKEN = re.compile(
     r"[\w./$-]+\.(?:rs|py|ts|tsx|js|jsx|mjs|cjs|mts|cts|go|java|c|h|cc|cpp|cxx|hh|hpp|hxx)\b")
 IDENTIFIER = re.compile(r"[A-Za-z_$][\w$]*")
 DECLINE = re.compile(r"\b(cannot|can't|could not|couldn't|unable|do not have|don't have|no reliable|not able)\b", re.I)
+RAW_STRING = re.compile(r'r(#*)"')
+CHAR_LITERAL = re.compile(r"'(?:\\.|[^\\'])'")
+
+
+def without_literals(source, suffix=".ts"):
+    """Each line with its comments and string, char and raw-string literals blanked out.
+
+    Two readings need it. Brace counting is only meaningful over code: a `{` inside a JSDoc
+    block, a string or a Rust raw string opens a scope that never closes, which would
+    mis-attribute every call after it in the file. And a line of prose is not a definition or a
+    call site: a kernel block comment writes ` * folio_put_testzero() has excluded any other
+    users` in exactly the shape a C declarator takes. Only Rust gets the lifetime exception:
+    there `'a` is not a char literal and reading it as one swallows the real braces that follow
+    on the same line, while in a script `'...'` is an ordinary string and must be blanked whole.
+    """
+    cleaned, in_block = [], False
+    for text in source:
+        out, index, length = [], 0, len(text)
+        while index < length:
+            if in_block:
+                if text.startswith("*/", index):
+                    in_block, index = False, index + 2
+                else:
+                    index += 1
+                continue
+            if text.startswith("/*", index):
+                in_block, index = True, index + 2
+                continue
+            if text.startswith("//", index):
+                break
+            raw = RAW_STRING.match(text, index) if suffix == ".rs" else None
+            if raw:
+                closing = '"' + raw.group(1)
+                position = text.find(closing, raw.end())
+                index = length if position < 0 else position + len(closing)
+                out.append(" ")
+                continue
+            character = text[index]
+            if character == "'" and suffix == ".rs" and not CHAR_LITERAL.match(text, index):
+                out.append(" ")
+                index += 1
+                continue
+            if character in "\"'`":
+                index += 1
+                while index < length:
+                    if text[index] == "\\":
+                        index += 2
+                        continue
+                    if text[index] == character:
+                        index += 1
+                        break
+                    index += 1
+                out.append(" ")
+                continue
+            out.append(character)
+            index += 1
+        cleaned.append("".join(out))
+    return cleaned
+
+
+def code_line(corpus, path, number, cache):
+    """One line of a brace-language file with its comments and literals blanked, cached per file.
+
+    The cache is per caller, because a corpus is read line by line and re-blanking a 30,000-line
+    kernel header for every hit would dominate the pass.
+    """
+    lines = cache.get(path)
+    if lines is None:
+        source = (Path(corpus) / path).read_text(encoding="utf-8", errors="ignore")
+        lines = cache[path] = without_literals(source.splitlines(), Path(path).suffix)
+    return lines[number - 1] if 0 < number <= len(lines) else ""
 
 
 def definition_lines(corpus):
@@ -77,7 +148,7 @@ def definition_lines(corpus):
     named `GetRequestMetadata` on four receivers, and a caller set that names the identity once
     cannot say which of them a call site reached.
     """
-    lines = []
+    lines, blanked = [], {}
     passes = (
         ([r"^\s*(pub\s+)?(async\s+)?fn\s+[A-Za-z0-9_]+",
           r"^\s*(async\s+)?(def|class)\s+[A-Za-z0-9_]+"],
@@ -110,9 +181,20 @@ def definition_lines(corpus):
             if len(parts) != 3:
                 continue
             match = expression.match(parts[2])
-            if match:
-                name = next(group for group in match.groups() if group)
-                lines.append((name, parts[0].lstrip("./"), int(parts[1]) if parts[1].isdigit() else 0))
+            if not match:
+                continue
+            name = next(group for group in match.groups() if group)
+            path = parts[0].lstrip("./")
+            number = int(parts[1]) if parts[1].isdigit() else 0
+            # Prose is not a definition. Linux writes ` * folio_put_testzero() has excluded any
+            # other users of the folio.)` inside a block comment, which reads as a C declarator
+            # ending in `)`, and indexing it invented a symbol the corpus does not define -
+            # `language_audit` then sampled that symbol and scored the server for not finding it.
+            # A comment opened on an earlier line leaves no marker on this one, so the file's own
+            # comment state decides. Python is the one suffix here that is not a brace language,
+            # and its `def`/`class` rules cannot match behind a `#`.
+            if path.endswith(".py") or name in code_line(corpus, path, number, blanked):
+                lines.append((name, path, number))
     return lines
 
 

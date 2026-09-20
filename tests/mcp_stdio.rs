@@ -558,6 +558,49 @@ async fn an_explicit_tool_list_gates_exactly_what_it_names() {
     client.stop().await;
 }
 
+/// `--structural scan` answers a caller question without building a whole-repository index: the
+/// rows are the snapshot's, the coverage says how much of the repository was read for them, and
+/// no `index_built` event is logged because nothing was built.
+#[tokio::test]
+async fn a_scanned_session_answers_callers_without_building_an_index() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("util.py"), "def normalize(value):\n    return value\n")
+        .unwrap();
+    std::fs::write(
+        root.path().join("service.py"),
+        "from util import normalize\n\n\ndef handle(row):\n    return normalize(row)\n",
+    )
+    .unwrap();
+    std::fs::write(root.path().join("other.py"), "def spin():\n    return 1\n").unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_retrieval-mcp"));
+    command.args([
+        "--root",
+        root.path().to_str().unwrap(),
+        "--tools",
+        "find_callers",
+        "--structural",
+        "scan",
+        "--run-id",
+        "integration",
+    ]);
+    let mut client = Client::spawn(command).await;
+    let answered = client.tool("find_callers", json!({"name": "normalize"})).await;
+    let payload = &answered["structuredContent"];
+    assert_eq!(payload["symbol_status"], "indexed");
+    let callers = payload["results"].as_array().unwrap();
+    assert_eq!(callers.len(), 1);
+    assert_eq!(callers[0]["caller"], "handle");
+    assert_eq!(callers[0]["path"], "service.py");
+    // Two of the three source files write the name; the third was never parsed, and the coverage
+    // says so rather than implying a three-file repository.
+    assert_eq!(payload["coverage"]["indexed_files"], 2);
+    assert_eq!(payload["coverage"]["eligible_files"], 3);
+    assert_eq!(payload["coverage"]["budget_truncated"], false);
+    let logs = client.stop().await;
+    assert!(logged(&logs, "index_built").is_empty(), "{logs:?}");
+    assert_eq!(logged(&logs, "index_mode")[0]["mode"], "scan");
+}
+
 #[tokio::test]
 async fn the_unrestricted_default_exposes_only_the_tools_that_repaid_their_schema() {
     let root = tempfile::tempdir().unwrap();

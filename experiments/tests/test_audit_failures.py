@@ -233,6 +233,34 @@ class CallSiteTests(unittest.TestCase):
             callers = audit_failures.true_callers(corpus, "run_formatters", "helper.py")
         self.assertEqual(callers, ["user.py::handle_merge", "user.py::write_migration_files"])
 
+    def test_a_c_block_comment_continuation_line_is_not_a_caller(self):
+        """The kernel writes prose in `/* ... */` bodies, on lines carrying no comment marker."""
+        source = '''#include "reclaim.h"
+
+unsigned long vmpressure_calc_level(unsigned long scanned)
+{
+	/*
+	 * reclaimed can be greater than scanned for things such as reclaimed
+	 * slab pages. shrink_node() just adds reclaimed pages without a
+	 * related increment to scanned pages.
+	 */
+	return scanned;
+}
+
+unsigned long balance_pgdat(struct pgdat *pgdat)
+{
+	return shrink_node(pgdat);
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            corpus = Path(directory)
+            (corpus / "vmscan.c").write_text(
+                "unsigned long shrink_node(struct pgdat *pgdat)\n{\n\treturn 0;\n}\n",
+                encoding="utf-8")
+            (corpus / "vmpressure.c").write_text(source, encoding="utf-8")
+            callers = audit_failures.true_callers(corpus, "shrink_node", "vmscan.c")
+        self.assertEqual(callers, ["vmpressure.c::balance_pgdat"])
+
 
 GO = '''package service
 
@@ -415,6 +443,22 @@ class LanguageFamilyAttributionTests(unittest.TestCase):
             encoding="utf-8")
         callers = audit_failures.true_callers(self.root, "SetSequence", "batch.cc")
         self.assertEqual(callers, ["db.cc::Write"])
+
+    def test_a_struct_pointer_return_type_is_not_the_caller(self):
+        """`struct folio *folio_walk_start(...)` declares a function, not a `folio` frame."""
+        (self.root / "internal.h").write_text(
+            "void vma_pgtable_walk_end(struct vm_area_struct *vma);\n", encoding="utf-8")
+        (self.root / "pagewalk.c").write_text(
+            "#include \"internal.h\"\n"
+            "\n"
+            "struct folio *folio_walk_start(struct folio_walk *fw,\n"
+            "\t\tstruct vm_area_struct *vma, unsigned long addr)\n"
+            "{\n"
+            "\tvma_pgtable_walk_end(vma);\n"
+            "\treturn NULL;\n"
+            "}\n", encoding="utf-8")
+        callers = audit_failures.true_callers(self.root, "vma_pgtable_walk_end", "memory.c")
+        self.assertEqual(callers, ["pagewalk.c::folio_walk_start"])
 
 
 

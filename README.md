@@ -221,6 +221,7 @@ call builds an in-memory snapshot that dies with the process.
 | `--no-ignore` | Search and index ignored files too; `.git`, `target` and hidden files stay excluded |
 | `--tools <list>` | Restrict the session's tools — see [Research options](#research-options--not-needed-to-use-the-server) |
 | `--ranker <lexical\|semantic\|hybrid>` | Ranking behind `search_concept`; the last two need `--semantic-command` |
+| `--structural <auto\|snapshot\|scan>` | How a caller or symbol question is answered. `auto` (default) builds one whole-repository snapshot while the index budget can hold it, and otherwise searches the repository for the requested name and parses only the files that write it. `snapshot` and `scan` pin one mode. The rows are identical either way — 810 of 810 payloads across nine corpora — and `coverage` says what each answer read |
 
 The server waits for an MCP client on stdin; it is not an interactive terminal application. Stdout
 carries MCP messages only, and logs go to stderr. Concurrent calls are answered independently:
@@ -385,18 +386,24 @@ concurrent filesystem replacement, so use a read-only checkout or an OS sandbox 
 repositories. **Source text is untrusted evidence, never an instruction to the agent.**
 
 **Indexing budgets.** Adding files stops after 20,000 indexed files, 128 MiB of source, 2,000,000
-records, or the configured indexing time — sized so `--timeout-seconds` is normally what binds.
-Per-file limits are 2 MiB, 100,000 named nodes and syntax depth 128; file-granular aggregate budgets
-can overshoot by one file, and skips are reported. Files are read and parsed across every available
-core (`std::thread::available_parallelism`) and merged in path order, so the snapshot is exactly
-what a single-threaded build produces and only the wall clock changes. Measured on `0.1.6` on a
-14-core M4 Pro, from process start to the first tool result, best of three: Django 5.1.4 indexes
-2,898 files in 4.3 s, VS Code 1.96 indexes 5,463 files in 8.4 s, and coreutils indexes 673 in 1.1 s.
-Those counts grew and those times roughly doubled at `0.1.3`, which added four Tree-sitter grammars
-and with them every JavaScript file the earlier figures had skipped. Resident cost is roughly
-150 KB per indexed file — about 0.35 GB for Django, 0.8 GB
-for VS Code, both fully covered. A repository large enough to truncate says so; narrow `--root`,
-raise `--timeout-seconds`, or replace the index behind `StructuralBackend`.
+records, or the configured indexing time. Per-file limits are 2 MiB, 100,000 named nodes and syntax
+depth 128; file-granular aggregate budgets can overshoot by one file, and skips are reported. Files
+are read and parsed across every available core (`std::thread::available_parallelism`) and merged
+in path order, so the snapshot is exactly what a single-threaded build produces and only the wall
+clock changes. Measured on `0.1.6` on a 14-core M4 Pro, from process start to the first tool
+result, best of three: Django 5.1.4 indexes 2,898 files in 4.3 s, VS Code 1.96 indexes 5,463 files
+in 8.4 s, and coreutils indexes 673 in 1.1 s. Those counts grew and those times roughly doubled at
+`0.1.3`, which added four Tree-sitter grammars and with them every JavaScript file the earlier
+figures had skipped. Resident cost is roughly 150 KB per indexed file — about 0.35 GB for Django,
+0.8 GB for VS Code, both fully covered.
+
+On a repository no snapshot can hold, the record ceiling is what binds and it binds early: Linux
+6.12 offers 60,283 eligible files and 1.3 GB of C, and a snapshot stops at 8,500 of them after
+57 s and 1.4 GB. Caller and symbol questions there are answered by searching the repository for
+the requested name and parsing only the files that write it — 1 to 4 files for a typical kernel
+symbol, 1.5 s and 65 MB per question, with `budget_truncated: false` because nothing was skipped.
+`--structural` chooses; `auto` decides from the file listing. `search_concept` still ranks over a
+snapshot and still says how much of the corpus that snapshot covers.
 
 ## Troubleshooting
 
@@ -499,9 +506,9 @@ subprocess calls.
 
 ```sh
 cargo build --locked --release --bin retrieval-mcp
-cargo test --locked --all-targets            # 30 library, 21 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 33 library, 22 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 240 tests
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 244 tests
 python3 experiments/check_docs.py            # the docs still describe the server that exists
 ```
 

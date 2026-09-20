@@ -6,6 +6,35 @@ releases only.
 
 ## Unreleased
 
+**A repository too large to index is no longer a repository this server answers partially.** A
+snapshot is bounded by `Budget`, and on Linux 6.12 that bound lands after 8,500 of 60,283 eligible
+files: `find_callers("vfs_read")` returned nothing, correctly labelled partial, for 57 seconds and
+1.4 GB. A caller question is addressed by a name, so the corpus can be searched for that name and
+only the files that write it parsed — one to four files for a typical kernel symbol. The same
+question now answers in 1.5 s and 65 MB, with `fs/exec.c::read_code`, `fs/read_write.c::ksys_read`
+and `fs/read_write.c::ksys_pread64` in it, over 60,233 eligible files and no truncation.
+`--structural auto|snapshot|scan` selects the mode; `auto`, the default, reads the file listing
+first and only builds a snapshot it can afford, so nothing changes for a repository that fits.
+The parser, the attribution and the rows are the snapshot's own code: across nine corpora and six
+languages, 30 symbols each asked of `find_callers`, `find_symbol` and `trace_dependencies`, **810
+of 810 payloads are identical** between the two modes. `search_concept` and `locate` still need a
+whole-repository index and still build one on first use, which is the next thing to measure, not
+this one.
+
+**A C iteration macro is no longer a definition, and no longer the caller of its own loop body.**
+`for_each_online_node(nid) { ... }` parses as a function definition whose type is the macro and
+whose declarator is `(nid)`, so the index held a symbol called `nid` and every call inside the
+loop was attributed to a loop variable instead of to the function that writes it — the same wrong
+row shape that, once fixed for local bindings, produced the largest efficiency win measured after
+the freeze. A C-family definition whose declarator holds no `function_declarator` declares no
+function and is now skipped. The test is the declarator rather than the nesting: refusing every
+definition written inside another one also dropped LevelDB's `Status::NotSupported` and a true
+Lua caller row, both inside regions the C++ grammar had already mis-parsed. Measured with
+`language_audit.py`, 20 symbols, seed 2, before and after: Linux `mm` caller precision 0.910 →
+0.949 and recall 0.947 → 0.987, Linux `kernel` 0.964 → 0.971 and 0.971 → 0.978, and Redis,
+LevelDB, Gson, Cobra and ESLint unchanged to three decimals. This is an offline correctness
+result; no model ran.
+
 **Four published numbers were wrong, and the README now says what it measured.** An audit against
 the archived run records found the held-out table's tool-call column off by one in two arms — 146
 native and 77 retrieval-mcp, not 147 and 78 — and its "input tokens" row silently using a

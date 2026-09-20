@@ -86,14 +86,16 @@ any of the four features it was found underneath.
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Thirty-one defects in it have produced or nearly
+The harness is the second experimental subject. Thirty-five defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
 some penalised it, one was found inside its own single held-out loss, one would have made every
 brace-language caller question unauthorable, one scored three arms to zero on questions they had
 answered exactly right, twice, one survived its own repair by moving up one scope level, and the
 seven newest before it were found by an audit built to admit five
 new languages, by the release that followed it and by the Go pilot that ran on them — five in the
-evaluator, two in the server. Each is
+evaluator, two in the server. The four newest were found by probing a Linux-kernel corpus for
+feasibility and by the chunk-diet study that followed it: two in the evaluator's reading of C, one
+in the server's, and one in the offline ranking instruments. Each is
 pinned by a test. This table is the authoritative list; prose below refers to it rather than to
 ordinals.
 
@@ -130,6 +132,10 @@ ordinals.
 | Two-hop question left it open whether a direct caller counts as reached in two hops | The gold took the union, one arm read the difference, and two cells moved on a reading rather than on retrieval |
 | A caller question excluded "the file that defines it" while that file's test twin called the helper | Every arm skipped `http_util_test.go` when told to skip `http_util.go` - 14 of 19 missing identities in one study, 6 of 6 for one arm - and the loss read as a retrieval difference |
 | A caller question scoped its exclusion by "module" while the gold counted a caller in the helper's own directory | `cu-callers-02`'s own repair: all three retrieval trials found `parse_signed_num.rs::parse_count`, excluded it because it sits in `features/parser/`, and scored 0.667 three times against the native arm's 1.000 — a replicated, entirely false reading that the structural surface is worse at exhaustive caller questions |
+| `true_callers()` counted a helper named on a C block comment's continuation line | Linux `mm/vmpressure.c` writes ` * shrink_node() just adds reclaimed pages` inside a function body, and the line-local `#`/`//` test cannot see a comment opened on an earlier line, so an exhaustive gold demanded a caller that is prose; kernel `mm` caller recall read 0.870 where it is 0.889 |
+| `enclosing()` read a C pointer return type as the frame | `struct folio *folio_walk_start(struct folio_walk *fw,` made `folio` the caller of everything in that body — the shape most of the kernel writes a definition in — and mm caller precision read 0.976 where it is 1.000 |
+| The index read a C iteration macro as a definition | `for_each_online_node(nid) { ... }` parses as a function definition whose declarator is `(nid)`, so `nid` was a symbol and every call in the loop named a loop variable as its caller — the same wrong-row shape whose repair for local bindings produced the largest post-freeze efficiency win, in the construct 21,136 of Linux's 34,657 `.c` files write |
+| `study_a` and `study_b` graded gold in four languages only | `.rs`, `.py`, `.ts`, `.tsx` — so every question in the Go etcd suite was ungradable, `study_a` died inside `statistics.fmean` with "requires at least one data point", and a whole corpus would have been dropped from a registered comparison while the failure read as a broken corpus rather than a blind instrument |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
 
@@ -1447,6 +1453,106 @@ The one server-side defect this line of audit did find — a call qualified by a
 credited to a same-named definition next door — is fixed and in the changelog. The audit that found
 it is the same one that found seven evaluator defects: ask whether the bug you just fixed in the
 grader also exists in the code under test.
+
+## Answering a repository you cannot index
+
+The kernel probe left one fact that no ranking change could address: a whole-repository snapshot
+of Linux 6.12 stops at 8,500 of 60,283 eligible files, so `find_callers("vfs_read")` returned an
+empty page — correctly labelled partial, and worthless — after 57 seconds and 1.4 GB. The
+[chunk diet](#the-chunk-diet-that-ranked-fine-and-bought-nothing) tried to buy coverage by making
+the index smaller and could not: the concept index is about a gigabyte of several, and trimming
+it 15–28% changes no repository's affordability.
+
+**So the question changed shape.** A caller question is addressed by a *name*. The repository can
+be searched for that name and only the files that write it parsed — which is exactly what
+`audit_failures.true_callers` has always done to verify every caller gold in this project. The
+server now does the same when a snapshot cannot cover the corpus: `--structural auto|snapshot|scan`,
+with `auto` reading the file listing and declining to build an index the budget cannot hold.
+
+| Linux 6.12, whole tree | snapshot | scan |
+|---|---|---|
+| `find_callers("vfs_read")` | 0 rows | `fs/exec.c::read_code`, `fs/read_write.c::ksys_read`, `fs/read_write.c::ksys_pread64` |
+| `find_callers("shrink_folio_list")` | 0 rows | 4 rows, all `mm/vmscan.c` |
+| `find_symbol("ksys_read")` | 0 definitions | 1, `fs/read_write.c` |
+| first answer | 56.1 s | 1.5 s |
+| peak resident | 1,296 MB | 65 MB |
+| coverage | 8,500 of 60,283, `budget_truncated` | 60,233 eligible, 1–4 files parsed, not truncated |
+
+**The claim is a differential, not a new capability.** The parsing, the enclosing-definition
+attribution and the row construction are the snapshot's own code; a scan builds a `StructuralIndex`
+over the candidate files and asks it the question. So the test is that the two modes cannot be told
+apart where both can see the whole repository: nine corpora across six languages, 30 singly-defined
+symbols each, every one asked of `find_callers`, `find_symbol` and `trace_dependencies`, payloads
+compared with the coverage block removed — **810 of 810 identical**, recorded in
+`runs/scan-backend-20260919/`.
+
+Two earlier iterations were not clean, and both failed on the same field. `nearest_indexed_names`
+suggests neighbours for a name the index does not know, and a scan has no corpus-wide name list to
+draw them from; the first attempt left the field empty and the second filled it from whatever files
+the scan happened to read. Both are defensible and both make the differential un-runnable, so the
+scan now takes that list from the snapshot. A field that cannot be made identical is a field that
+turns a test into a comparison with an excuse.
+
+**What it does not do.** `search_concept` ranks definitions across the corpus and `locate` is
+addressed by a line, so both still need a snapshot, and on the kernel that snapshot is still
+truncated at 8,500 files and still says so. A scan session that never asks a concept question never
+builds one — the kernel's first caller answer costs 1.8 s under `auto` — but a session that does
+pays the 56 s. That is the next measurement, not this one. Nothing here ran a model: this is an
+offline correctness and cost result.
+
+## The chunk diet that ranked fine and bought nothing
+
+Measuring the Linux kernel showed where a whole-repository snapshot's memory goes, and the concept
+index looked like the cheap half to reclaim: on a full 60,189-file snapshot the BM25 index is
+roughly 1.3 GB, and `mm` alone tokenises 1,096,565 concept tokens out of 186 files, because the
+chunk text is the *entire definition body*. If a description question is a vocabulary problem and
+the vocabulary lives in the doc comment and the name — which is exactly what
+[Three index changes, one survivor](#three-index-changes-one-survivor) concluded — then the body
+could go. `runs/concept-chunk-lean-20260919/preregistration.json` registered that prediction, three
+arms differing only in the `end` bound of one slice, seven suites over five corpora, and a decision
+rule with a memory bar as well as a quality bar.
+
+| Suite | n | head recall@5 / MRR | lean | lean16 |
+|---|---:|---:|---:|---:|
+| cu-text | 10 | 4 / 0.337 | 3 / 0.300 | 4 / 0.325 |
+| dj-forms | 10 | 3 / 0.250 | 0 / 0.000 | 3 / 0.220 |
+| vs-editor | 10 | 1 / 0.114 | 1 / 0.100 | 2 / 0.083 |
+| dj-heldout | 29 | 17 / 0.510 | 4 / 0.089 | 16 / 0.463 |
+| dj-development | 29 | 13 / 0.343 | 0 / 0.011 | 12 / 0.293 |
+| dj-hard | 30 | 11 / 0.317 | 1 / 0.016 | **16 / 0.392** |
+| etcd-mixed | 30 | 10 / 0.246 | 4 / 0.092 | 9 / 0.246 |
+| **pooled** | **148** | **59 / 0.3288** | **13 / 0.0684** | **62 / 0.3197** |
+
+**The prediction was wrong in the direction that matters.** `lean` — doc comment, path, container
+and signature line — collapses pooled recall@5 from 59 to 13. The 2026-09-12 finding said the
+vocabulary is in the comment; it is, *for languages that write comments above the definition*. A
+Python docstring sits inside the body, so `lean` deletes the very text that study credited, and
+Django falls from 17 to 4, from 13 to 0, from 11 to 1.
+
+**`lean16` — sixteen body lines — passes quality and fails the point.** It is within one answer on
+every suite it loses, gains five on `dj-hard`, and pooled it is +3 recall@5 at −0.009 MRR, inside
+the registered tolerances. But the registered benefit criterion was resident memory, and the
+deterministic index counts say the diet is worth 15–28% of the concept index at that setting —
+241,400 postings to 174,651 on the held-out Django corpus, 516,300 to 441,082 on Linux `mm`. A few
+hundred megabytes off an index that is one gigabyte of a multi-gigabyte snapshot does not change
+which repositories can be covered. By the decision rule the shipped chunk stays, and this is
+published as the miss it is.
+
+**Two instrument problems, both found before the result was read.** `study_a.py` and `study_b.py`
+graded gold only in `.rs`, `.py`, `.ts` and `.tsx`, so every question in the Go etcd suite was
+silently ungradable and `study_a` died inside `statistics.fmean` instead of saying so; both now
+name every language the server indexes, `study_a` refuses a suite it can grade nothing in, and the
+six cells produced before the repair are kept under `pre-instrument-repair/` and were re-run. And
+peak resident memory sampled from `ps` turned out not to be an instrument at all at this
+resolution: the same unbounded binary on the same corpus measured 7,884 MB once and 5,924 MB
+later. Anything this project says about snapshot memory is therefore "several gigabytes", not a
+figure, and the numbers that decided this run are the deterministic posting counts.
+
+**The lead this run did not take.** `lean16` improving `dj-hard` by five answers looks like BM25
+length normalisation — a long body dilutes term frequency, so a short chunk that still contains
+the signature and the first statements ranks better. That is a ranking hypothesis, not a memory
+one, and bundling it into a memory study would make neither attributable. It needs its own
+registered run.
 
 ## Three index changes, one survivor
 

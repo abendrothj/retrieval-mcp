@@ -23,7 +23,11 @@ import comparison_runner
 
 RANKERS = ("lexical", "semantic", "hybrid")
 CUTOFFS = (1, 3, 5, 10)
-SOURCE_SUFFIXES = (".rs", ".py", ".ts", ".tsx")
+# Every language the server indexes, because a gold path this list does not name is silently
+# ungradable: an etcd suite whose every gold ends in `.go` graded zero questions and crashed in
+# `statistics.fmean` rather than saying so.
+SOURCE_SUFFIXES = (".rs", ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts",
+                   ".go", ".java", ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx")
 
 def symbol_pairs(value, found):
     if isinstance(value, str):
@@ -104,6 +108,12 @@ def query_all(server, root, ranker, semantic_command, questions, limit, timeout,
 def report(args):
     questions = json.loads(args.questions.read_text(encoding="utf-8"))
     graded = [task for task in questions if relevant_symbols(task)]
+    # A study that grades nothing must say so. Without this the run died inside `fmean` with
+    # "requires at least one data point", which reads as a broken corpus rather than a suite whose
+    # gold this instrument cannot see.
+    if not graded:
+        raise ValueError(f"no question in {args.questions} carries a gold symbol this study can "
+                         f"grade; check the gold paths against SOURCE_SUFFIXES")
     cache = args.cache.resolve()
     # A retrieval system must never be able to alter the corpus it is judged against: the first
     # run of this study wrote 93 MB of vectors into the corpus before this check existed.
