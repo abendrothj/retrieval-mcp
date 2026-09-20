@@ -69,22 +69,6 @@ impl Ranker {
     }
 }
 
-/// How a name-addressed structural question is answered. Also an operator choice: the model sees
-/// the same tools and the same rows either way, and the coverage block says which mode answered.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum Structural {
-    /// Snapshot while the whole repository fits inside `Budget`, candidate scan once it does not.
-    /// A truncated snapshot answers every caller question partially and says so, which is honest
-    /// and useless; a scan answers the same question over the whole repository.
-    #[default]
-    Auto,
-    /// Always the whole-repository snapshot, partial when the budget binds.
-    Snapshot,
-    /// Always the candidate scan. Exists so a measurement can put both modes on one corpus.
-    Scan,
-}
-
 #[derive(Clone, Debug)]
 pub struct Config {
     /// The repository this session may read, when the operator pinned one.
@@ -109,8 +93,6 @@ pub struct Config {
     /// exists for repositories whose ignore rules hide the code under study (for example a
     /// nested repository ignored by its parent). Hidden files and `.git` stay excluded.
     pub no_ignore: bool,
-    /// Snapshot, candidate scan, or the size-dependent choice between them.
-    pub structural_mode: Structural,
 }
 
 impl Config {
@@ -138,14 +120,13 @@ impl Config {
             log_file: None,
             ranker: Ranker::default(),
             no_ignore: false,
-            structural_mode: Structural::default(),
         };
         // One switch decides the tool set; two would leave the log label ambiguous.
         let mut chosen = false;
         while let Some(flag) = args.next() {
             if flag == "--help" || flag == "-h" {
                 println!(
-                    "retrieval-mcp [--root PATH] [--tools name,name,...] [--profile A|B|C|D]\n  [--ranker lexical|semantic|hybrid] [--structural auto|snapshot|scan] [--run-id ID]\n  [--semantic-command '[\"program\",\"arg\"]'] [--timeout-seconds 30]\n  [--log-file /absolute/path/events.jsonl] [--no-ignore]\n--root pins the only repository the session can read. Without it, the first tool call takes\n  the client's first reported root, or the directory the client started this server in when\n  it reports none, so a client that opens a project needs no path in its configuration. A\n  home directory or the filesystem root is refused instead of indexed.\n--structural decides how a name-addressed question is answered: snapshot builds one index of\n  the whole repository, scan searches the repository for the name and parses only the files\n  that write it, and auto - the default - takes the snapshot while it covers the repository\n  and the scan once the index budget would truncate it.\n--no-ignore searches and indexes files that ignore files exclude; .git and hidden files stay out.\nTools: search_exact, read_source, inspect_symbol, find_symbol, find_callers,\n  trace_dependencies, search_concept.\nWithout --tools or --profile the default surface is search_exact, read_source,\n  find_callers and search_concept: the tools that measurably repaid their schema cost.\n  The other three stay available by naming them, or with --profile D.\nProfiles are presets over --tools from the original availability study: A exact+read,\n  B adds structure, C adds concept search, D all seven.\nJSON invocation logs go to stderr and optionally append to --log-file; stdout is reserved for MCP."
+                    "retrieval-mcp [--root PATH] [--tools name,name,...] [--profile A|B|C|D]\n  [--ranker lexical|semantic|hybrid] [--run-id ID]\n  [--semantic-command '[\"program\",\"arg\"]'] [--timeout-seconds 30]\n  [--log-file /absolute/path/events.jsonl] [--no-ignore]\n--root pins the only repository the session can read. Without it, the first tool call takes\n  the client's first reported root, or the directory the client started this server in when\n  it reports none, so a client that opens a project needs no path in its configuration. A\n  home directory or the filesystem root is refused instead of indexed.\n--no-ignore searches and indexes files that ignore files exclude; .git and hidden files stay out.\nTools: search_exact, read_source, inspect_symbol, find_symbol, find_callers,\n  trace_dependencies, search_concept.\nWithout --tools or --profile the default surface is search_exact, read_source,\n  find_callers and search_concept: the tools that measurably repaid their schema cost.\n  The other three stay available by naming them, or with --profile D.\nProfiles are presets over --tools from the original availability study: A exact+read,\n  B adds structure, C adds concept search, D all seven.\nJSON invocation logs go to stderr and optionally append to --log-file; stdout is reserved for MCP."
                 );
                 return Ok(None);
             }
@@ -194,11 +175,6 @@ impl Config {
                 "--ranker" => {
                     config.ranker = serde_json::from_value(serde_json::Value::String(value))
                         .context("ranker must be lexical, semantic, or hybrid")?
-                }
-                "--structural" => {
-                    config.structural_mode =
-                        serde_json::from_value(serde_json::Value::String(value))
-                            .context("structural must be auto, snapshot, or scan")?
                 }
                 "--semantic-command" => {
                     let command: Vec<String> = serde_json::from_str(&value)

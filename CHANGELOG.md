@@ -6,6 +6,36 @@ releases only.
 
 ## Unreleased
 
+**The whole-repository snapshot is gone, at every repository size.** Three changes had already
+moved every question onto a search — callers and symbols onto the name, ranking onto the
+description's own words, `locate` onto the one file being labelled — and each was measured to
+answer identically. What remained was a snapshot kept for speed on repositories small enough to
+hold, and it was paying for that speed with the one failure an agent actually meets: it answers
+from bytes that are no longer on disk. In one session, with a caller written between two identical
+questions, the snapshot said `service.py::handle` both times while a search said
+`report.py::render, service.py::handle`. An agent session is a session in which code changes.
+
+So there is no index any more. Every question searches the repository as it is on disk and parses
+what answers it: one to thirty files for a caller question, 400 for a ranking, one for a source
+annotation. `--structural` is removed with the machinery it selected, and `coverage` now describes
+one answer — how many files it read, out of how many the repository holds — rather than a standing
+index that may or may not still be true.
+
+Nine corpora, six languages, 25 symbols each through `find_callers`, `find_callers` with
+`include_references`, `find_symbol`, `inspect_symbol` and `trace_dependencies`: **1,125
+comparisons, 10 differences, every one of them `nearest_indexed_names` on an unknown symbol and
+every one an improvement** — for `GNUC_VERSION` redis now suggests `RM_GetServerVersion`,
+`RM_GetTypeMethodVersion`, `RedisModuleCommandInfoVersion` and `XXH_versionNumber` where the
+snapshot suggested the letters `C`, `E`, `G`, `O`, `S`. No row, definition, edge or count moved.
+Ranking equality is the registered result from `runs/seeded-concept-confirm-20260919`: 59 recall@5
+and 0.3288 MRR on both arms over 148 questions.
+
+Session cost, fresh process, four structural calls: cobra 0.3 s and 30 MB against 0.1 s and 32 MB,
+the Django held-out corpus 0.4 s against 0.3 s, redis 1.7 s against 1.3 s, Django 2.8 s and 189 MB
+against 3.7 s and 222 MB, VS Code **2.1 s and 220 MB against 7.0 s and 475 MB**. Below Django scale
+a short session pays a tenth of a second and a long one a second or two; from Django up it is
+faster, and memory is never worse.
+
 **`search_concept` stops needing an index of a repository that cannot be indexed.** It was the
 last reader that required a whole-repository snapshot, and on Linux 6.12 that snapshot costs 60 s
 and 1.45 GB, covers 13,581 of 60,283 files, and answers out of whatever the walk reached first:

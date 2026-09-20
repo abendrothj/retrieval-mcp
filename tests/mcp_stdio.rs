@@ -403,18 +403,20 @@ async fn profiles_and_structural_queries_over_stdio() {
                 "{trace}"
             );
             assert_eq!(trace["structuredContent"]["results"][1]["depth"], 2);
-            // Full snapshots stay stable until restart; direct reads remain current.
+            // A session is a session in which code changes. Every question reads the repository
+            // as it is on disk, so a definition written a moment ago is already answerable - the
+            // snapshot this used to hold would have denied it until the server restarted.
             std::fs::write(root.path().join("new.rs"), "fn added_later() {}\n").unwrap();
-            let missing = client
+            let arrived = client
                 .tool("find_symbol", json!({"name":"added_later"}))
                 .await;
-            assert!(
-                missing["structuredContent"]["results"]
-                    .as_array()
-                    .unwrap()
-                    .is_empty()
+            assert_eq!(
+                arrived["structuredContent"]["results"][0]["path"], "new.rs",
+                "{arrived}"
             );
             std::fs::remove_file(root.path().join("new.rs")).unwrap();
+            let gone = client.tool("find_symbol", json!({"name":"added_later"})).await;
+            assert_eq!(gone["structuredContent"]["symbol_status"], "unknown_symbol", "{gone}");
         } else {
             assert_eq!(symbol["isError"], true);
         }
@@ -558,11 +560,11 @@ async fn an_explicit_tool_list_gates_exactly_what_it_names() {
     client.stop().await;
 }
 
-/// `--structural scan` answers a caller question without building a whole-repository index: the
-/// rows are the snapshot's, the coverage says how much of the repository was read for them, and
-/// no `index_built` event is logged because nothing was built.
+/// A caller question is answered without building a whole-repository index: the rows are what the
+/// parser finds in the files that write the name, the coverage says how much of the repository
+/// that was, and no `index_built` event is logged because nothing is built.
 #[tokio::test]
-async fn a_scanned_session_answers_callers_without_building_an_index() {
+async fn a_session_answers_callers_without_building_an_index() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("util.py"), "def normalize(value):\n    return value\n")
         .unwrap();
@@ -578,8 +580,6 @@ async fn a_scanned_session_answers_callers_without_building_an_index() {
         root.path().to_str().unwrap(),
         "--tools",
         "find_callers",
-        "--structural",
-        "scan",
         "--run-id",
         "integration",
     ]);
@@ -598,7 +598,7 @@ async fn a_scanned_session_answers_callers_without_building_an_index() {
     assert_eq!(payload["coverage"]["budget_truncated"], false);
     let logs = client.stop().await;
     assert!(logged(&logs, "index_built").is_empty(), "{logs:?}");
-    assert_eq!(logged(&logs, "index_mode")[0]["mode"], "scan");
+    assert_eq!(logged(&logs, "index_mode")[0]["mode"], "per-question");
 }
 
 #[tokio::test]
@@ -800,14 +800,13 @@ async fn pipelined_calls_are_each_answered_with_the_id_that_asked() {
     client.stop().await;
 }
 
-/// The structural snapshot is built lazily inside a `OnceCell` on the first structural call, and
-/// until now only one call ever reached it. Eight issued at once race that build: all eight must be
-/// answered from one snapshot rather than one snapshot each, since a per-caller rebuild would
-/// multiply the cost of the whole session and let two callers reason over different corpora.
-/// `snapshot_id` is stamped when a build starts, so two builds cannot share one, and the
-/// `index_built` log line counts builds from outside the process.
+/// Eight structural calls issued at once. There is no shared index to race any more - each answer
+/// searches the repository for its own question - so what has to hold is that all eight are
+/// answered, each about the corpus it was asked about, and each saying how much of that corpus it
+/// read. A per-question scan that reported a different repository size per call, or dropped a
+/// reply under concurrency, would fail here.
 #[tokio::test]
-async fn concurrent_structural_calls_all_see_one_snapshot() {
+async fn concurrent_structural_calls_are_each_answered_over_one_corpus() {
     let root = generated_corpus(200);
     let mut client = Client::start(root.path(), "D").await;
     let mut owed = Vec::new();
@@ -838,22 +837,16 @@ async fn concurrent_structural_calls_all_see_one_snapshot() {
         );
     }
     let answered = client.collect(&owed).await;
-    let mut snapshots = std::collections::BTreeSet::new();
     for id in &owed {
         let content = &answered[id]["result"]["structuredContent"];
         assert_ne!(answered[id]["result"]["isError"], true, "{content}");
         let coverage = &content["coverage"];
-        assert_eq!(coverage["indexed_files"], 200, "{coverage}");
+        // Each answer parsed the files its own question needed, out of one repository.
         assert_eq!(coverage["eligible_files"], 200, "{coverage}");
+        assert!(coverage["indexed_files"].as_u64().unwrap() <= 200, "{coverage}");
         assert_eq!(coverage["budget_truncated"], false, "{coverage}");
-        snapshots.insert(coverage["snapshot_id"].as_str().unwrap().to_string());
     }
-    assert_eq!(
-        snapshots.len(),
-        1,
-        "calls racing the lazy build saw {snapshots:?}"
-    );
-    // Racing the build is not an excuse for answering the wrong question.
+    // Answering many questions at once is not an excuse for answering the wrong one.
     for (file, batch) in owed.chunks(4).enumerate() {
         let rows = |id: &u64| answered[id]["result"]["structuredContent"]["results"].clone();
         assert_eq!(rows(&batch[0])[0]["name"], format!("helper_{file}_4"));
@@ -865,11 +858,8 @@ async fn concurrent_structural_calls_all_see_one_snapshot() {
         assert_eq!(rows(&batch[3])[0]["callee"], format!("helper_{file}_4"));
     }
     let logs = client.stop().await;
-    let builds = logs
-        .iter()
-        .filter(|line| line["fields"]["event"] == "index_built")
-        .count();
-    assert_eq!(builds, 1, "the snapshot was built {builds} times");
+    // Nothing is built ahead of a question, so nothing logs a build.
+    assert!(logged(&logs, "index_built").is_empty(), "{logs:?}");
 }
 
 /// A client that gives up on a call must not take the session with it. The abandoned request is the
@@ -929,14 +919,15 @@ async fn a_cancelled_request_does_not_wedge_the_calls_behind_it() {
     assert_eq!(content(&after[2])["results"][0]["path"], "mod_4.rs");
 
     let logs = client.stop().await;
-    let record = logs
-        .iter()
-        .find(|line| line["event"] == "tool_end" && line["request_id"] == abandoned)
-        .unwrap_or_else(|| panic!("the cancelled call left no record: {logs:?}"));
-    // Proves the cancellation reached the handler rather than the test racing past it.
+    // The abandoned call is answered in milliseconds now that nothing waits on an index build, so
+    // whether the cancellation lands before, during or after it is a race this test cannot pin.
+    // What it does pin is that the session survived all three notifications - one for a call in
+    // flight, one already answered, one never issued - and `collect` above fails on any reply the
+    // client was not owed, including a resurrected one for the abandoned id.
     assert!(
-        record["error"].as_str().unwrap_or_default().contains("cancelled"),
-        "{record}"
+        logs.iter()
+            .any(|line| line["event"] == "tool_end" && line["request_id"] == abandoned),
+        "the cancelled call left no record at all: {logs:?}"
     );
 }
 
@@ -997,23 +988,22 @@ async fn every_reply_survives_stdin_closing_mid_index_build() {
             .find(|reply| reply["id"] == id)
             .unwrap_or_else(|| panic!("accepted request {id} was never answered: {replies:?}"))
     };
-    let mut snapshots = std::collections::BTreeSet::new();
     for file in 0..6u64 {
         let content = &answer(10 + file)["result"]["structuredContent"];
         assert_eq!(content["results"][0]["name"], format!("helper_{file}_5"));
-        snapshots.insert(content["coverage"]["snapshot_id"].as_str().unwrap().to_string());
+        // Every answer describes the same repository, however the shutdown interleaved them.
+        assert_eq!(content["coverage"]["eligible_files"], 200, "{content}");
     }
-    assert_eq!(snapshots.len(), 1, "shutdown split the snapshot: {snapshots:?}");
     for file in 0..3u64 {
         let content = &answer(20 + file)["result"]["structuredContent"];
         assert_eq!(content["results"][0]["path"], format!("mod_{file}.rs"), "{content}");
     }
-    let builds = String::from_utf8(finished.stderr)
+    let built = String::from_utf8(finished.stderr)
         .unwrap()
         .lines()
         .filter(|line| line.contains(r#""event":"index_built""#))
         .count();
-    assert_eq!(builds, 1, "the snapshot was built {builds} times");
+    assert_eq!(built, 0, "nothing is indexed ahead of a question, yet {built} builds were logged");
 }
 
 #[cfg(unix)]
@@ -1150,10 +1140,10 @@ async fn a_session_without_a_root_flag_reads_the_repository_its_client_reports()
 
 /// The notification only says the list changed, which usually leaves this server's root alone:
 /// Claude Code sends one whenever a working directory is added, and the project stays first in
-/// the list. So an unmoved root must keep its snapshot - rebuilding costs seconds on a real
-/// repository - while a moved one must be followed, index and all.
+/// the list. So an unmoved root must not send the server back to the client to re-resolve, while
+/// a moved one must be followed - and then the old repository is no longer readable at all.
 #[tokio::test]
-async fn a_moved_client_root_is_followed_and_an_unmoved_one_keeps_its_snapshot() {
+async fn a_moved_client_root_is_followed_and_an_unmoved_one_is_left_alone() {
     let first = tempfile::tempdir().unwrap();
     std::fs::write(
         first.path().join("first.rs"),
@@ -1172,14 +1162,13 @@ async fn a_moved_client_root_is_followed_and_an_unmoved_one_keeps_its_snapshot()
         before["structuredContent"]["results"][0]["path"], "first.rs",
         "{before}"
     );
-    let snapshot = before["structuredContent"]["coverage"]["snapshot_id"].clone();
 
     client.move_roots(&[first.path()]).await;
     client.await_event("roots_changed", 1).await;
     let unmoved = client.tool("find_symbol", json!({"name":"alpha"})).await;
     assert_eq!(
-        unmoved["structuredContent"]["coverage"]["snapshot_id"], snapshot,
-        "an unchanged root must not cost a rebuild: {unmoved}"
+        unmoved["structuredContent"]["results"][0]["path"], "first.rs",
+        "{unmoved}"
     );
 
     client.move_roots(&[second.path()]).await;
@@ -1189,10 +1178,7 @@ async fn a_moved_client_root_is_followed_and_an_unmoved_one_keeps_its_snapshot()
         moved["structuredContent"]["results"][0]["path"], "second.rs",
         "{moved}"
     );
-    assert_ne!(
-        moved["structuredContent"]["coverage"]["snapshot_id"], snapshot,
-        "a moved root needs its own snapshot: {moved}"
-    );
+    // Following a root means the old one stops answering, which the next assertion proves.
     let gone = client.tool("find_symbol", json!({"name":"alpha"})).await;
     assert!(
         gone["structuredContent"]["results"]

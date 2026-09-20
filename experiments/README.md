@@ -1578,6 +1578,57 @@ memory, and a third of a repository answers an exhaustive caller question no bet
 does; that question is answered by a scan covering all of it in 1.5 s and 65 MB. A corpus that fits
 is unaffected at every setting. No change.
 
+### And then there was no index
+
+Three changes had moved every question onto a search, and each had been measured to answer
+identically. What was left was a snapshot kept for one reason: on a repository small enough to hold,
+a warm index answers in 1–3 ms where a search takes 20–170 ms. The question was whether that speed
+is worth anything to the only client this server has.
+
+**It is not, and it was costing a wrong answer.** A snapshot is built once per process. An agent
+session is a session in which code changes. One session, two identical questions, a caller written
+between them:
+
+```
+snapshot   before ['service.py::handle']   after ['service.py::handle']
+search     before ['service.py::handle']   after ['report.py::render', 'service.py::handle']
+```
+
+The snapshot does not see a file saved a second ago and says nothing about it beyond a freshness
+string. That is the only difference between the two designs that produces a wrong answer rather
+than a slower one, and it is the failure an editing agent meets first.
+
+**The differential.** Nine corpora, six languages, 25 singly-defined symbols each through
+`find_callers`, `find_callers` with `include_references`, `find_symbol`, `inspect_symbol` and
+`trace_dependencies`: 1,125 comparisons, **10 differences, all of them `nearest_indexed_names` on
+an unknown symbol, and all of them improvements**. For redis's `GNUC_VERSION` the search suggests
+`RM_GetServerVersion`, `RM_GetTypeMethodVersion`, `RedisModuleCommandInfoVersion` and
+`XXH_versionNumber`; the snapshot suggested `C`, `E`, `G`, `O`, `S`. No row, definition, edge or
+count moved. Ranking is not payload-comparable — a seeded BM25 computes its IDF over the files it
+read — and its equality is the registered result in `runs/seeded-concept-confirm-20260919`.
+
+**The cost, and it is a real one.** Session totals, fresh process:
+
+| | 4 calls | | 13 calls | |
+|---|---|---|---|---|
+| | snapshot | no index | snapshot | no index |
+| cobra | 0.1 s / 32 MB | 0.3 s / 30 MB | 0.1 s | 0.5 s |
+| dj-heldout | 0.3 s / 75 MB | 0.4 s / 68 MB | 0.3 s | 0.5 s |
+| redis | 1.3 s / 221 MB | 1.7 s / 223 MB | 1.4 s | 3.6 s |
+| django | 3.7 s / 222 MB | 2.8 s / 189 MB | 3.7 s | 4.0 s |
+| vscode | 7.0 s / 475 MB | 2.1 s / 220 MB | 7.1 s / 479 MB | 4.2 s / 233 MB |
+
+Below Django scale a short session pays a tenth of a second and a thirteen-call one on redis pays
+two seconds; from Django up the search is faster, and at VS Code scale it is three to five seconds
+faster on half the memory. The archived runs make 2.6 structural calls per trial, which is the
+left-hand column. `runs/no-snapshot-20260919/` holds the arms, the differential and the timings.
+
+**What this deletes.** `Budget` stops describing a repository and starts describing one answer;
+`--structural` and its three modes are gone; so are the whole-corpus BM25 build, the file-listing
+walk that fed it, the mode routing, and the truncation semantics that came with a standing index.
+What replaces all of it is one sentence in every result: how many files this answer read, out of
+how many the repository holds.
+
 ## The chunk diet that ranked fine and bought nothing
 
 Measuring the Linux kernel showed where a whole-repository snapshot's memory goes, and the concept

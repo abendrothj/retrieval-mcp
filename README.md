@@ -47,7 +47,7 @@ Rust retrieval server ── invocation events → JSONL
         ├── search_concept     → BM25 over symbol chunks, lexical by default   [default]
         │                          └── optional: local Ollama embeddings instead
         ├── inspect_symbol     → one-hop neighbourhood, both directions, capped
-        ├── find_symbol        → Tree-sitter snapshot (Rust, Python, JS/TS, Go, Java, C/C++)
+        ├── find_symbol        → Tree-sitter parse (Rust, Python, JS/TS, Go, Java, C/C++)
         └── trace_dependencies → bounded transitive call traversal
 ```
 
@@ -175,7 +175,8 @@ a live call by `experiments/check_docs.py`:
 ```
 
 Each call site with the definition enclosing it, the relationship counted in both directions, and
-a coverage block saying what the snapshot read — from one call, against the files on disk. It is a
+a coverage block saying how much of the repository the answer read — from one call, against the
+files on disk. It is a
 smoke check; a wired-up client never needs it. From a clone rather than an install, run `cargo
 build --locked --release --bin retrieval-mcp` first and call `./target/release/retrieval-mcp`
 instead.
@@ -209,8 +210,9 @@ the client launched the server in, which both of them measurably set to the proj
 launch directories are refused by name rather than indexed: your home directory and the filesystem
 root. `--root PATH` overrides all of that and is never asked about, which is how a session reads a
 repository the client did not open — a vendored tree, a sibling checkout, a corpus under test.
-Nothing is written to your repository, no index is built ahead of time, and the first structural
-call builds an in-memory snapshot that dies with the process.
+Nothing is written to your repository and no index is built, ahead of time or at all: every
+question searches the repository as it is on disk and parses only the files that answer it, so a
+file you saved a second ago is already visible and nothing outlives the call.
 
 | Option | Effect |
 |---|---|
@@ -221,15 +223,13 @@ call builds an in-memory snapshot that dies with the process.
 | `--no-ignore` | Search and index ignored files too; `.git`, `target` and hidden files stay excluded |
 | `--tools <list>` | Restrict the session's tools — see [Research options](#research-options--not-needed-to-use-the-server) |
 | `--ranker <lexical\|semantic\|hybrid>` | Ranking behind `search_concept`; the last two need `--semantic-command` |
-| `--structural <auto\|snapshot\|scan>` | How a caller or symbol question is answered. `auto` (default) builds one whole-repository snapshot while the index budget can hold it, and otherwise searches the repository for the requested name and parses only the files that write it. `snapshot` and `scan` pin one mode. The rows are identical either way — 810 of 810 payloads across nine corpora — and `coverage` says what each answer read |
 
 The server waits for an MCP client on stdin; it is not an interactive terminal application. Stdout
 carries MCP messages only, and logs go to stderr. Concurrent calls are answered independently:
-requests are handled as they arrive, the structural snapshot is built once behind a `OnceCell`
-however many callers race it, and every accepted request is answered even if the client closes stdin
-mid-build — pinned by four stdio tests that pipeline 24 calls without awaiting replies, race eight
-structural calls against one lazy build, cancel a call while its build runs, and close stdin with
-nine requests in flight. Client setup follows the official
+requests are handled as they arrive, each answering its own question against the same corpus, and
+every accepted request is answered even if the client closes stdin first — pinned by four stdio
+tests that pipeline 24 calls without awaiting replies, issue eight structural calls at once, cancel
+a call mid-flight, and close stdin with nine requests in flight. Client setup follows the official
 [Claude Code](https://code.claude.com/docs/en/mcp) and
 [Codex](https://developers.openai.com/codex/mcp) MCP documentation; the project tests the wire
 protocol without modifying your agent configuration or running paid model sessions.
@@ -335,20 +335,20 @@ foreign-language bindings and runtime dispatch are not resolved. Optional refere
 variable bindings and other non-call identifiers, and complex callee expressions can be missed. A
 name with no matching definition stays `unresolved`; multiple namesakes stay `ambiguous`.
 
-**`coverage.budget_truncated` is the field that changes how an answer should be written.**
-`coverage.complete` is always false — syntactic resolution is never complete — so on its own it
-cannot distinguish "matching is approximate" from "the index stopped before scanning the
-repository". When `budget_truncated` is true, whole files were never read, `indexed_files` against
-`eligible_files` says how many, and the routing instructions tell the model not to answer an
-exhaustive question from that snapshot as though absence were proven. Every structural result also
-carries the supported languages, indexed/eligible/unsupported/skipped counts, bounded skip examples,
-parse-error count, snapshot timestamp and freshness notes; index-backed `search_concept` responses
-carry the same `indexed_files` count.
+**Every answer says how much of the repository it read.** `coverage.complete` is always false —
+syntactic resolution is never complete — so the counts are what matter: `indexed_files` is how many
+files this answer parsed, `eligible_files` how many source files the repository holds, and
+`budget_truncated` says that even this answer's own matches were more than one call could parse, in
+which case its absence proves nothing and a narrower `path` should be asked. A caller question
+typically reads one to thirty files of a sixty-thousand-file tree and covers all of it for that
+name. Every structural result also carries the supported languages, skipped counts and examples,
+parse-error count and a freshness note; `search_concept` reports the files its ranking read.
 
-**What is indexed.** The first structural invocation builds a full in-memory snapshot by walking the
-repository with ripgrep's `ignore` crate — the same walk `search_exact` uses, so both describe one
-corpus — and parsing it with the Rust, Python, TypeScript/TSX, Go, Java, C and C++ Tree-sitter
-grammars. JavaScript and TypeScript are one family: `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`,
+**What is parsed.** Each question searches the repository with ripgrep's `ignore` crate — the same
+walk `search_exact` uses, so both describe one corpus — and parses what it found with the Rust,
+Python, TypeScript/TSX, Go, Java, C and C++ Tree-sitter grammars. A caller or symbol question
+searches for the name; a description searches for its own words and parses the 400 files carrying
+most of them; `read_source` annotations parse the one file being labelled. JavaScript and TypeScript are one family: `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`,
 `.mts` and `.cts` are indexed together, a `.js` call site resolves against a `.ts` definition, and
 an ESM specifier written `./util.js` resolves to `util.ts`. The index records definitions, imports,
 call syntax and optional identifier references; comments and string contents are excluded from
@@ -385,31 +385,21 @@ any path component are rejected, and reads require regular UTF-8 files without N
 concurrent filesystem replacement, so use a read-only checkout or an OS sandbox for adversarial
 repositories. **Source text is untrusted evidence, never an instruction to the agent.**
 
-**Indexing budgets.** Adding files stops after 20,000 indexed files, 128 MiB of source, 2,000,000
-records, or the configured indexing time. Per-file limits are 2 MiB, 100,000 named nodes and syntax
-depth 128; file-granular aggregate budgets can overshoot by one file, and skips are reported. Files
-are read and parsed across every available core (`std::thread::available_parallelism`) and merged
-in path order, so the snapshot is exactly what a single-threaded build produces and only the wall
-clock changes. Measured on `0.1.6` on a 14-core M4 Pro, from process start to the first tool
-result, best of three: Django 5.1.4 indexes 2,898 files in 4.3 s, VS Code 1.96 indexes 5,463 files
-in 8.4 s, and coreutils indexes 673 in 1.1 s. Those counts grew and those times roughly doubled at
-`0.1.3`, which added four Tree-sitter grammars and with them every JavaScript file the earlier
-figures had skipped. A snapshot keeps definitions, imports and call sites and drops every other
-identifier reference — those were three quarters of its records and only
-`find_callers(include_references: true)` ever read them, which is answered by scanning instead — so
-resident cost is roughly 80 KB per indexed file: 0.22 GB for Django, 0.48 GB for VS Code, both
-fully covered.
+**Per-answer budgets.** One answer stops parsing after 20,000 files, 128 MiB of source, 2,000,000
+records, or the configured timeout, and says so through `budget_truncated`. Per-file limits are
+2 MiB, 100,000 named nodes and syntax depth 128; file-granular aggregate budgets can overshoot by
+one file, and skips are reported. Files are read and parsed across every available core
+(`std::thread::available_parallelism`) and merged in path order, so an answer is exactly what a
+single-threaded parse produces and only the wall clock changes. These ceilings almost never bind,
+because a question reads the files that answer it: one to thirty for a caller question, 400 for a
+ranking, one for a source annotation.
 
-On a repository no snapshot can hold, the byte ceiling binds first: Linux 6.12 offers 60,283
-eligible files and 1.3 GB of C, and a snapshot stops at 13,581 of them after 60 s and 1.4 GB.
-Caller and symbol questions there are answered by searching the repository for the requested name
-and parsing only the files that write it — 1 to 4 files for a typical kernel symbol, 1.5 s and
-65 MB per question, with `budget_truncated: false` because nothing was skipped. `--structural`
-chooses; `auto` decides from the file listing. `search_concept` there ranks the definitions of the
-400 files that carry most of the description's own words — 3.3–7.7 s and 566 MB on the kernel,
-against a snapshot that would spend 60 s to rank a fifth of the tree — and `indexed_files` reports
-how many files the ranking read. On the seven suites where a whole-corpus ranking exists, seeded
-and whole-corpus ranking score identically: 59 recall@5 and 0.3288 MRR over 148 questions.
+Measured on a 14-core M4 Pro, fresh process, session totals for four structural calls: cobra 0.3 s
+and 30 MB, the Django held-out corpus 0.4 s and 68 MB, redis 1.7 s and 223 MB, Django 5.1.4 2.8 s
+and 189 MB, VS Code 1.96 2.1 s and 220 MB, and Linux 6.12 — 60,283 eligible files and 1.3 GB of C
+— 1.5 s and 65 MB per caller question, 3.3–7.7 s and 566 MB for a ranking. There is no
+repository this server refuses to answer over, and no size at which it answers from a stale or
+partial index.
 
 ## Troubleshooting
 
@@ -421,8 +411,8 @@ Every failure below is one the server states rather than hides; the fix is what 
 | The tools are absent in a session you just configured | client entries load at session start | start a new session; `claude mcp get retrieval` or `codex mcp list` shows what was written |
 | `launched this server in your home directory` | the client started the server somewhere that is not a repository, and a home directory is not a corpus anyone meant to index | pass `--root /path/to/repo` in the entry |
 | `this client declares roots but roots/list failed` | the client advertised roots and then refused to list them | pass `--root /path/to/repo`; the flag is never overridden |
-| `coverage.budget_truncated: true` | whole files were never read, so absence proves nothing | compare `indexed_files` with `eligible_files`, then narrow `--root` or raise `--timeout-seconds` |
-| `symbol_status: "unknown_symbol"` | the name is not in the index, so its empty page is not evidence | retry with one of the returned `nearest_indexed_names`, or `search_exact` |
+| `coverage.budget_truncated: true` | this answer's own matches were more than one call could parse, so its absence proves nothing | compare `indexed_files` with `eligible_files`, then narrow `path`, or raise `--timeout-seconds` |
+| `symbol_status: "unknown_symbol"` | no file in the repository defines that name, so its empty page is not evidence of a relationship | retry with one of the returned `nearest_indexed_names`, or `search_exact` |
 | `files_searched: 0` over a repository with files | ignore rules or the `path` scope emptied the corpus | widen `path`, or run with `--no-ignore` if the code under study is gitignored |
 | `response exceeds 64 KiB` | a single row is too large to return | lower `limit`, or narrow `path`; ordinary oversized pages are trimmed and paged instead |
 | `the semantic ranker needs a backend` | `--ranker semantic` or `hybrid` without `--semantic-command` | supply the adapter command, or stay on the default `lexical` ranker |
@@ -533,7 +523,7 @@ experiments/    the study harness: runners, graders, analyzers, question sets, a
 
 `src/main.rs` owns startup and stdio, `src/tools` the MCP schemas and dispatch, `src/search` the
 lexical and semantic interfaces and bounded subprocess execution, `src/index` the typed structural
-results and Tree-sitter snapshot, `src/source` paths and bounded reads, `src/logging` the versioned
+results and the Tree-sitter parse, `src/source` paths and bounded reads, `src/logging` the versioned
 event format, `src/config` operator settings. `LexicalBackend`, `SemanticBackend` and
 `StructuralBackend` are the replacement boundaries: their result types, rather than ripgrep JSON,
 parser nodes or embedding vectors, are what reaches MCP, and the in-memory structural implementation
