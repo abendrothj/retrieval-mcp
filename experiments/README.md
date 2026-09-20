@@ -1495,10 +1495,38 @@ turns a test into a comparison with an excuse.
 
 **What it does not do.** `search_concept` ranks definitions across the corpus and `locate` is
 addressed by a line, so both still need a snapshot, and on the kernel that snapshot is still
-truncated at 8,500 files and still says so. A scan session that never asks a concept question never
-builds one — the kernel's first caller answer costs 1.8 s under `auto` — but a session that does
-pays the 56 s. That is the next measurement, not this one. Nothing here ran a model: this is an
-offline correctness and cost result.
+truncated and still says so. A scan session that never asks a concept question never builds one —
+the kernel's first caller answer costs 1.8 s under `auto` — but a session that does pays the 56 s.
+Nothing here ran a model: this is an offline correctness and cost result.
+
+### And then the snapshot could stop holding three quarters of its rows
+
+The scan path made a second change safe. Identifier references — every `name` that is not a call
+site — are about 90% of an index's records once call sites are counted with them, and only 18–25%
+of references are calls: Linux `mm` holds 206,526 references over 186 files, 41,673 of them calls;
+Redis 471,326 with 84,753; Django 715,698 with 180,699. Every reader filters the rest out again —
+the trace, the neighbourhood, `locate`, the caller page — except `find_callers(include_references:
+true)`, one optional flag. With a scan available to answer that flag, the snapshot stops building
+them.
+
+| | before | after |
+|---|---:|---:|
+| Django 5.1.4, 2,898 files | 409 MB, 4.0 s | **222 MB**, 3.9 s |
+| VS Code 1.96, 5,463 files | 739 MB, 7.3 s | **479 MB**, 7.2 s |
+| Linux 6.12, snapshot mode | 8,500 of 60,283 files | **13,581** of 60,283 |
+
+Build time does not move, because parsing was never what the change saved. On the kernel the
+memory does not move either — it is pinned at a ceiling either way — but the ceiling now covers
+60% more of the tree, and the one that binds is no longer the record ceiling but the 128 MiB byte
+ceiling, which a cumulative read of the listing puts at exactly 13,453 files. The tree is still far
+too large to hold, which is why a kernel session answers by scanning.
+
+The acceptance test is the same shape and one column wider: nine corpora, 30 symbols each, now
+through `find_callers`, `find_callers` with `include_references`, `find_symbol`, `inspect_symbol`
+and `trace_dependencies` — **1,350 of 1,350 payloads identical** to the build that held every
+reference. `runs/calls-only-20260919/` holds the arms and their hashes. A snapshot asked directly
+for references it no longer keeps returns an error rather than the smaller set, so a future
+miswiring cannot answer the question quietly.
 
 ## The chunk diet that ranked fine and bought nothing
 

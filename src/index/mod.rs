@@ -433,6 +433,9 @@ pub struct StructuralIndex {
     /// This module's import prefix, read from `go.mod`, when the corpus root is a Go module.
     /// Without it a qualified call cannot be resolved to a directory and none is filtered.
     module_path: Option<String>,
+    /// Whether identifier references were kept. A snapshot drops them; a scan keeps them, because
+    /// the one reader that wants them is answered from a scan.
+    keeps_references: bool,
     symbols: BTreeMap<String, Vec<Symbol>>,
     references: Vec<Reference>,
     references_by_name: BTreeMap<String, Vec<usize>>,
@@ -517,12 +520,37 @@ impl StructuralIndex {
         })
     }
 
+    /// Every row the parser found, identifier references included. This is what a candidate scan
+    /// builds: the file set is small, and `find_callers(include_references: true)` has to be
+    /// answerable from it.
     pub fn from_files(workspace: &Workspace, files: Vec<String>, timeout: Duration) -> Result<Self> {
+        Self::build(workspace, files, timeout, true)
+    }
+
+    /// A whole-repository snapshot, which keeps call sites and drops every other reference.
+    ///
+    /// Measured 2026-09-19, references are about 90% of an index's records and only 18-25% of
+    /// them are calls: Linux `mm` holds 206,526 references over 186 files, of which 41,673 are
+    /// call sites. The rest exist for one optional flag, and every other reader - the trace, the
+    /// neighbourhood, `locate`, the caller page itself - filters them out again. A snapshot
+    /// therefore does not build them, and the flag that wants them is answered by a scan over the
+    /// files that name the symbol.
+    pub fn snapshot(workspace: &Workspace, files: Vec<String>, timeout: Duration) -> Result<Self> {
+        Self::build(workspace, files, timeout, false)
+    }
+
+    fn build(
+        workspace: &Workspace,
+        files: Vec<String>,
+        timeout: Duration,
+        keep_references: bool,
+    ) -> Result<Self> {
         let timestamp = now_ms();
         let mut index = Self {
             // One read at snapshot time: a qualified Go call can only be resolved to a directory
             // when the corpus root is the module those paths are written against.
             module_path: module_path(workspace),
+            keeps_references: keep_references,
             symbols: BTreeMap::new(),
             references: Vec::new(),
             references_by_name: BTreeMap::new(),
@@ -591,8 +619,15 @@ impl StructuralIndex {
                     if parsed.has_error {
                         index.coverage.parse_error_files += 1;
                     }
-                    total_records +=
-                        parsed.symbols.len() + parsed.references.len() + parsed.imports.len();
+                    // The ceiling counts what the index holds, not what the parser saw: a
+                    // snapshot that drops identifier references must be allowed the files their
+                    // absence pays for.
+                    let kept = if keep_references {
+                        parsed.references.len()
+                    } else {
+                        parsed.references.iter().filter(|row| row.kind == "call").count()
+                    };
+                    total_records += parsed.symbols.len() + kept + parsed.imports.len();
                     let lines: Vec<_> = source.lines().collect();
                     for symbol in parsed.symbols {
                         // Containers would re-index every member they hold; keep leaf
@@ -645,6 +680,9 @@ impl StructuralIndex {
                             .push(symbol);
                     }
                     for reference in parsed.references {
+                        if !keep_references && reference.kind != "call" {
+                            continue;
+                        }
                         let reference_index = index.references.len();
                         index
                             .references_by_name
@@ -954,6 +992,14 @@ impl StructuralBackend for StructuralIndex {
 
     fn find_callers(&self, workspace: &Workspace, args: CallerArgs) -> Result<CallersResult> {
         validate_query(&args.name)?;
+        // A snapshot holds call sites only. Answering `include_references` from it would return a
+        // smaller set than the question asked for and look like an answer, so the backend routes
+        // that flag to a scan; this says so if anything ever wires it differently.
+        ensure!(
+            self.keeps_references || !args.include_references.unwrap_or(false),
+            "this index holds call sites only; identifier references are resolved by scanning the \
+             files that name the symbol"
+        );
         let (limit, offset) = pagination(args.limit, args.offset)?;
         let scope = scope(workspace, args.path.as_deref())?;
         let candidates = self.symbols.get(&args.name).cloned().unwrap_or_default();
@@ -1282,7 +1328,8 @@ fn files_naming(
     Ok((candidates, eligible))
 }
 
-/// Structural answers seeded by a search instead of held in a snapshot.
+/// The backend a session answers structural questions with, and the one place that decides where
+/// each answer comes from.
 ///
 /// A whole-repository snapshot is bounded by `Budget`, and on a repository the size of Linux that
 /// bound is reached after 14% of the files: every caller set is then partial by construction, and
@@ -1291,41 +1338,51 @@ fn files_naming(
 /// files even in a 60,000-file tree. Coverage becomes the whole repository and the cost becomes
 /// proportional to the answer.
 ///
-/// The parsing, the attribution and the row construction are the snapshot's own: this builds a
+/// The parsing, the attribution and the row construction are the snapshot's own: a scan builds a
 /// `StructuralIndex` over the candidate files and asks it the question, so a scanned answer and a
-/// snapshot answer differ in what they cover and in nothing else.
+/// held one differ in what they cover and in nothing else.
 ///
-/// Two questions a name cannot seed stay with a whole-repository snapshot: `search_concept` ranks
-/// the corpus's definitions against a description, and `locate` is addressed by a line rather than
-/// by a name. That snapshot is built on the first such question and not before, because a session
-/// that only asks who calls what should not pay a minute and a gigabyte for an index it never
-/// reads. `auto` has already built one to discover that it was truncated, and hands it over.
-pub struct ScanIndex {
+/// Three rules decide:
+///
+/// - A name question goes to the snapshot while one covers the repository, and to a scan when the
+///   budget says it cannot.
+/// - `find_callers(include_references: true)` always scans. A snapshot keeps call sites only,
+///   because identifier references are three quarters of every index's records and nothing else
+///   reads them.
+/// - `search_concept` ranks the corpus's definitions and `locate` is addressed by a line, so both
+///   need a snapshot; it is built on first use and not before, because a session that only asks
+///   who calls what should not pay a minute and a gigabyte for an index it never reads.
+pub struct Retrieval {
     workspace: Workspace,
     timeout: Duration,
     no_ignore: bool,
+    /// Whether a name question is answered from the snapshot. False when the budget cannot hold
+    /// the repository, or when the operator pinned `--structural scan`.
+    held: bool,
     snapshot: std::sync::OnceLock<StructuralIndex>,
     /// What `coverage()` answers before any snapshot exists: a scan reads the repository per
     /// question, so there is no standing index to describe.
     unbuilt: Coverage,
 }
 
-impl ScanIndex {
+impl Retrieval {
     pub fn new(
         workspace: Workspace,
         timeout: Duration,
         no_ignore: bool,
+        held: bool,
         snapshot: Option<StructuralIndex>,
     ) -> Self {
-        let held = std::sync::OnceLock::new();
+        let cell = std::sync::OnceLock::new();
         if let Some(index) = snapshot {
-            let _ = held.set(index);
+            let _ = cell.set(index);
         }
         Self {
             workspace,
             timeout,
             no_ignore,
-            snapshot: held,
+            held,
+            snapshot: cell,
             unbuilt: Coverage {
                 snapshot_id: "scan".into(),
                 indexed_at_ms: now_ms(),
@@ -1353,8 +1410,17 @@ impl ScanIndex {
             return Ok(index);
         }
         let files = repository_files(&self.workspace, self.no_ignore)?;
-        let built = StructuralIndex::from_files(&self.workspace, files, self.timeout)?;
+        let built = StructuralIndex::snapshot(&self.workspace, files, self.timeout)?;
         Ok(self.snapshot.get_or_init(|| built))
+    }
+
+    /// The index that answers one name question: the snapshot when it covers the repository, and
+    /// otherwise a scan over the files that write the name.
+    fn resolve(&self, names: &[&str]) -> Result<Resolved<'_>> {
+        if self.held {
+            return Ok(Resolved::Held(self.snapshot()?));
+        }
+        Ok(Resolved::Scanned(Box::new(self.scan(names)?)))
     }
 
     /// An index over exactly the files that name these symbols, reporting what it read.
@@ -1392,9 +1458,25 @@ impl ScanIndex {
     }
 }
 
-impl StructuralBackend for ScanIndex {
+/// One question's index: the session's snapshot, borrowed, or one built for this call. The scanned
+/// index is boxed because it is fifty times the size of a reference and every answer moves one.
+enum Resolved<'a> {
+    Held(&'a StructuralIndex),
+    Scanned(Box<StructuralIndex>),
+}
+
+impl Resolved<'_> {
+    fn index(&self) -> &StructuralIndex {
+        match self {
+            Self::Held(index) => index,
+            Self::Scanned(index) => index,
+        }
+    }
+}
+
+impl StructuralBackend for Retrieval {
     fn inspect_symbol(&self, workspace: &Workspace, args: InspectArgs) -> Result<InspectResult> {
-        self.scan(&[args.name.as_str()])?.inspect_symbol(workspace, args)
+        self.resolve(&[args.name.as_str()])?.index().inspect_symbol(workspace, args)
     }
 
     fn find_symbol(
@@ -1403,14 +1485,22 @@ impl StructuralBackend for ScanIndex {
         args: SymbolArgs,
     ) -> Result<StructuralResult<Symbol>> {
         let name = args.name.clone();
-        let mut found = self.scan(&[name.as_str()])?.find_symbol(workspace, args)?;
+        let resolved = self.resolve(&[name.as_str()])?;
+        let mut found = resolved.index().find_symbol(workspace, args)?;
         self.suggest(&name, &found.symbol_status, &mut found.nearest_indexed_names);
         Ok(found)
     }
 
+    /// `include_references` is the one question a snapshot cannot answer, because it no longer
+    /// holds identifier references; it is scanned for even when a snapshot covers the repository.
     fn find_callers(&self, workspace: &Workspace, args: CallerArgs) -> Result<CallersResult> {
         let name = args.name.clone();
-        let mut found = self.scan(&[name.as_str()])?.find_callers(workspace, args)?;
+        let resolved = if args.include_references.unwrap_or(false) {
+            Resolved::Scanned(Box::new(self.scan(&[name.as_str()])?))
+        } else {
+            self.resolve(&[name.as_str()])?
+        };
+        let mut found = resolved.index().find_callers(workspace, args)?;
         self.suggest(&name, &found.retrieval.symbol_status,
                      &mut found.retrieval.nearest_indexed_names);
         Ok(found)
@@ -1419,12 +1509,18 @@ impl StructuralBackend for ScanIndex {
     /// A trace reaches names the question never wrote, so one scan cannot seed it. Each round
     /// scans for every name the previous round's edges named and re-traces over the union, which
     /// converges: a hop adds names or it adds nothing, and the loop stops on either, bounded by
-    /// the depth the caller asked for.
+    /// the depth the caller asked for. A snapshot that covers the repository already holds them
+    /// all and answers in one pass.
     fn trace_dependencies(
         &self,
         workspace: &Workspace,
         args: TraceArgs,
     ) -> Result<DependencyTraceResult> {
+        if self.held {
+            let mut traced = self.snapshot()?.trace_dependencies(workspace, args.clone())?;
+            self.suggest(&args.name, &traced.symbol_status, &mut traced.nearest_indexed_names);
+            return Ok(traced);
+        }
         let mut names: BTreeSet<String> = BTreeSet::from([args.name.clone()]);
         let rounds = args.depth.unwrap_or(3).clamp(1, 5);
         let mut traced = {
@@ -3119,11 +3215,12 @@ mod tests {
             ("src/unrelated.py", "def spin():\n    return 1\n"),
             ("docs/notes.txt", "normalize is described here\n"),
         ]);
-        let scan = ScanIndex::new(
+        let scan = Retrieval::new(
             workspace.clone(),
             Duration::from_secs(5),
             false,
-            Some(StructuralIndex::from_files(&workspace, Vec::new(), Duration::from_secs(5))
+            false,
+            Some(StructuralIndex::snapshot(&workspace, Vec::new(), Duration::from_secs(5))
                 .unwrap()),
         );
         let args = CallerArgs {
@@ -3155,17 +3252,76 @@ mod tests {
         drop(dir);
     }
 
+    /// Identifier references are three quarters of an index's records and one optional flag reads
+    /// them, so a snapshot does not build them. The flag still has to answer exactly what it
+    /// always answered, which it does by scanning the files that write the name.
+    #[test]
+    fn a_snapshot_drops_identifier_references_and_the_flag_still_answers_them() {
+        let files = vec!["util.py".to_string(), "service.py".to_string()];
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("util.py"), "def normalize(value):\n    return value\n")
+            .unwrap();
+        std::fs::write(
+            dir.path().join("service.py"),
+            "from util import normalize\n\n\
+             def handle(row):\n\
+             \treturn normalize(row)\n\n\
+             def pick(flag):\n\
+             \treturn normalize if flag else None\n",
+        )
+        .unwrap();
+        let workspace = Workspace::new(dir.path()).unwrap();
+        let full =
+            StructuralIndex::from_files(&workspace, files.clone(), Duration::from_secs(5)).unwrap();
+        let held = StructuralIndex::snapshot(&workspace, files, Duration::from_secs(5)).unwrap();
+        assert!(full.references.iter().any(|row| row.kind != "call"), "the parser found some");
+        assert!(held.references.iter().all(|row| row.kind == "call"), "the snapshot kept none");
+        // Asked directly, the snapshot refuses rather than returning the smaller set as an answer.
+        let args = CallerArgs {
+            name: "normalize".into(),
+            path: None,
+            include_references: Some(true),
+            limit: None,
+            offset: None,
+        };
+        assert!(held.find_callers(&workspace, args.clone()).is_err());
+        // Through the backend, in the mode that prefers the snapshot, the flag is scanned for and
+        // returns what a full index returns - the call in `handle` and the bare name in `pick`.
+        let backend = Retrieval::new(
+            workspace.clone(),
+            Duration::from_secs(5),
+            false,
+            true,
+            Some(held),
+        );
+        let routed = backend.find_callers(&workspace, args.clone()).unwrap();
+        let expected = full.find_callers(&workspace, args).unwrap();
+        assert_eq!(
+            serde_json::to_value(&routed.retrieval.page).unwrap(),
+            serde_json::to_value(&expected.retrieval.page).unwrap()
+        );
+        let owners: Vec<_> = routed
+            .retrieval
+            .page
+            .results
+            .iter()
+            .map(|hit| hit.reference.caller.clone().unwrap_or_default())
+            .collect();
+        assert_eq!(owners, vec!["handle".to_string(), "pick".to_string()]);
+    }
+
     /// A name the corpus never writes is answered, not crashed into: the scan finds no candidate
     /// file, parses nothing, and the empty index reports the unknown symbol the snapshot would.
     #[test]
     fn a_scan_for_a_name_nothing_writes_reports_an_unknown_symbol() {
         let (_dir, workspace, _index) =
             snapshot(&[("src/util.py", "def normalize(value):\n    return value\n")]);
-        let scan = ScanIndex::new(
+        let scan = Retrieval::new(
             workspace.clone(),
             Duration::from_secs(5),
             false,
-            Some(StructuralIndex::from_files(&workspace, Vec::new(), Duration::from_secs(5))
+            false,
+            Some(StructuralIndex::snapshot(&workspace, Vec::new(), Duration::from_secs(5))
                 .unwrap()),
         );
         let found = scan

@@ -394,16 +394,19 @@ clock changes. Measured on `0.1.6` on a 14-core M4 Pro, from process start to th
 result, best of three: Django 5.1.4 indexes 2,898 files in 4.3 s, VS Code 1.96 indexes 5,463 files
 in 8.4 s, and coreutils indexes 673 in 1.1 s. Those counts grew and those times roughly doubled at
 `0.1.3`, which added four Tree-sitter grammars and with them every JavaScript file the earlier
-figures had skipped. Resident cost is roughly 150 KB per indexed file — about 0.35 GB for Django,
-0.8 GB for VS Code, both fully covered.
+figures had skipped. A snapshot keeps definitions, imports and call sites and drops every other
+identifier reference — those were three quarters of its records and only
+`find_callers(include_references: true)` ever read them, which is answered by scanning instead — so
+resident cost is roughly 80 KB per indexed file: 0.22 GB for Django, 0.48 GB for VS Code, both
+fully covered.
 
-On a repository no snapshot can hold, the record ceiling is what binds and it binds early: Linux
-6.12 offers 60,283 eligible files and 1.3 GB of C, and a snapshot stops at 8,500 of them after
-57 s and 1.4 GB. Caller and symbol questions there are answered by searching the repository for
-the requested name and parsing only the files that write it — 1 to 4 files for a typical kernel
-symbol, 1.5 s and 65 MB per question, with `budget_truncated: false` because nothing was skipped.
-`--structural` chooses; `auto` decides from the file listing. `search_concept` still ranks over a
-snapshot and still says how much of the corpus that snapshot covers.
+On a repository no snapshot can hold, the byte ceiling binds first: Linux 6.12 offers 60,283
+eligible files and 1.3 GB of C, and a snapshot stops at 13,581 of them after 60 s and 1.4 GB.
+Caller and symbol questions there are answered by searching the repository for the requested name
+and parsing only the files that write it — 1 to 4 files for a typical kernel symbol, 1.5 s and
+65 MB per question, with `budget_truncated: false` because nothing was skipped. `--structural`
+chooses; `auto` decides from the file listing. `search_concept` still ranks over a snapshot and
+still says how much of the corpus that snapshot covers.
 
 ## Troubleshooting
 
@@ -506,7 +509,7 @@ subprocess calls.
 
 ```sh
 cargo build --locked --release --bin retrieval-mcp
-cargo test --locked --all-targets            # 33 library, 22 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 34 library, 22 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
 python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 244 tests
 python3 experiments/check_docs.py            # the docs still describe the server that exists

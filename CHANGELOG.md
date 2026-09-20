@@ -6,6 +6,19 @@ releases only.
 
 ## Unreleased
 
+**The snapshot stops storing what only one flag reads.** Identifier references are about 90% of an
+index's records with call sites included, and only 18–25% of those references are calls: Linux
+`mm` holds 206,526 references over 186 files, of which 41,673 are call sites. Every reader except
+`find_callers(include_references: true)` filters the rest out again, so a snapshot no longer builds
+them, and that flag is answered by scanning the files that name the symbol — the path the previous
+entry added. Django 5.1.4 now indexes its 2,898 files in 222 MB instead of 409 MB, VS Code 1.96 its
+5,463 in 479 MB instead of 739 MB, and Linux 6.12 fits 13,581 files under the same ceilings instead
+of 8,500, where the byte ceiling now binds rather than the record ceiling. Build times are
+unchanged, because parsing was never the part that was saved. The answers are unchanged too:
+nine corpora, 30 symbols each through `find_callers`, `find_callers` with `include_references`,
+`find_symbol`, `inspect_symbol` and `trace_dependencies`, **1,350 of 1,350 payloads identical** to
+the build that held every reference.
+
 **A repository too large to index is no longer a repository this server answers partially.** A
 snapshot is bounded by `Budget`, and on Linux 6.12 that bound lands after 8,500 of 60,283 eligible
 files: `find_callers("vfs_read")` returned nothing, correctly labelled partial, for 57 seconds and
