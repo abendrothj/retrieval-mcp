@@ -112,19 +112,27 @@ def main():
     retrieval = load_mcp_retrieval(mcp_config)
     retrieval_tools = load_retrieval_tools(mcp_config)
 
-    # Isolation: this trial's Codex home carries the subscription credential and nothing else.
+    # Isolation, and one shared credential.
     #
     # `--ignore-user-config` covers Codex's own config and does not cover the operator's home
-    # directory. Every trial of the first Linux run opened
+    # directory. Every trial of the first Linux launch opened
     # `~/.agents/skills/retrieval-mcp/SKILL.md` as its first command - a routing guide for the very
     # tools under test, written by this project, read by both arms from outside the corpus. So the
-    # trial gets its own HOME as well: a shell started in it finds no profile, no skills directory
-    # and no agent instructions, and the corpus copy is the only evidence in the session.
-    home = run_dir / "codex-home"
+    # trial gets its own HOME: a shell started in it finds no profile, no skills directory and no
+    # agent instructions, and the corpus copy is the only evidence in the session.
+    #
+    # The credential cannot be per-trial. A subscription refresh token is single-use, so copying
+    # `auth.json` into 126 trial homes means the first refresh invalidates every other copy: the
+    # second launch died at trial 41 with "your refresh token was already used". One shared
+    # credential home, seeded once and written back to by whichever trial refreshes, keeps the
+    # chain coherent - trials are serial, so there is no race - while HOME stays trial-local.
+    home = Path(os.environ.get("CODEX_CREDENTIAL_HOME") or run_dir / "codex-home")
     home.mkdir(parents=True, exist_ok=True)
     credential = Path(os.environ.get("CODEX_AUTH_SOURCE", Path.home() / ".codex" / "auth.json"))
-    if credential.is_file():
+    if credential.is_file() and not (home / "auth.json").is_file():
         shutil.copy2(credential, home / "auth.json")
+    session_home = run_dir / "codex-home"
+    session_home.mkdir(parents=True, exist_ok=True)
 
     command = ["codex", "exec", "--json", "--ignore-user-config", "--skip-git-repo-check",
                "--ephemeral", "--sandbox", "read-only", "--cd", os.getcwd(), "--model", model]
@@ -133,8 +141,9 @@ def main():
                     "-c", "mcp_servers.retrieval.args=" + json.dumps(retrieval.get("args", []))]
     command.append(prompt)
 
-    isolated = dict(os.environ, CODEX_HOME=str(home), HOME=str(home),
-                    XDG_CONFIG_HOME=str(home / "config"), XDG_DATA_HOME=str(home / "data"))
+    isolated = dict(os.environ, CODEX_HOME=str(home), HOME=str(session_home),
+                    XDG_CONFIG_HOME=str(session_home / "config"),
+                    XDG_DATA_HOME=str(session_home / "data"))
     process = subprocess.run(command, env=isolated, capture_output=True, text=True, timeout=None)
     (run_dir / "codex-events.jsonl").write_text(process.stdout, encoding="utf-8")
     (run_dir / "codex-stderr.log").write_text(process.stderr, encoding="utf-8")

@@ -66,45 +66,78 @@ class CodexParserTests(unittest.TestCase):
 
 
 class CodexIsolationTests(unittest.TestCase):
-    def test_the_trial_runs_with_its_own_home_so_machine_skills_are_invisible(self):
+    def run_wrapper(self, tmp, extra_env=None):
+        """Drive the wrapper against a fake `codex` that asserts its own environment."""
+        root = Path(tmp)
+        corpus = root / "corpus"
+        corpus.mkdir()
+        run_dir = root / "run"
+        run_dir.mkdir()
+        prompt = root / "prompt.txt"
+        prompt.write_text("Return JSON.", encoding="utf-8")
+        mcp = root / "mcp.json"
+        mcp.write_text(json.dumps({"mcpServers": {}}), encoding="utf-8")
+        binary = root / "bin"
+        binary.mkdir()
+        fake = binary / "codex"
+        fake.write_text(textwrap.dedent("""\
+            #!/usr/bin/env python3
+            import json, os, sys
+            home = os.environ["HOME"]
+            assert home.endswith("codex-home"), home
+            assert os.environ["XDG_CONFIG_HOME"].startswith(home)
+            expected = os.environ.get("EXPECT_CODEX_HOME", home)
+            assert os.environ["CODEX_HOME"] == expected, (os.environ["CODEX_HOME"], expected)
+            assert "--ignore-user-config" in sys.argv
+            print(json.dumps({"type": "item.completed",
+                              "item": {"type": "agent_message", "text": '{"answer": "ok"}'}}))
+            print(json.dumps({"type": "turn.completed",
+                              "usage": {"input_tokens": 5, "output_tokens": 1}}))
+            """))
+        fake.chmod(0o755)
+        env = dict(os.environ, PATH=f"{binary}{os.pathsep}{os.environ['PATH']}",
+                   **(extra_env or {}))
+        wrapper = Path(__file__).resolve().parents[1] / "codex_wrapper.py"
+        process = subprocess.run(
+            [sys.executable, str(wrapper), "gpt-5.6-luna", str(mcp), str(prompt), str(run_dir)],
+            cwd=corpus, env=env, capture_output=True, text=True, check=True)
+        result = json.loads(process.stdout.splitlines()[-1])
+        self.assertFalse(result["is_error"])
+        self.assertEqual(result["result"], '{"answer": "ok"}')
+        return root, run_dir
+
+    def test_the_session_runs_with_its_own_home_so_machine_skills_are_invisible(self):
         """HOME, not just CODEX_HOME: `--ignore-user-config` never covered ~/.agents/skills."""
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            corpus = root / "corpus"
-            corpus.mkdir()
-            run_dir = root / "run"
-            run_dir.mkdir()
-            prompt = root / "prompt.txt"
-            prompt.write_text("Return JSON.", encoding="utf-8")
-            mcp = root / "mcp.json"
-            mcp.write_text(json.dumps({"mcpServers": {}}), encoding="utf-8")
-            binary = root / "bin"
-            binary.mkdir()
-            fake = binary / "codex"
-            fake.write_text(textwrap.dedent("""\
-                #!/usr/bin/env python3
-                import json, os, sys
-                home = os.environ["HOME"]
-                assert home == os.environ["CODEX_HOME"], (home, os.environ["CODEX_HOME"])
-                assert home.endswith("codex-home"), home
-                assert os.environ["XDG_CONFIG_HOME"].startswith(home)
-                assert "--ignore-user-config" in sys.argv
-                print(json.dumps({"type": "item.completed",
-                                  "item": {"type": "agent_message", "text": '{"answer": "ok"}'}}))
-                print(json.dumps({"type": "turn.completed",
-                                  "usage": {"input_tokens": 5, "output_tokens": 1}}))
-                """))
-            fake.chmod(0o755)
-            env = dict(os.environ, PATH=f"{binary}{os.pathsep}{os.environ['PATH']}")
-            wrapper = Path(__file__).resolve().parents[1] / "codex_wrapper.py"
-            process = subprocess.run(
-                [sys.executable, str(wrapper), "gpt-5.6-luna", str(mcp), str(prompt), str(run_dir)],
-                cwd=corpus, env=env, capture_output=True, text=True, check=True)
-            result = json.loads(process.stdout.splitlines()[-1])
-            self.assertFalse(result["is_error"])
-            self.assertEqual(result["result"], '{"answer": "ok"}')
-            self.assertTrue((run_dir / "codex-home" / "auth.json").is_file()
-                            or not (Path.home() / ".codex" / "auth.json").is_file())
+            self.run_wrapper(tmp)
+
+    def test_a_shared_credential_home_is_seeded_once_and_then_left_alone(self):
+        """A subscription refresh token is single-use, so 126 copies of it cannot all be valid.
+
+        The second Linux launch died at trial 41 with "your refresh token was already used". The
+        credential lives in one directory that every trial shares and whichever trial refreshes
+        writes back to; only the session state is per-trial.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            shared = Path(tmp) / "credential"
+            shared.mkdir()
+            source = Path(tmp) / "auth.json"
+            source.write_text(json.dumps({"tokens": {"refresh_token": "first"}}), encoding="utf-8")
+            root, run_dir = self.run_wrapper(tmp, {
+                "CODEX_CREDENTIAL_HOME": str(shared), "CODEX_AUTH_SOURCE": str(source),
+                "EXPECT_CODEX_HOME": str(shared)})
+            self.assertEqual(json.loads((shared / "auth.json").read_text())["tokens"],
+                             {"refresh_token": "first"})
+            # A refresh during the trial must survive into the next one.
+            (shared / "auth.json").write_text(
+                json.dumps({"tokens": {"refresh_token": "second"}}), encoding="utf-8")
+            with tempfile.TemporaryDirectory() as again:
+                self.run_wrapper(again, {
+                    "CODEX_CREDENTIAL_HOME": str(shared), "CODEX_AUTH_SOURCE": str(source),
+                    "EXPECT_CODEX_HOME": str(shared)})
+            self.assertEqual(json.loads((shared / "auth.json").read_text())["tokens"],
+                             {"refresh_token": "second"})
+            self.assertFalse((run_dir / "codex-home" / "auth.json").exists())
 
 
 if __name__ == "__main__":

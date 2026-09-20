@@ -86,7 +86,7 @@ any of the four features it was found underneath.
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Thirty-eight defects in it have produced or nearly
+The harness is the second experimental subject. Thirty-nine defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
 some penalised it, one was found inside its own single held-out loss, one would have made every
 brace-language caller question unauthorable, one scored three arms to zero on questions they had
@@ -97,7 +97,7 @@ evaluator, two in the server. The seven newest were found by taking the harness 
 Linux-kernel corpus: two in the evaluator's reading of C, one in the server's, one in the offline
 ranking instruments, one in the chunk-diet study that followed, and two while authoring the kernel
 agent study — including the only one so far that reached beyond its own run, since the same leak
-sat in all 738 archived Codex trials. Each is
+sat in all 738 archived Codex trials, and one introduced by that leak's own repair. Each is
 pinned by a test. This table is the authoritative list; prose below refers to it rather than to
 ordinals.
 
@@ -141,6 +141,7 @@ ordinals.
 | `quality_pass` could not index a C function whose parameter list wraps | The kernel writes most long signatures across lines, so golds naming them looked undefined and `validate_suite.py` refused a correct question |
 | `comparison_runner` dropped every directory named `target` at any depth | Linux's `scripts/target`, `drivers/target` and `include/target` vanished from both arms' corpus copies — a Rust build-artifact rule silently deleting kernel subsystems, and the fingerprint would have recorded the mutilated tree as the corpus |
 | Codex trials read the operator's home directory | `codex exec --ignore-user-config` covers Codex's own config and not `~`, so all 7 trials of the first Linux launch — and all 738 archived Codex trials before them — opened `~/.agents/skills/retrieval-mcp/SKILL.md` as their first command: a routing guide for the four tools under test, written by this project, read by both arms from outside the corpus. The treatment arm got a manual for its own tools; the control spent a call reading about tools it does not have |
+| A single-use refresh token copied into every trial's credential home | The isolation fix above gave each trial its own `CODEX_HOME` with a copy of `auth.json`; the first token refresh invalidated all 125 remaining copies, so the second Linux launch died at trial 41 on six consecutive 401s, and the operator's own credential had to be re-issued. Read as an arm failure rather than an auth failure, it would have been six trials of "the client aborted" attributed to whichever arm drew them |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
 
