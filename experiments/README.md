@@ -1528,6 +1528,56 @@ reference. `runs/calls-only-20260919/` holds the arms and their hashes. A snapsh
 for references it no longer keeps returns an error rather than the smaller set, so a future
 miswiring cannot answer the question quietly.
 
+### Ranking a repository you cannot index, and the heuristic that looked obvious
+
+`search_concept` was the last reader that needed a whole-repository snapshot, so a kernel session
+still paid 60 s and 1.45 GB for one that covers 13,581 of 60,283 files and ranks out of whatever
+the walk reached first: asked to "read bytes from a file descriptor into a user buffer" it
+answered `block/partitions/aix.c` and `arch/powerpc/.../spufs/file.c`. The candidate-scan idea
+applies here too — a description is made of words, and a file writing none of them holds nothing
+worth ranking — so the query seeds a file set and BM25 ranks the definitions of those files.
+
+**The first registration missed, and the miss is the interesting part.**
+`runs/seeded-concept-20260919/` registered seeding on the query's *four longest words*, on the
+theory that length is the only rarity estimate available without the corpus statistics a snapshot
+would have provided. Over the same seven suites the chunk-diet study used: pooled recall@5 51
+against the snapshot's 59, MRR 0.2683 against 0.3288, `dj-heldout` and `etcd-mixed` down four
+answers each — a rejection on the per-suite criterion alone.
+
+The audit named the mechanism in one pass. Six of the nine lost golds sat in files that carry
+*none* of the four seeded words, because a question's long words are English — "immediately",
+"qualified", "definition", "reconstruction" — while the word that finds the file is short and
+technical: `wsgi`, `flush`, `fd`, `tls`, `wasm`. Length is a rarity estimate for prose and an
+anti-estimate for code.
+
+**Seeding on every word ties exactly.** An exploratory arm using every token of three characters
+or more scored 59 and 0.3288 — the snapshot's figures, suite for suite. It was chosen after
+looking, so it was registered again and re-run into fresh artifacts rather than adopted on the
+look: `runs/seeded-concept-confirm-20260919/`, same criteria, both arms identical in all seven
+suites over five corpora.
+
+| | snapshot | seeded |
+|---|---|---|
+| pooled recall@5 / MRR, 148 questions | 59 / 0.3288 | 59 / 0.3288 |
+| warm query, corpus that fits | 1–3 ms | 200–550 ms |
+| Linux 6.12, first answer | 60 s, 1,447 MB, 13,581 of 60,283 files | 3.3–7.7 s, 566 MB, 400 files |
+
+The latency row is why this answers only where a snapshot cannot: a warm snapshot is two orders of
+magnitude faster per query, and on a corpus that fits it is also complete. What the kernel numbers
+are *not* is a result — no suite measures a corpus that large, so "`include/linux/workqueue.h` and
+`kernel/workqueue.c` instead of `arch/x86` and `block/partitions`" is an observation. A kernel-scale
+concept suite would settle it, and does not exist.
+
+### The ceilings stayed, and that is a measurement
+
+With identifier references gone, the obvious next move was to raise the byte ceiling and let a
+large repository hold more of itself. `runs/ceilings-20260919/` measured it: 128 MiB holds 13,581
+kernel files at 1,419 MB, 256 MiB holds 15,943 at 1,638 MB, and 512 MiB holds 19,648 at 1,814 MB —
+where the 20,000-file ceiling takes over. Quadrupling the ceiling buys 45% more files for 28% more
+memory, and a third of a repository answers an exhaustive caller question no better than a fifth
+does; that question is answered by a scan covering all of it in 1.5 s and 65 MB. A corpus that fits
+is unaffected at every setting. No change.
+
 ## The chunk diet that ranked fine and bought nothing
 
 Measuring the Linux kernel showed where a whole-repository snapshot's memory goes, and the concept

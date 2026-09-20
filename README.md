@@ -405,8 +405,11 @@ eligible files and 1.3 GB of C, and a snapshot stops at 13,581 of them after 60 
 Caller and symbol questions there are answered by searching the repository for the requested name
 and parsing only the files that write it — 1 to 4 files for a typical kernel symbol, 1.5 s and
 65 MB per question, with `budget_truncated: false` because nothing was skipped. `--structural`
-chooses; `auto` decides from the file listing. `search_concept` still ranks over a snapshot and
-still says how much of the corpus that snapshot covers.
+chooses; `auto` decides from the file listing. `search_concept` there ranks the definitions of the
+400 files that carry most of the description's own words — 3.3–7.7 s and 566 MB on the kernel,
+against a snapshot that would spend 60 s to rank a fifth of the tree — and `indexed_files` reports
+how many files the ranking read. On the seven suites where a whole-corpus ranking exists, seeded
+and whole-corpus ranking score identically: 59 recall@5 and 0.3288 MRR over 148 questions.
 
 ## Troubleshooting
 
@@ -509,7 +512,7 @@ subprocess calls.
 
 ```sh
 cargo build --locked --release --bin retrieval-mcp
-cargo test --locked --all-targets            # 34 library, 22 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 35 library, 22 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
 python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 244 tests
 python3 experiments/check_docs.py            # the docs still describe the server that exists

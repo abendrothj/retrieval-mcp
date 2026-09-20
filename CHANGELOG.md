@@ -6,6 +6,30 @@ releases only.
 
 ## Unreleased
 
+**`search_concept` stops needing an index of a repository that cannot be indexed.** It was the
+last reader that required a whole-repository snapshot, and on Linux 6.12 that snapshot costs 60 s
+and 1.45 GB, covers 13,581 of 60,283 files, and answers out of whatever the walk reached first:
+asked to "read bytes from a file descriptor into a user buffer" it returned `block/partitions/aix.c`
+and `arch/powerpc/.../spufs/file.c`. Where no snapshot covers the corpus, the description's own
+words now choose the files — the 400 that carry most of them — and BM25 ranks their definitions:
+3.3–7.7 s and 566 MB on the kernel, and "queue a work item on a workqueue" answers with
+`include/linux/workqueue.h` and `kernel/workqueue.c`. `locate` labels a hit by parsing that one
+file rather than the repository, and `indexed_files` now reports what a ranking read rather than
+zero. Snapshot mode is untouched: a warm snapshot answers in 1–3 ms against a seeded query's
+200–550 ms, so this runs only where the snapshot cannot.
+
+The first registered seeding lost eight answers in 148 and is published as a miss: it seeded on
+the query's four longest words, on the theory that length stands in for rarity, and six of nine
+lost golds sat in files carrying none of them — a question's long words are English while the word
+that finds the file is `wsgi`, `flush`, `fd` or `tls`. Seeding on every word of three characters
+or more was registered again and re-run: 59 recall@5 and 0.3288 MRR on both arms, identical in all
+seven suites over five corpora.
+
+**The index ceilings are unchanged, and now that is a measurement too.** With references gone,
+quadrupling the byte ceiling buys 45% more kernel files for 28% more resident memory and runs into
+the 20,000-file ceiling at 19,648 — and a third of a repository answers an exhaustive caller
+question no better than a fifth does. That question is answered by scanning.
+
 **The snapshot stops storing what only one flag reads.** Identifier references are about 90% of an
 index's records with call sites included, and only 18–25% of those references are calls: Linux
 `mm` holds 206,526 references over 186 files, of which 41,673 are call sites. Every reader except

@@ -403,14 +403,17 @@ impl RetrievalServer {
             .fields
             .as_deref()
             .is_some_and(|fields| fields.iter().any(|field| field == "excerpt"));
-        let lexical = if ranker.needs_index() {
-            self.index(session)
-                .await?
-                .search_concept(&session.workspace, &args.query, args.path.as_deref(),
-                                (wanted + offset).min(100))?
+        let ranked = if ranker.needs_index() {
+            Some(
+                self.index(session)
+                    .await?
+                    .search_concept(&session.workspace, &args.query, args.path.as_deref(),
+                                    (wanted + offset).min(100))?,
+            )
         } else {
-            Vec::new()
+            None
         };
+        let lexical = ranked.as_ref().map(|r| r.regions.clone()).unwrap_or_default();
         let mut result = if ranker.needs_backend() {
             let backend = self.semantic.as_ref().ok_or_else(|| anyhow::anyhow!("the semantic ranker needs a backend; start with --semantic-command '[\"/absolute/path/to/backend\"]' or use --ranker lexical"))?;
             let dense = backend.search(&session.workspace, args).await?;
@@ -424,10 +427,12 @@ impl RetrievalServer {
                                           include_excerpt, "bm25/symbol-chunks",
                                           "Lexical BM25 over indexed definitions; no embedding model or service.")?
         };
-        if ranker.needs_index() {
-            // An index-backed empty page is only interpretable next to the corpus size: zero
-            // indexed files means ignore rules or the root emptied the corpus, not absence.
-            result.indexed_files = Some(self.index(session).await?.coverage().indexed_files);
+        if let Some(ranked) = &ranked {
+            // An index-backed empty page is only interpretable next to the corpus size: zero files
+            // read means ignore rules or the root emptied the corpus, not absence. Where the
+            // ranking chose its files from the description, this is how many it read, not how
+            // large the repository is.
+            result.indexed_files = Some(ranked.files);
         }
         if self.config.structural() {
             let index = self.index(session).await?;

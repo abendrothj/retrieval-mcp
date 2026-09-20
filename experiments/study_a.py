@@ -73,9 +73,14 @@ def scored(ranked, relevant):
     return None
 
 
-def query_all(server, root, ranker, semantic_command, questions, limit, timeout, cache):
+def query_all(server, root, ranker, semantic_command, questions, limit, timeout, cache,
+              structural=None):
     command = [str(server), "--root", str(root), "--profile", "D", "--ranker", ranker,
                "--timeout-seconds", str(timeout)]
+    # `search_concept` is answered from a whole-repository snapshot or from files the description
+    # itself chose, and which one is an arm of its own study; the flag has to reach the server.
+    if structural:
+        command += ["--structural", structural]
     if ranker != "lexical":
         command += ["--semantic-command", json.dumps(semantic_command)]
     rows, latencies = {}, {}
@@ -124,7 +129,8 @@ def report(args):
     conditions = {}
     for ranker in args.rankers:
         rows, cold, latencies = query_all(args.server, args.root, ranker, args.semantic_command,
-                                          graded, args.limit, args.timeout, args.cache)
+                                          graded, args.limit, args.timeout, args.cache,
+                                          args.structural)
         cells = {}
         for task in graded:
             relevant = relevant_symbols(task)
@@ -217,6 +223,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     base = Path(__file__).resolve().parent
     parser.add_argument("--root", type=Path, required=True)
+    parser.add_argument("--structural", choices=("auto", "snapshot", "scan"),
+                        help="how the server answers search_concept: from one whole-repository "
+                             "snapshot, or from the files the description's own words point at")
     parser.add_argument("--questions", type=Path, default=base / "suites/comparison_questions.json")
     parser.add_argument("--server", type=Path, default=base.parent / "target/release/retrieval-mcp")
     parser.add_argument("--semantic-command", type=benchmark.command_array, required=True)

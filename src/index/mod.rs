@@ -127,6 +127,18 @@ const SYNTAX_LIMITATIONS: &str = "Syntax only: no type checking, macro expansion
     unique. Hidden files and .git are excluded; ignore files are honored unless the server runs \
     with --no-ignore. Verify uncertain results with read_source.";
 
+/// How many of a description's words seed a ranking, and how many files that seeding reads.
+///
+/// Every word, not the rare-looking ones. Seeding on a query's four longest words was measured
+/// first, on the theory that length stands in for the corpus rarity no scan can know, and it lost
+/// eight answers in 148: a question's long words are English - "immediately", "qualified",
+/// "definition" - while the word that finds the file is short and technical - `wsgi`, `flush`,
+/// `fd`, `tls`. Six of the nine lost golds sat in files carrying none of the four. Seeding on
+/// every word of three characters or more scored exactly what ranking the whole corpus scores,
+/// suite for suite. The cap is a guard against a pathological query, not a filter.
+const CONCEPT_TOKENS: usize = 64;
+const CONCEPT_FILES: usize = 400;
+
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct Coverage {
     pub snapshot_id: String,
@@ -234,6 +246,12 @@ pub struct RankedRegion {
     pub start_line: usize,
     pub end_line: usize,
     pub score: f64,
+}
+
+/// A page of ranked regions and the number of source files the ranking read to produce it.
+pub struct Ranked {
+    pub regions: Vec<RankedRegion>,
+    pub files: usize,
 }
 
 /// BM25 over definition-shaped documents. No model, no service, no persistence: identifiers are
@@ -415,14 +433,16 @@ pub trait StructuralBackend: Send + Sync {
         workspace: &Workspace,
         args: TraceArgs,
     ) -> Result<DependencyTraceResult>;
-    /// Rank definition-shaped regions for a natural-language description, without any model.
+    /// Rank definition-shaped regions for a natural-language description, without any model, and
+    /// say how many source files that ranking read: a page of hits means one thing over a whole
+    /// repository and another over the four hundred files a description pointed at.
     fn search_concept(
         &self,
         workspace: &Workspace,
         query: &str,
         path: Option<&str>,
         wanted: usize,
-    ) -> Result<Vec<RankedRegion>>;
+    ) -> Result<Ranked>;
     /// The innermost indexed definition containing the given line, if any.
     fn locate(&self, path: &str, line: usize) -> Option<SymbolLocation>;
     /// The snapshot's coverage, so callers can report corpus size alongside derived results.
@@ -1170,11 +1190,14 @@ impl StructuralBackend for StructuralIndex {
         query: &str,
         path: Option<&str>,
         wanted: usize,
-    ) -> Result<Vec<RankedRegion>> {
+    ) -> Result<Ranked> {
         validate_query(query)?;
         ensure!((1..=100).contains(&wanted), "wanted must be 1..100");
         let scope = scope(workspace, path)?;
-        Ok(self.concepts.search(query, &scope, wanted))
+        Ok(Ranked {
+            regions: self.concepts.search(query, &scope, wanted),
+            files: self.coverage.indexed_files,
+        })
     }
     fn locate(&self, path: &str, line: usize) -> Option<SymbolLocation> {
         // The innermost enclosing definition: a method inside an impl inside a module wins.
@@ -1328,6 +1351,120 @@ fn files_naming(
     Ok((candidates, eligible))
 }
 
+/// The source files a description most plausibly concerns, best first, with the number of source
+/// files the walk saw.
+///
+/// Ranking definitions against a description needs the corpus's definitions, which is the one
+/// thing a repository too large to index cannot give. A description is still made of words, and a
+/// file that writes none of them holds no definition worth ranking, so the walk scores each file
+/// by how many of the query's distinct tokens it writes and keeps the best `wanted`. Scoring is
+/// what makes this usable: taking the first `wanted` files that match anything would take them in
+/// path order, which on Linux means answering every question out of `arch/` - exactly the failure
+/// a truncated snapshot already has.
+fn files_about(
+    workspace: &Workspace,
+    tokens: &[String],
+    timeout: Duration,
+    no_ignore: bool,
+    wanted: usize,
+) -> Result<(Vec<String>, usize)> {
+    use grep_searcher::{BinaryDetection, SearcherBuilder, Sink, SinkMatch};
+
+    /// Which of the query's tokens this file writes. A matched line is lowercased once and tested
+    /// for every token, and the file stops being read as soon as it has shown all of them or spent
+    /// its line budget: the score only has to separate files, and a file that has matched thirty
+    /// lines without carrying a word has answered the question.
+    struct Seen<'a> {
+        tokens: &'a [String],
+        hit: &'a mut Vec<bool>,
+        budget: usize,
+    }
+    impl Sink for Seen<'_> {
+        type Error = std::io::Error;
+        fn matched(
+            &mut self,
+            _searcher: &grep_searcher::Searcher,
+            matched: &SinkMatch<'_>,
+        ) -> Result<bool, std::io::Error> {
+            self.budget -= 1;
+            let Ok(text) = std::str::from_utf8(matched.bytes()) else {
+                return Ok(self.budget > 0);
+            };
+            let lowered = text.to_lowercase();
+            for (position, token) in self.tokens.iter().enumerate() {
+                if !self.hit[position] && lowered.contains(token.as_str()) {
+                    self.hit[position] = true;
+                }
+            }
+            Ok(self.budget > 0 && self.hit.iter().any(|seen| !seen))
+        }
+    }
+    const LINES_PER_FILE: usize = 32;
+
+    ensure!(!tokens.is_empty(), "a concept scan needs at least one query token");
+    let alternatives =
+        tokens.iter().map(|token| scan_pattern(token)).collect::<Vec<_>>().join("|");
+    let matcher = grep_regex::RegexMatcherBuilder::new()
+        .case_insensitive(true)
+        .line_terminator(Some(b'\n'))
+        .build(&format!("(?:{alternatives})"))
+        .context("cannot build the concept scan pattern")?;
+    let deadline = Instant::now() + timeout;
+    let mut overrides = ignore::overrides::OverrideBuilder::new(workspace.root());
+    overrides.add("!.git/**")?;
+    overrides.add("!target/**")?;
+    let mut walk = ignore::WalkBuilder::new(workspace.root());
+    walk.overrides(overrides.build()?)
+        .hidden(true)
+        .max_filesize(Some(2 * 1024 * 1024))
+        .sort_by_file_path(Path::cmp);
+    if no_ignore {
+        walk.ignore(false)
+            .git_ignore(false)
+            .git_global(false)
+            .git_exclude(false)
+            .parents(false);
+    }
+    let mut searcher = SearcherBuilder::new()
+        .binary_detection(BinaryDetection::quit(b'\x00'))
+        .line_number(false)
+        .build();
+    let (mut scored, mut eligible) = (Vec::new(), 0usize);
+    for entry in walk.build() {
+        ensure!(
+            Instant::now() < deadline,
+            "concept scan timed out; narrow --root or increase --timeout-seconds"
+        );
+        let entry = entry.context("cannot walk the repository")?;
+        if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+            continue;
+        }
+        let Ok(relative) = workspace.relative(entry.path()) else {
+            continue;
+        };
+        if source_language(&relative).is_none() {
+            continue;
+        }
+        eligible += 1;
+        let mut hit = vec![false; tokens.len()];
+        let sink = Seen { tokens, hit: &mut hit, budget: LINES_PER_FILE };
+        if searcher.search_path(&matcher, entry.path(), sink).is_err() {
+            continue;
+        }
+        let carried = hit.iter().filter(|seen| **seen).count();
+        if carried > 0 {
+            scored.push((carried, relative));
+        }
+    }
+    // Most of the query's words first; path order decides ties, so the same question over the same
+    // bytes always reads the same files.
+    scored.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
+    scored.truncate(wanted);
+    let mut files: Vec<String> = scored.into_iter().map(|(_, path)| path).collect();
+    files.sort();
+    Ok((files, eligible))
+}
+
 /// The backend a session answers structural questions with, and the one place that decides where
 /// each answer comes from.
 ///
@@ -1443,6 +1580,44 @@ impl Retrieval {
         Ok(index)
     }
 
+    /// An index over the files a description's own words point at, ranked and capped.
+    ///
+    /// A description points at thousands of files in a large repository, and the `CONCEPT_FILES`
+    /// that carry most of its words cost a few seconds of walking and half a second of parsing -
+    /// against the minute a snapshot spends to cover a fifth of the tree and then answer out of
+    /// whatever the walk reached first.
+    fn about(&self, query: &str) -> Result<StructuralIndex> {
+        let mut tokens: Vec<String> = concept_tokens(query)
+            .into_iter()
+            .filter(|token| token.len() >= 3)
+            .collect();
+        tokens.sort();
+        tokens.dedup();
+        tokens.truncate(CONCEPT_TOKENS);
+        ensure!(
+            !tokens.is_empty(),
+            "a description needs at least one word of three characters or more to search for"
+        );
+        let (files, eligible) =
+            files_about(&self.workspace, &tokens, self.timeout, self.no_ignore, CONCEPT_FILES)?;
+        let read = files.len();
+        // A ranking reads definitions, never references, so the seeded index is built the way a
+        // snapshot is: call sites and no identifier rows.
+        let mut index = StructuralIndex::snapshot(&self.workspace, files, self.timeout)?;
+        index.coverage.eligible_files = eligible;
+        index.coverage.freshness = "Resolved for this question: the repository was searched for \
+                                    the description's own words and the files that carry most of \
+                                    them were parsed. Nothing is cached between calls."
+            .into();
+        index.coverage.limitations = format!(
+            "{} This ranking read the {read} of {eligible} source files that carry most of this \
+             description's words, so it ranks the corpus's most plausible neighbourhood rather \
+             than all of it; a definition that shares none of the query's words is not ranked.",
+            index.coverage.limitations
+        );
+        Ok(index)
+    }
+
     /// An unrecognised name still deserves neighbours to try, and they come from the snapshot
     /// rather than from the scan's own index. A scan holds only the files that write the name, so
     /// its neighbours would be drawn from a different set of files per question - and on a corpus
@@ -1544,18 +1719,33 @@ impl StructuralBackend for Retrieval {
         Ok(traced)
     }
 
+    /// A snapshot ranks the corpus's definitions. Where no snapshot covers the corpus, the
+    /// description's own words choose the files to rank: a truncated index answers out of whatever
+    /// the walk reached first, which on Linux is `arch/`, and a wrong subsystem stated confidently
+    /// is worse than a slower answer.
     fn search_concept(
         &self,
         workspace: &Workspace,
         query: &str,
         path: Option<&str>,
         wanted: usize,
-    ) -> Result<Vec<RankedRegion>> {
-        self.snapshot()?.search_concept(workspace, query, path, wanted)
+    ) -> Result<Ranked> {
+        if self.held {
+            return self.snapshot()?.search_concept(workspace, query, path, wanted);
+        }
+        self.about(query)?.search_concept(workspace, query, path, wanted)
     }
 
+    /// The definition a retrieved line sits inside. A scan parses that one file rather than the
+    /// repository: this annotates search hits, and building a snapshot to label a line would cost
+    /// more than every answer it labels.
     fn locate(&self, path: &str, line: usize) -> Option<SymbolLocation> {
-        self.snapshot().ok()?.locate(path, line)
+        if self.held {
+            return self.snapshot().ok()?.locate(path, line);
+        }
+        StructuralIndex::snapshot(&self.workspace, vec![path.to_owned()], self.timeout)
+            .ok()?
+            .locate(path, line)
     }
 
     /// The snapshot's own coverage once one exists, and otherwise a description of the mode: a
@@ -2469,7 +2659,8 @@ mod tests {
             .unwrap();
         let hits = index
             .search_concept(&ws, "reciprocal rank fusion", None, 3)
-            .unwrap();
+            .unwrap()
+            .regions;
         assert_eq!(hits[0].path, "fuse.rs");
         assert_eq!(hits[0].start_line, 2, "region is the definition, not the comment");
     }
@@ -2749,16 +2940,18 @@ mod tests {
         // camelCase is split and the doc comment is part of the document.
         let hits = index
             .search_concept(&ws, "wrap lines to a maximum width", None, 5)
-            .unwrap();
+            .unwrap()
+            .regions;
         assert_eq!(hits[0].path, "text.rs");
         assert_eq!(hits[0].start_line, 2, "{hits:?}");
         assert!(hits[0].score > 0.0);
         // Scope restricts candidates; an unrelated file ranks nothing for this query.
         let scoped = index
             .search_concept(&ws, "wrap lines to a maximum width", Some("other.rs"), 5)
-            .unwrap();
+            .unwrap()
+            .regions;
         assert!(scoped.is_empty(), "{scoped:?}");
-        let checksum = index.search_concept(&ws, "checksum of bytes", None, 1).unwrap();
+        let checksum = index.search_concept(&ws, "checksum of bytes", None, 1).unwrap().regions;
         assert_eq!(checksum[0].start_line, 3);
         assert!(index.search_concept(&ws, "  ", None, 5).is_err());
     }
@@ -2954,7 +3147,8 @@ mod tests {
         // comment is what carries the description into the BM25 document.
         let hits = index
             .search_concept(&ws, "trim incoming records to a column budget", None, 3)
-            .unwrap();
+            .unwrap()
+            .regions;
         assert_eq!(index.locate(&hits[0].path, hits[0].start_line).unwrap().name, "handler");
     }
     #[test]
@@ -3341,6 +3535,38 @@ mod tests {
         assert_eq!(found.retrieval.coverage.eligible_files, 1);
     }
 
+    /// Ranking a description needs the corpus's definitions, which is the one thing a repository
+    /// too large to index cannot supply. The description's own words choose the files instead,
+    /// and the answer says how many it read - never zero, which would read as an empty corpus.
+    #[test]
+    fn a_description_ranks_over_the_files_its_own_words_choose() {
+        let (_dir, workspace, _index) = snapshot(&[
+            (
+                "src/text.rs",
+                "/// Wrap a paragraph to a maximum column width.\n\
+                 pub fn break_lines(text: &str, width: usize) -> Vec<String> {\n\
+                 \tvec![text.into()]\n\
+                 }\n",
+            ),
+            ("src/ledger.rs", "pub fn post_entry(amount: i64) -> i64 {\n\tamount\n}\n"),
+            ("src/audit.rs", "pub fn stamp(when: i64) -> i64 {\n\twhen\n}\n"),
+        ]);
+        let scan =
+            Retrieval::new(workspace.clone(), Duration::from_secs(5), false, false, None);
+        let ranked = scan
+            .search_concept(&workspace, "wrap a paragraph to a maximum width", None, 3)
+            .unwrap();
+        assert_eq!(ranked.regions[0].path, "src/text.rs");
+        assert_eq!(ranked.regions[0].start_line, 2, "{:?}", ranked.regions);
+        // One file carries the description's words; the other two are never parsed, and the count
+        // reported is what was read rather than what the repository holds.
+        assert_eq!(ranked.files, 1);
+        // The hit is labelled by the definition it sits in without a snapshot existing.
+        assert_eq!(scan.locate("src/text.rs", 2).unwrap().name, "break_lines");
+        // A description with no word long enough to search for is refused, not answered emptily.
+        assert!(scan.search_concept(&workspace, "a b c", None, 3).is_err());
+    }
+
     /// JavaScript and TypeScript are one language, written in eight extensions. Matching a call
     /// to a candidate definition by file extension would make a `.js` caller of a `.ts` helper
     /// unresolvable, and a specifier written `./util.js` - which every ESM build emits for a
@@ -3692,7 +3918,8 @@ mod tests {
         // so the concept ranker answers with the definition, never the namespace around it.
         let hits = index
             .search_concept(&workspace, "clamp a width value", None, 3)
-            .unwrap();
+            .unwrap()
+            .regions;
         assert_eq!(index.locate(&hits[0].path, hits[0].start_line).unwrap().name, "clampWidth");
         assert!(
             index.symbols.contains_key("report"),
