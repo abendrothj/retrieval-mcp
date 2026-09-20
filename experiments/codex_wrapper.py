@@ -34,18 +34,28 @@ TOOLING_PREFIXES = ("/bin/", "/sbin/", "/usr/bin/", "/usr/sbin/", "/usr/local/bi
 def absolute_paths(command):
     """Absolute path arguments in a shell command.
 
-    Anchored at a token boundary: `fs/lockd` is a relative path inside the corpus and the slash in
-    the middle of it is not the start of anything.
+    Anchored at a token boundary, so the slash inside the relative `fs/lockd` starts nothing, and
+    the first character after the slash must be a name character, so the `/` alternation inside a
+    quoted regex is not a path. `|` and `:` are deliberately not boundaries: inside `'(^|/)(pids)'`
+    the bare slash is regex syntax.
     """
-    return re.findall(r"""(?:^|[\s"'=<>|(:])(/[^\s"'|;)]*)""", command)
+    return re.findall(r"""(?:^|[\s"'=<>(])(/[A-Za-z0-9._][^\s"'|;)]*)""", command)
 
 
 def outside_corpus(token, root):
-    """Is this absolute path token evidence from somewhere other than the corpus copy?"""
+    """Is this absolute path token evidence from somewhere other than the corpus copy?
+
+    Existence is the second half of the test, and it is what separates a path from a pattern:
+    `rg '/gfs2/' fs` and `rg '(^|/)(pids|cgroup)'` both look like absolute paths to a tokenizer and
+    neither names a file on this machine. Flagging them cost two clean native trials their
+    eligibility before anyone checked what the flag meant.
+    """
     if token.startswith(TOOLING_PREFIXES):
         return False
     resolved = os.path.realpath(token)
-    return resolved != root and not resolved.startswith(root.rstrip("/") + "/")
+    if resolved == root or resolved.startswith(root.rstrip("/") + "/"):
+        return False
+    return os.path.lexists(resolved)
 
 
 def parse_events(events, corpus=None):

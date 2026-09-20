@@ -39,6 +39,26 @@ class CodexParserTests(unittest.TestCase):
             ], str(corpus))
             self.assertEqual(outcome["unexpected_tools"], [])
 
+    def test_a_regex_that_looks_like_a_path_is_not_contamination(self):
+        """Both of these ran in clean native trials and were flagged before the rule required
+        the token to exist: `/gfs2/` is a ripgrep pattern and `/` is regex alternation."""
+        with tempfile.TemporaryDirectory() as tmp:
+            corpus = Path(tmp) / "corpus"
+            corpus.mkdir()
+            outcome = parse_events([
+                command_event("""/bin/zsh -lc "find fs -type f | rg '/gfs2/' | head -100" """),
+                command_event("""/bin/zsh -lc "rg --files | rg '(^|/)(pids|cgroup)' | head -80" """),
+            ], str(corpus))
+            self.assertEqual(outcome["unexpected_tools"], [])
+
+    def test_a_path_outside_the_corpus_that_does_not_exist_is_not_contamination(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            corpus = Path(tmp) / "corpus"
+            corpus.mkdir()
+            outcome = parse_events(
+                [command_event(f"sed -n 1,5p {tmp}/nowhere/absent.md")], str(corpus))
+            self.assertEqual(outcome["unexpected_tools"], [])
+
     def test_without_a_corpus_root_no_path_is_judged(self):
         outcome = parse_events([command_event("sed -n 1,10p /etc/passwd")], None)
         self.assertEqual(outcome["unexpected_tools"], [])
