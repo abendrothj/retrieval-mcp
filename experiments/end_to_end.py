@@ -93,6 +93,7 @@ def calls_from(stream, client):
             name = tool_name(part)
             records.append({
                 "name": name, "body": body,
+                "request": json.dumps(state.get("input") or {}),
                 "read": name in READ_TOOLS,
                 "latency_ms": (times["end"] - times["start"])
                 if times.get("start") and times.get("end") else None,
@@ -106,6 +107,11 @@ def calls_from(stream, client):
                 command = item.get("command") or ""
                 records.append({
                     "name": "shell", "body": item.get("aggregated_output") or "",
+                    # The request is evidence too. `sed -n '1200,1260p' kernel/time/timer.c` names
+                    # the gold path, and ripgrep given one file does not repeat it on every match,
+                    # so scoring the output alone marked 17 correct native answers as unevidenced
+                    # and left this the one column where the MCP arm looked better.
+                    "request": command,
                     # Codex runs one shell; a command that pages a file is a read whatever else
                     # it does, and the same command may also search.
                     "read": any(token in command for token in ("cat ", "sed -n", "head ", "tail ")),
@@ -117,6 +123,7 @@ def calls_from(stream, client):
                 records.append({
                     "name": name,
                     "body": body if isinstance(body, str) else json.dumps(body),
+                    "request": json.dumps(item.get("arguments") or item.get("input") or {}),
                     "read": name in READ_TOOLS, "latency_ms": None,
                 })
     elif client == "claude":
@@ -131,13 +138,16 @@ def calls_from(stream, client):
             for block in content:
                 if block.get("type") == "tool_use":
                     name = block.get("name") or ""
-                    pending[block.get("id")] = name.rsplit("__", 1)[-1] if "__" in name else name
+                    pending[block.get("id")] = (
+                        name.rsplit("__", 1)[-1] if "__" in name else name,
+                        json.dumps(block.get("input") or {}))
                 elif block.get("type") == "tool_result":
-                    name = pending.pop(block.get("tool_use_id"), "mcp")
+                    name, request = pending.pop(block.get("tool_use_id"), ("mcp", "{}"))
                     body = block.get("content")
                     records.append({
                         "name": name,
                         "body": body if isinstance(body, str) else json.dumps(body or ""),
+                        "request": request,
                         "read": name in READ_TOOLS, "latency_ms": None,
                     })
     return records
@@ -247,13 +257,13 @@ def trial_metrics(trial, task):
     records = calls_from(stream, client)
     steps = steps_from(stream, client)
     hit = None
-    for position, record in enumerate(records):
-        body = record["body"]
+    seen = [record.get("request", "") + "\n" + record["body"] for record in records]
+    for position, body in enumerate(seen):
         if any(path in body for path in paths) or any(symbol in body for symbol in symbols):
             hit = position
             break
     pairs = gold_identities(task)
-    missing = unretrieved("\n".join(record["body"] for record in records), pairs)
+    missing = unretrieved("\n".join(seen), pairs)
     latencies = [record["latency_ms"] for record in records if record["latency_ms"] is not None]
     total = {key: sum(step[key] for step in steps)
              for key in ("input", "output", "reasoning", "cache_read", "cost")}
@@ -423,7 +433,12 @@ def report(args):
         "rows": rows,
         "limitations": "Bytes are what each tool returned, before the client's own truncation. "
                        "First hit is a textual appearance of a gold path or symbol in a tool "
-                       "result, which proves visibility, not that the model used it. Codex "
+                       "request or result, which proves visibility, not that the model used it. "
+                       "A shell arm is still under-credited where the evidence sat beyond the "
+                       "1 MiB Codex records per command: on the kernel run 4 of the 10 remaining "
+                       "`answered_without_evidence` native trials had a capped recording, and all "
+                       "10 answered correctly, so read that column as a floor for a shell arm and "
+                       "as exact for an MCP arm, whose payloads are recorded whole. Codex "
                        "reports usage once per turn, so tokens after the first hit are not "
                        "recoverable for that client; calls and bytes after the hit are. "
                        "`context_token_turns` prices a payload by how many later turns must "

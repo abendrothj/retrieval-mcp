@@ -86,7 +86,7 @@ any of the four features it was found underneath.
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Forty defects in it have produced or nearly
+The harness is the second experimental subject. FortyForty defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
 some penalised it, one was found inside its own single held-out loss, one would have made every
 brace-language caller question unauthorable, one scored three arms to zero on questions they had
@@ -97,7 +97,7 @@ evaluator, two in the server. The seven newest were found by taking the harness 
 Linux-kernel corpus: two in the evaluator's reading of C, one in the server's, one in the offline
 ranking instruments, one in the chunk-diet study that followed, and two while authoring the kernel
 agent study — including the only one so far that reached beyond its own run, since the same leak
-sat in all 738 archived Codex trials, and two introduced by that leak's own repair. Each is
+sat in all 738 archived Codex trials, two introduced by that leak's own repair, and one that had been charging a shell arm for evidence it had plainly seen. Each is
 pinned by a test. This table is the authoritative list; prose below refers to it rather than to
 ordinals.
 
@@ -143,6 +143,7 @@ ordinals.
 | Codex trials read the operator's home directory | `codex exec --ignore-user-config` covers Codex's own config and not `~`, so all 7 trials of the first Linux launch — and all 738 archived Codex trials before them — opened `~/.agents/skills/retrieval-mcp/SKILL.md` as their first command: a routing guide for the four tools under test, written by this project, read by both arms from outside the corpus. The treatment arm got a manual for its own tools; the control spent a call reading about tools it does not have |
 | A single-use refresh token copied into every trial's credential home | The isolation fix above gave each trial its own `CODEX_HOME` with a copy of `auth.json`; the first token refresh invalidated all 125 remaining copies, so the second Linux launch died at trial 41 on six consecutive 401s, and the operator's own credential had to be re-issued. Read as an arm failure rather than an auth failure, it would have been six trials of "the client aborted" attributed to whichever arm drew them |
 | The contamination detector read a ripgrep pattern as a path | `rg '/gfs2/' fs` and `rg '(^|/)(pids|cgroup)'` tokenise as absolute paths, so two clean native trials were flagged as having read outside the corpus. `analyze_comparison.eligible` drops any flagged trial, so a guard against contamination would have quietly deleted honest work from an arm — the flag now requires the path to exist on the machine |
+| The evidence test scored a tool's output and discarded its request | `sed -n '1200,1260p' kernel/time/timer.c` names the gold path in the command, and ripgrep given one file does not repeat the path on each match, so 17 correct native answers on the kernel run were recorded as answered without evidence against the MCP arm's 7 — the one safety column where the structural surface appeared to win, and the repair takes it to 10 and 7 with all ten correct |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
 
@@ -1404,6 +1405,99 @@ advantage from none, so the honest statement is that the −44.6% is measured wi
 both contexts. The fix (own `HOME` per trial, a `read_outside_corpus` flag, a `contaminated` column
 in `end_to_end.py`, tests in `experiments/tests/test_codex_wrapper.py`) landed before the kernel
 study, which is therefore the first clean Codex run in this record.
+
+### The Linux kernel: where the claim stops
+
+`runs/linux-agent-20260919`. Every corpus this project had measured fitted in a few hundred files.
+The kernel is 86,602 — two orders of magnitude further out — and the registered question was
+whether the tie-plus-cheaper result survives the jump. It does not. All three criteria were missed,
+and the run is published for that reason.
+
+**Registration.** Linux 6.12 with symlinks removed, fingerprint
+`b94f0462f57e54799833773c76e72c8b44141bba6722f0d41e76058290158bf1`, copied per arm. 21 questions
+across five shapes, each verified by `validate_suite.py` and each resistant to `lexical_oracle.py`
+at budget 25 over the whole tree — two candidates that the oracle dissolved were dropped before
+freezing. Two arms: Codex CLI's own shell tools, and this server's four-tool default surface pinned
+at `4043cd5bcfc870457ebb8335cd7f9ccda181d463cd8df627ba04e4a148231c8b`. 126 trials, seed 29, 25
+calls per trial, `gpt-5.6-luna`. Criteria: quality no worse than one answer behind native, at least
+20% fewer input tokens, and zero answers whose gold identity never appeared in a payload.
+
+| pooled, three repetitions | native control | retrieval-mcp |
+|---|---:|---:|
+| Resolved correct / 63 | **62** | 56 |
+| Graded credit | **0.997** | 0.889 |
+| Input tokens, mean per trial | **138,757** | 161,451 |
+| Retrieval calls | 243 | **203** |
+| Bytes returned, median | 1,057,730 | **23,851** |
+| Persistent context, median | 788,913 | **11,668** |
+| Answered without evidence | 10 | **7** |
+
+**Quality misses by six**, not by one. **Efficiency misses by sign**: +16.4% mean input tokens
+where the criterion asked for −20%. **Safety misses**: seven answers, all of them the seven wrong
+ones, named a symbol no payload contained. Nothing here is a tie.
+
+| repetition | native | retrieval-mcp | native tokens | mcp tokens | delta |
+|---|---:|---:|---:|---:|---:|
+| 1 | 21/21 | 19/21 | 127,969 | 145,332 | +13.6% |
+| 2 | 21/21 | 19/21 | 160,610 | 145,033 | −9.7% |
+| 3 | 20/21 | 18/21 | 127,692 | 193,988 | +51.9% |
+
+The token column swings from −9.7% to +51.9% across identical configurations, which is this
+project's own three-repetition warning arriving on schedule; the quality column does not swing, and
+that is the part to believe.
+
+| bucket | native | retrieval-mcp | native tokens | mcp tokens | delta |
+|---|---:|---:|---:|---:|---:|
+| conceptual_lookup | 21/21 | 19/21 | 123,942 | 146,816 | +18.5% |
+| direct_caller_lookup | 20/21 | 20/21 | 166,154 | 168,959 | +1.7% |
+| generic_name | 6/6 | 4/6 | 96,057 | 152,278 | +58.5% |
+| mixed_discovery_structure | 3/3 | 3/3 | 266,750 | 264,592 | −0.8% |
+| symbol_resolution | 12/12 | 10/12 | 106,090 | 152,722 | +44.0% |
+
+Caller questions are the one shape that holds: 20/21 both ways at +1.7% tokens, on the corpus with
+the most callers to get wrong. Everything the structural surface is supposed to be worst at — a
+vague description, a generic name — is where it loses.
+
+**The audit came before the interpretation, and moved two columns.** Four harness defects surfaced
+in this run alone and all four are in the [ledger](#harness-defect-ledger): trials reading a skill
+document from the operator's home directory, a single-use credential copied 126 times, a
+contamination flag that read `rg '/gfs2/'` as a path, and an evidence test that scored a shell
+call's output while discarding the command. That last one mattered here: `sed -n '1200,1260p'
+kernel/time/timer.c` names the gold path in the request, and ripgrep given a single file does not
+repeat the path on each match, so the native arm was charged 17 unevidenced answers where the
+repaired test charges 10 — and all ten answered correctly, four of them with a recording that hit
+the 1 MiB Codex caps. Read that column as a floor for a shell arm and as exact for an MCP arm.
+The seven wrong answers were audited individually against their gold and their rejected alternates:
+`inode_update_time` for `file_update_time`, `dynevent_cmd_init` for `synth_event_cmd_init`,
+`keyctl_update_key` for `key_update`, a `tools/perf` function for `kernel/kprobes.c`. Every one
+names a neighbour the question's own `rejected_alternates` list anticipated. They are wrong
+answers, not grading artifacts.
+
+**Why the tokens invert, measured rather than argued.** Three facts, each from its own measurement:
+
+1. *The tool surface is free.* A stub MCP server advertising the same four 16 KB schemas was
+   attached to nine sessions against a no-MCP control: 13,802 input tokens either way, to the
+   token. Whatever costs more here, it is not the shape of `tools/list`.
+2. *The shell arm's bytes are not the shell arm's context.* Fitting input tokens on calls and
+   payload per arm gives a payload coefficient of **0.09** for native and **3.97** for this server:
+   about nine percent of what ripgrep printed locally ever reaches the model, while an MCP payload
+   is delivered whole and re-sent on roughly four later requests. The byte columns above — 1.06 MB
+   against 23.9 KB — describe what each tool produced, not what each model read.
+3. *A shell call is not one retrieval.* Native commands chain a mean of **1.95** sub-commands and
+   21% of them cap their own output with `head` or `-m`. So 3.9 native calls buy about 7.5
+   retrieval operations per trial against this server's 3.2, in fewer round trips, and a round trip
+   is what re-sends the conversation.
+
+At 311 files a structural index wins because grep's output is a poor summary of a small tree. At
+86,602 files the same agent writes `rg -n pattern subsystem | head -100`, pays for a truncated
+slice, and composes two or three of those per call. The four-tool surface answers one question per
+round trip and cannot be piped into anything.
+
+**What this does to the claim.** The published result stands where it was measured — Django at
+−33.5%, etcd at −44.6%, 468 trials with quality never separating — and it now has a stated
+boundary: on a corpus of this size, with a shell-capable client, it reverses on every axis. That is
+one corpus, one client and 126 trials, so the boundary is as provisional as the claim was after its
+first corpus. What it is not is unknown.
 
 ### Two handshake sentences, measured and rejected
 

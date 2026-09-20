@@ -204,5 +204,35 @@ class BucketReportTests(unittest.TestCase):
         for bucket in self.summary["by_category"].values():
             self.assertEqual(set(bucket) - {"questions"}, set(end_to_end.measures([])))
 
+
+
+class EvidenceIncludesTheRequestTests(unittest.TestCase):
+    """A shell command names the file it pages; ripgrep given one file does not repeat the path."""
+
+    def setUp(self):
+        self.task = {"id": "t", "category": "symbol_resolution",
+                     "expected_json": {"answer": "kernel/time/timer.c::add_timer_local"}}
+
+    def test_a_path_named_only_in_the_command_counts_as_evidence(self):
+        records = end_to_end.calls_from([
+            {"type": "item.completed", "item": {
+                "type": "command_execution",
+                "command": "/bin/zsh -lc \"sed -n '1200,1260p' kernel/time/timer.c\"",
+                "aggregated_output": "void add_timer_local(struct timer_list *timer)\n"}},
+        ], "codex")
+        self.assertEqual(records[0]["request"].count("kernel/time/timer.c"), 1)
+        joined = records[0]["request"] + "\n" + records[0]["body"]
+        self.assertIn("kernel/time/timer.c", joined)
+        self.assertIn("add_timer_local", joined)
+
+    def test_an_mcp_call_carries_its_arguments(self):
+        records = end_to_end.calls_from([
+            {"type": "item.completed", "item": {
+                "type": "mcp_tool_call", "server": "retrieval", "tool": "read_source",
+                "arguments": {"path": "kernel/time/timer.c"}, "result": "void add_timer_local("}},
+        ], "codex")
+        self.assertIn("kernel/time/timer.c", records[0]["request"])
+
+
 if __name__ == "__main__":
     unittest.main()

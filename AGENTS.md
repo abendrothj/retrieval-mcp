@@ -101,15 +101,25 @@ Released `v0.1.6`: the routing filter, the Go qualified-call fix, optional `--ro
 `CHANGELOG.md`. The default surface is four tools — `search_exact`, `read_source`, `find_callers`,
 `search_concept` — with the lexical ranker; the other three stay un-defaulted on replicated evidence.
 
-The claim the evidence supports is **quality ties, input tokens 34–51% cheaper**, now on two
-independent corpora: the held-out Django suite (30 mixed-shape questions, 29/29/28, −33.5% against
+The claim the evidence supports is **quality ties, input tokens 34–51% cheaper, on corpora of a
+few hundred files**: the held-out Django suite (30 mixed-shape questions, 29/29/28, −33.5% against
 native) and an etcd client corpus (30 mixed-shape questions, three repetitions, 270 trials, 87/89/89,
 −44.6% against native and −29.2% against zvec-grep). Quality has never separated in either
-direction across 468 scored trials; the token gap has never failed to replicate. Two studies missed
-their registered quality criterion by a single answer and both are published as misses. The
-handshake instructions are also settled: two candidate sentences were measured over 351 trials in
-`runs/instructions-ab-rerun-20260916` and both came in at +0 against a registered +3 bar, so the
-prompt side of this server has nothing left that measurement supports changing.
+direction across 468 scored trials at that scale; the token gap has never failed to replicate
+there. Two studies missed their registered quality criterion by a single answer and both are
+published as misses. The handshake instructions are also settled: two candidate sentences were
+measured over 351 trials in `runs/instructions-ab-rerun-20260916` and both came in at +0 against a
+registered +3 bar, so the prompt side of this server has nothing left that measurement supports
+changing.
+
+**The size clause is new and it was paid for.** `runs/linux-agent-20260919` put the same two arms
+on Linux 6.12 — 86,602 files, 21 questions, 126 trials — and missed all three registered criteria:
+56 resolved against native's 62, **+16.4% input tokens** where the bar was −20%, and seven answers
+whose gold identity no payload contained. The mechanism is measured, not guessed: attaching the
+four-tool surface costs zero prompt tokens (stub-server probe, 13,802 either way), only ~9% of what
+ripgrep prints locally reaches the model against ~4× re-sending for an MCP payload, and a native
+shell call chains a mean of 1.95 sub-commands while an MCP call answers one question per round
+trip. At a few hundred files grep is a poor summary; at kernel scale a pipeline is a good one.
 
 Everything measured lives under `runs/`, which is gitignored and therefore local: each study
 directory holds its `preregistration.json`, per-repetition reports, and a note for any chunk that

@@ -103,6 +103,40 @@
           "answered_without_evidence": 0
         }
       }
+    },
+    "linux-kernel": {
+      "model": "gpt-5.6-luna",
+      "questions": 21,
+      "repetitions": 3,
+      "note": "Linux 6.12, 86,602 files - two orders of magnitude past any previous corpus. Missed all three registered criteria: quality 56 against 62, input tokens +16.4% rather than -20%, and seven answers whose gold identity never appeared in a payload. Published as the boundary of the claim.",
+      "sources": [
+        {
+          "report": "runs/linux-agent-20260919/end-to-end.json",
+          "sha256": "8630569ebacdfecad1fa9876a3c7faac0ce27992fa435e7d11cf07c7d471c43d"
+        }
+      ],
+      "arms": {
+        "native-control": {
+          "trials": 63,
+          "correct": 62,
+          "input_tokens": 8741711,
+          "input_tokens_with_cache_reads": 15741007,
+          "calls": 243,
+          "context_token_turns": 52765729,
+          "calls_to_first_evidence": 1.689,
+          "answered_without_evidence": 10
+        },
+        "retrieval-mcp": {
+          "trials": 63,
+          "correct": 56,
+          "input_tokens": 10171408,
+          "input_tokens_with_cache_reads": 18436368,
+          "calls": 203,
+          "context_token_turns": 1646950,
+          "calls_to_first_evidence": 1.724,
+          "answered_without_evidence": 7
+        }
+      }
     }
   }
 }

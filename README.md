@@ -98,6 +98,17 @@ quality criterion by one answer and is published as a miss**; across 468 scored 
 corpora quality has never separated in either direction, and the token gap has never failed to
 replicate. [Both studies, with their criteria](experiments/README.md#the-rerun-on-head-the-repaired-suite-and-a-miss-by-one-answer).
 
+**And it stops at a scale.** The same two arms, the same client, on Linux 6.12 — 86,602 files, 21
+questions, three repetitions, 126 trials: **56 correct against native's 62, and +16.4% input
+tokens where the registration asked for a fifth fewer.** All three registered criteria missed, published
+here for the same reason the misses above are. The mechanism was measured rather than reasoned
+about: attaching the four-tool surface costs zero prompt tokens, about 9% of what ripgrep prints
+locally ever reaches the model while an MCP payload is delivered whole and re-sent, and a shell
+call on a tree that size chains a mean of 1.95 sub-commands where this server answers one question
+per round trip. On a few hundred files, grep is a poor summary of the tree; on the kernel, a
+pipeline is a good one.
+[The run, its audit, and the four harness defects it exposed](experiments/README.md#the-linux-kernel-where-the-claim-stops).
+
 **Which binary produced these.** The held-out table is the frozen four-tool surface as of
 2026-09-12; the etcd replication ran on the binary that became `0.1.6` minus its last four changes.
 Nothing in `0.1.6` has an agent-level measurement behind it: the routing filter is −13.3% of
@@ -504,7 +515,7 @@ subprocess calls.
 cargo build --locked --release --bin retrieval-mcp
 cargo test --locked --all-targets            # 35 library, 22 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 255 tests
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 257 tests
 python3 experiments/check_docs.py            # the docs still describe the server that exists
 ```
 

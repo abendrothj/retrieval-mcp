@@ -38,6 +38,16 @@ STUDIES = {
         "note": "Independent etcd client corpus on HEAD; missed its registered quality criterion "
                 "by one answer and is published as a miss.",
     },
+    "linux-kernel": {
+        "reports": ["runs/linux-agent-20260919/end-to-end.json"],
+        "model": "gpt-5.6-luna",
+        "questions": 21,
+        "repetitions": 3,
+        "note": "Linux 6.12, 86,602 files - two orders of magnitude past any previous corpus. "
+                "Missed all three registered criteria: quality 56 against 62, input tokens "
+                "+16.4% rather than -20%, and seven answers whose gold identity never appeared "
+                "in a payload. Published as the boundary of the claim.",
+    },
 }
 # Both definitions this project has used for "input tokens". The narrow one is what the held-out
 # table published; the wide one is what the working notes declare. Drift between them was itself a
