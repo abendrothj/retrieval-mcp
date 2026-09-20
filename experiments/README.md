@@ -86,16 +86,18 @@ any of the four features it was found underneath.
 
 ## Harness defect ledger
 
-The harness is the second experimental subject. Thirty-five defects in it have produced or nearly
+The harness is the second experimental subject. Thirty-eight defects in it have produced or nearly
 produced believable false findings, and they run in both directions: some flattered this server,
 some penalised it, one was found inside its own single held-out loss, one would have made every
 brace-language caller question unauthorable, one scored three arms to zero on questions they had
 answered exactly right, twice, one survived its own repair by moving up one scope level, and the
 seven newest before it were found by an audit built to admit five
 new languages, by the release that followed it and by the Go pilot that ran on them — five in the
-evaluator, two in the server. The four newest were found by probing a Linux-kernel corpus for
-feasibility and by the chunk-diet study that followed it: two in the evaluator's reading of C, one
-in the server's, and one in the offline ranking instruments. Each is
+evaluator, two in the server. The seven newest were found by taking the harness to a
+Linux-kernel corpus: two in the evaluator's reading of C, one in the server's, one in the offline
+ranking instruments, one in the chunk-diet study that followed, and two while authoring the kernel
+agent study — including the only one so far that reached beyond its own run, since the same leak
+sat in all 738 archived Codex trials. Each is
 pinned by a test. This table is the authoritative list; prose below refers to it rather than to
 ordinals.
 
@@ -136,6 +138,9 @@ ordinals.
 | `enclosing()` read a C pointer return type as the frame | `struct folio *folio_walk_start(struct folio_walk *fw,` made `folio` the caller of everything in that body — the shape most of the kernel writes a definition in — and mm caller precision read 0.976 where it is 1.000 |
 | The index read a C iteration macro as a definition | `for_each_online_node(nid) { ... }` parses as a function definition whose declarator is `(nid)`, so `nid` was a symbol and every call in the loop named a loop variable as its caller — the same wrong-row shape whose repair for local bindings produced the largest post-freeze efficiency win, in the construct 21,136 of Linux's 34,657 `.c` files write |
 | `study_a` and `study_b` graded gold in four languages only | `.rs`, `.py`, `.ts`, `.tsx` — so every question in the Go etcd suite was ungradable, `study_a` died inside `statistics.fmean` with "requires at least one data point", and a whole corpus would have been dropped from a registered comparison while the failure read as a broken corpus rather than a blind instrument |
+| `quality_pass` could not index a C function whose parameter list wraps | The kernel writes most long signatures across lines, so golds naming them looked undefined and `validate_suite.py` refused a correct question |
+| `comparison_runner` dropped every directory named `target` at any depth | Linux's `scripts/target`, `drivers/target` and `include/target` vanished from both arms' corpus copies — a Rust build-artifact rule silently deleting kernel subsystems, and the fingerprint would have recorded the mutilated tree as the corpus |
+| Codex trials read the operator's home directory | `codex exec --ignore-user-config` covers Codex's own config and not `~`, so all 7 trials of the first Linux launch — and all 738 archived Codex trials before them — opened `~/.agents/skills/retrieval-mcp/SKILL.md` as their first command: a routing guide for the four tools under test, written by this project, read by both arms from outside the corpus. The treatment arm got a manual for its own tools; the control spent a call reading about tools it does not have |
 
 The habit that found them is in [The habit that made the numbers trustworthy](#the-habit-that-made-the-numbers-trustworthy).
 
@@ -1381,6 +1386,22 @@ arms are within two answers of each other and this server spends 34-51% fewer in
 comparison. Quality has never separated in either direction; the token gap has never failed to
 replicate. Saying more than that would need a suite where quality can separate, and this project has
 now twice found that such a suite is easier to bias than to build.
+
+**A leak found later, disclosed here.** On 2026-09-19 the kernel study's first launch was stopped
+because both arms opened `~/.agents/skills/retrieval-mcp/SKILL.md` — a routing guide for this
+server's four tools, written by this project — as their first shell command. `codex exec
+--ignore-user-config` isolates Codex's own config and not the operator's home directory, so every
+Codex study before that date carries the same read: 270 of 270 trials here, 270 of 270 in
+`runs/etcd-mixed-20260915`, 197 of 198 in `runs/go-caller-restated-20260915`. Its *cost* is
+symmetric and small — mean 1.0 reads and 4,231 bytes for this server's arm, 1.03 and 4,234 for
+native, 1.03 and 4,234 for zvec-grep — roughly one call and one percent of input tokens added to
+every arm alike, so the differences above absorb an offset rather than a tilt. Its *content* is not
+symmetric: it tells the treatment arm how to route questions to the tools it has, and tells the
+other two arms about tools they do not have. Nothing in the archived bytes can separate a strategy
+advantage from none, so the honest statement is that the −44.6% is measured with that document in
+both contexts. The fix (own `HOME` per trial, a `read_outside_corpus` flag, a `contaminated` column
+in `end_to_end.py`, tests in `experiments/tests/test_codex_wrapper.py`) landed before the kernel
+study, which is therefore the first clean Codex run in this record.
 
 ### Two handshake sentences, measured and rejected
 

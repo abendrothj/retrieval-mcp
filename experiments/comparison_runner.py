@@ -37,7 +37,24 @@ SETUP = (
     "End your reply with the answer as a single JSON object with exactly one key, \"answer\", "
     "and nothing after it. Quote source only if you must, never as the answer itself.\n\n"
 )
+# Index and build state a previous run may have left in the corpus *root*. The names are ordinary
+# words: Linux has `Documentation/target/` and `drivers/nvme/target/`, and dropping those from the
+# copy while the fingerprint kept them - ripgrep anchors `target/**` to the search root - made a
+# 86,602-file corpus and its copy disagree by 127 files and aborted the preparation. Both sides
+# now mean the same thing: this name, at the top level, and nowhere else.
 IGNORED_STATE = (".git", "target", ".retrieval-mcp", ".zvec-grep", ".codebase-memory", "__pycache__")
+
+
+def ignore_root_state(source):
+    """A `copytree` filter that drops `IGNORED_STATE` in the corpus root and keeps it below."""
+    root = str(Path(source).resolve())
+
+    def ignore(directory, names):
+        if str(Path(directory).resolve()) != root:
+            return set()
+        return {name for name in names if name in IGNORED_STATE}
+
+    return ignore
 
 
 def digest(path):
@@ -256,7 +273,7 @@ def prepare(args):
             root, state = directory / "corpus", directory / "state"
             directory.mkdir(parents=True)
             state.mkdir()
-            shutil.copytree(source, root, ignore=shutil.ignore_patterns(*IGNORED_STATE))
+            shutil.copytree(source, root, ignore=ignore_root_state(source))
             if source_fingerprint(root) != before:
                 raise RuntimeError(f"copied corpus differs for {system['id']}")
             binary = system_server(system, server)

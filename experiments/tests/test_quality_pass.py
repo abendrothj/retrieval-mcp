@@ -185,6 +185,33 @@ class CIndexTests(unittest.TestCase):
         self.assertIn("folio_batch_release", index)
         self.assertNotIn("folio_put_testzero", index)
 
+    def test_a_signature_that_wraps_is_a_definition_and_a_wrapped_prototype_is_not(self):
+        """Most of the kernel declares its parameters over several lines.
+
+        Refusing those lines made every such function unnameable in a gold and ungradable in an
+        answer - `sctp_auth_set_key`, `perf_aux_output_begin`, `tick_setup_device` and
+        `br_stp_rcv` were all invisible. A comma cannot separate a definition from a prototype, so
+        the parameter list is followed to its closing parenthesis and what comes after decides.
+        """
+        if not shutil.which("rg"):
+            self.skipTest("ripgrep is required to build the definition index")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "auth.h").write_text(
+                "int sctp_auth_set_key(struct sctp_endpoint *ep,\n"
+                "\t\t      struct sctp_association *asoc,\n"
+                "\t\t      struct sctp_authkey *auth_key);\n", encoding="utf-8")
+            (root / "auth.c").write_text(
+                "int sctp_auth_set_key(struct sctp_endpoint *ep,\n"
+                "\t\t      struct sctp_association *asoc,\n"
+                "\t\t      struct sctp_authkey *auth_key)\n"
+                "{\n"
+                "\treturn 0;\n"
+                "}\n", encoding="utf-8")
+            index = definitions(root)
+        self.assertEqual(index.get("sctp_auth_set_key"), {"auth.c"},
+                         "the definition is indexed and the header's prototype is not")
+
 
 class CreditTests(unittest.TestCase):
     def test_sets_score_by_overlap_and_are_penalised_for_extras(self):

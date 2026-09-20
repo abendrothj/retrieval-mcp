@@ -60,7 +60,17 @@ C_DEFINITION = re.compile(
     r"|^[^=;/(!]*[\w>&*\]]\s+\**(?:[A-Za-z_]\w*::)?"
     r"(?!(?:if|for|while|switch|catch|return|sizeof|new|delete|else|do|case|defined)\b)"
     r"([A-Za-z_]\w*)\s*\(.*[{})]\s*$"
-    r"|^\s*(?:[A-Za-z_]\w*::)+(~?[A-Za-z_]\w*)\s*\(.*[{:)]\s*$")
+    r"|^\s*(?:[A-Za-z_]\w*::)+(~?[A-Za-z_]\w*)\s*\(.*[{:)]\s*$"
+    # And a signature whose parameter list wraps ends the line in a comma, which the rules above
+    # refuse. The kernel writes most of its functions that way - `int sctp_auth_set_key(struct
+    # sctp_endpoint *ep,` - so refusing them made every such function unnameable in a gold and
+    # ungradable in an answer. A comma cannot tell a definition from a prototype on its own, so
+    # `opens_a_body` reads forward to the closing parenthesis and decides there.
+    r"|^[^=;/(!]*[\w>&*\]]\s+\**(?:[A-Za-z_]\w*::)?"
+    r"(?!(?:if|for|while|switch|catch|return|sizeof|new|delete|else|do|case|defined)\b)"
+    r"([A-Za-z_]\w*)\s*\([^;{}]*,\s*$")
+WRAPPED_SIGNATURE = re.compile(r"^[^=;/(!]*[\w>&*\]]\s+\**(?:[A-Za-z_]\w*::)?[A-Za-z_]\w*\s*"
+                               r"\([^;{}]*,\s*$")
 SOURCE_SUFFIXES = (".rs", ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts",
                    ".go", ".java", ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx")
 PATH_TOKEN = re.compile(
@@ -140,6 +150,36 @@ def code_line(corpus, path, number, cache):
     return lines[number - 1] if 0 < number <= len(lines) else ""
 
 
+def opens_a_body(corpus, path, number, cache):
+    """Whether a wrapped C signature is a definition rather than a prototype.
+
+    One line cannot say: `int sctp_auth_set_key(struct sctp_endpoint *ep,` begins a definition and
+    `int sctp_auth_init(struct sctp_endpoint *ep,` in a header begins a declaration, and both end
+    in a comma. So the parameter list is followed to the parenthesis that closes it - twelve lines
+    is more than any kernel signature needs - and what comes after decides: a brace defines, a
+    semicolon declares.
+    """
+    depth = 0
+    for offset in range(12):
+        text = code_line(corpus, path, number + offset, cache)
+        if not text and offset:
+            return False
+        for position, character in enumerate(text):
+            if character == "(":
+                depth += 1
+            elif character == ")":
+                depth -= 1
+                if depth == 0:
+                    rest = text[position + 1:]
+                    for lookahead in range(1, 4):
+                        if "{" in rest or ";" in rest:
+                            break
+                        rest += code_line(corpus, path, number + offset + lookahead, cache)
+                    return "{" in rest and rest.index("{") < (
+                        rest.index(";") if ";" in rest else len(rest))
+    return False
+
+
 def definition_lines(corpus):
     """(identifier, path, line number) for every definition the source text shows.
 
@@ -166,7 +206,8 @@ def definition_lines(corpus):
         ([r"^\s*(typedef\s+)?(struct|union|enum|class|namespace)\s+[A-Za-z_]",
           r"^\s*#\s*define\s+[A-Za-z_]\w*\(",
           r"^\s*typedef\s+",
-          r"^[^=;/]*\b[A-Za-z_]\w*\s*\(.*[{})]\s*$"],
+          r"^[^=;/]*\b[A-Za-z_]\w*\s*\(.*[{})]\s*$",
+          r"^[^=;/]*\b[A-Za-z_]\w*\s*\([^;{}]*,\s*$"],
          ["-g", "*.c", "-g", "*.h", "-g", "*.cc", "-g", "*.cpp", "-g", "*.cxx", "-g", "*.hh",
           "-g", "*.hpp", "-g", "*.hxx"], C_DEFINITION),
     )
@@ -194,6 +235,9 @@ def definition_lines(corpus):
             # comment state decides. Python is the one suffix here that is not a brace language,
             # and its `def`/`class` rules cannot match behind a `#`.
             if path.endswith(".py") or name in code_line(corpus, path, number, blanked):
+                if WRAPPED_SIGNATURE.match(parts[2]) and not opens_a_body(
+                        corpus, path, number, blanked):
+                    continue
                 lines.append((name, path, number))
     return lines
 

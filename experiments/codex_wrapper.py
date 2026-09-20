@@ -12,6 +12,7 @@ and reports token totals only; see end_to_end.py.
 """
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -24,9 +25,40 @@ NATIVE_ITEMS = {"command_execution", "reasoning", "agent_message", "todo_list"}
 CONTAMINATION_ITEMS = {"file_change", "web_search", "patch_apply"}
 
 
-def parse_events(events):
+# Interpreters and their libraries are machinery, not evidence; a corpus path is evidence. Only
+# the second kind decides whether a trial read something the other arm could not.
+TOOLING_PREFIXES = ("/bin/", "/sbin/", "/usr/bin/", "/usr/sbin/", "/usr/local/bin/",
+                    "/opt/homebrew/bin/", "/dev/null", "/dev/stderr", "/dev/stdout")
+
+
+def absolute_paths(command):
+    """Absolute path arguments in a shell command.
+
+    Anchored at a token boundary: `fs/lockd` is a relative path inside the corpus and the slash in
+    the middle of it is not the start of anything.
+    """
+    return re.findall(r"""(?:^|[\s"'=<>|(:])(/[^\s"'|;)]*)""", command)
+
+
+def outside_corpus(token, root):
+    """Is this absolute path token evidence from somewhere other than the corpus copy?"""
+    if token.startswith(TOOLING_PREFIXES):
+        return False
+    resolved = os.path.realpath(token)
+    return resolved != root and not resolved.startswith(root.rstrip("/") + "/")
+
+
+def parse_events(events, corpus=None):
+    """Translate Codex's stream, and refuse to be quiet about evidence from outside the corpus.
+
+    A shell command naming an absolute path that is not inside the corpus is contamination in the
+    same sense a web search is: the trial read something no other arm's corpus contains. It was a
+    skill document describing this server's own tools, and it went unnoticed for three published
+    studies because nothing looked.
+    """
     final, usage, client_error, provider_detail = None, None, None, None
     tool_calls, unexpected = [], set()
+    root = os.path.realpath(corpus) if corpus else None
     for event in events:
         kind = event.get("type")
         item = event.get("item") or {}
@@ -34,7 +66,11 @@ def parse_events(events):
             if item.get("type") == "agent_message":
                 final = item.get("text")
             elif item.get("type") == "command_execution":
-                tool_calls.append({"name": "shell", "command": item.get("command"),
+                command = item.get("command") or ""
+                if root and any(outside_corpus(token, root)
+                                for token in absolute_paths(str(command))):
+                    unexpected.add("read_outside_corpus")
+                tool_calls.append({"name": "shell", "command": command,
                                    "output": item.get("aggregated_output") or ""})
             elif item.get("type") == "mcp_tool_call":
                 server = item.get("server")
@@ -77,6 +113,13 @@ def main():
     retrieval_tools = load_retrieval_tools(mcp_config)
 
     # Isolation: this trial's Codex home carries the subscription credential and nothing else.
+    #
+    # `--ignore-user-config` covers Codex's own config and does not cover the operator's home
+    # directory. Every trial of the first Linux run opened
+    # `~/.agents/skills/retrieval-mcp/SKILL.md` as its first command - a routing guide for the very
+    # tools under test, written by this project, read by both arms from outside the corpus. So the
+    # trial gets its own HOME as well: a shell started in it finds no profile, no skills directory
+    # and no agent instructions, and the corpus copy is the only evidence in the session.
     home = run_dir / "codex-home"
     home.mkdir(parents=True, exist_ok=True)
     credential = Path(os.environ.get("CODEX_AUTH_SOURCE", Path.home() / ".codex" / "auth.json"))
@@ -90,8 +133,9 @@ def main():
                     "-c", "mcp_servers.retrieval.args=" + json.dumps(retrieval.get("args", []))]
     command.append(prompt)
 
-    process = subprocess.run(command, env=dict(os.environ, CODEX_HOME=str(home)),
-                             capture_output=True, text=True, timeout=None)
+    isolated = dict(os.environ, CODEX_HOME=str(home), HOME=str(home),
+                    XDG_CONFIG_HOME=str(home / "config"), XDG_DATA_HOME=str(home / "data"))
+    process = subprocess.run(command, env=isolated, capture_output=True, text=True, timeout=None)
     (run_dir / "codex-events.jsonl").write_text(process.stdout, encoding="utf-8")
     (run_dir / "codex-stderr.log").write_text(process.stderr, encoding="utf-8")
 
@@ -102,7 +146,7 @@ def main():
                 events.append(json.loads(line))
             except ValueError:
                 continue
-    outcome = parse_events(events)
+    outcome = parse_events(events, os.getcwd())
 
     tools = sorted({"mcp__retrieval__" + tool for tool in retrieval_tools})
     if retrieval:

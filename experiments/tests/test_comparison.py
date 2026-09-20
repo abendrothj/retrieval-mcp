@@ -104,6 +104,30 @@ class ComparisonTests(unittest.TestCase):
             stderr = workspace / "systems" / "alpha" / "state" / "command-01.stderr.log"
             self.assertIn("failed", stderr.read_text())
 
+    def test_build_state_is_ignored_in_the_corpus_root_and_kept_below_it(self):
+        """`target` is a Rust build directory at the root and an ordinary word underneath.
+
+        Linux has `Documentation/target/` and `drivers/nvme/target/`. Dropping those from the copy
+        while the fingerprint kept them made an 86,602-file corpus disagree with its own copy by
+        127 files, and preparation aborted on a corpus that was perfectly fine.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            source = base / "source"
+            (source / "target").mkdir(parents=True)
+            (source / "target" / "stale.bin").write_text("build output\n")
+            (source / "Documentation" / "target").mkdir(parents=True)
+            (source / "Documentation" / "target" / "design.rst").write_text("real docs\n")
+            (source / "evidence.txt").write_text("fixture evidence\n")
+            systems_path = base / "systems.json"; systems(systems_path)
+            workspace = base / "workspace"
+            comparison_runner.prepare(SimpleNamespace(
+                source_root=source, workspace=workspace, systems=systems_path,
+                server=Path(sys.executable), semantic_command=["fixture"], prepare_timeout=30))
+            copied = workspace / "systems" / "alpha" / "corpus"
+            self.assertTrue((copied / "Documentation" / "target" / "design.rst").is_file())
+            self.assertFalse((copied / "target").exists())
+
 
     def test_prepare_run_gate_and_analysis_without_inference(self):
         with tempfile.TemporaryDirectory() as directory:

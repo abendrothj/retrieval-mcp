@@ -330,6 +330,7 @@ def measures(rows):
         # bought context by answering without the evidence, which is a regression whatever the
         # token columns say. `wrong_without_evidence` is the subset that was also graded wrong.
         "answered_without_evidence": sum(1 for row in rows if row.get("answered_without_evidence")),
+        "contaminated": sum(1 for row in rows if row.get("contaminated")),
         "wrong_without_evidence": sum(1 for row in rows if row.get("answered_without_evidence")
                                       and not row["resolved_correct"]),
         # The comparison that matters: cost of the evidence, and cost of everything after it.
@@ -387,6 +388,11 @@ def report(args):
             "resolved_correct": bool(state.get("resolved_correct")),
             "resolved_credit": float(state.get("resolved_credit") or 0.0),
             "budget_exhausted": bool(state.get("budget_exhausted")),
+            # Evidence the corpus does not contain: another MCP server, a web fetch, or a shell
+            # command reading an absolute path outside the corpus copy. A run whose arms read a
+            # document about the tools under test is not a comparison, so this is reported beside
+            # the token columns rather than left in the per-trial state for nobody to open.
+            "contaminated": sorted(state.get("unexpected_tools") or []),
             "wall_time_ms": state.get("wall_time_ms"),
             "repository_unchanged": state.get("repository_unchanged"),
             **trial_metrics(trial, task),

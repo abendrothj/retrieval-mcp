@@ -1,0 +1,54 @@
+{
+  "version": "comparison-systems-v2",
+  "systems": [
+    {
+      "id": "native-control",
+      "mcp_enabled": false,
+      "upstreams": [],
+      "environment": {},
+      "prompt_policy": "",
+      "prepare_commands": [],
+      "check_commands": [],
+      "version_command": [
+        "codex",
+        "--version"
+      ]
+    },
+    {
+      "id": "retrieval-mcp",
+      "mcp_enabled": true,
+      "upstreams": [
+        {
+          "id": "retrieval",
+          "command": [
+            "{server}",
+            "--root",
+            "{root}",
+            "--semantic-command",
+            "{semantic_command_json}",
+            "--timeout-seconds",
+            "120"
+          ],
+          "environment": {},
+          "visible_tools": [
+            "search_exact",
+            "read_source",
+            "find_callers",
+            "search_concept"
+          ],
+          "expected_upstream_tools": [
+            "search_exact",
+            "read_source",
+            "find_callers",
+            "search_concept"
+          ]
+        }
+      ],
+      "environment": {},
+      "prompt_policy": "Stopping rule. Every row this server returns is a verified source fact: it names a real definition with its file, and `counts`, `has_more` and the relation labels state how complete the listing is. When the rows you already hold contain every fact the question asks for, answer from them. Do not read a definition's source to confirm a row that already named it, do not repeat a lookup you have already made, and do not reconfirm one tool's rows with another tool. Retrieve again only when a required fact is missing, ambiguous, contradicted, or truncated - `has_more` true, or a count larger than the rows shown. If multiple visible symbols plausibly satisfy a requested fact, disambiguate between those candidates before answering. Do not expand merely to reconfirm a single unambiguous candidate. When you do read source, read the narrowest range that carries the missing fact.",
+      "prepare_commands": [],
+      "check_commands": [],
+      "version_command": null
+    }
+  ]
+}

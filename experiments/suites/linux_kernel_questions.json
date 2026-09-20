@@ -1,0 +1,514 @@
+[
+ {
+  "id": "lx-callers-sigqueue-flush",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "kernel/signal.c::flush_sigqueue",
+  "hops": 1,
+  "exhaustive": true,
+  "include_defining_file": true,
+  "question": "In the signal subsystem, one small helper empties a pending-signal queue: it clears the signal mask of the structure it is given and then walks the queue's list, unlinking each entry and handing it back to the signal-queue allocator. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in the file that defines it and in files beside it, and name each caller once.",
+  "expected_json": {
+   "answer": [
+    "kernel/exit.c::__exit_signal",
+    "kernel/signal.c::flush_signals",
+    "security/selinux/hooks.c::selinux_bprm_committed_creds"
+   ]
+  },
+  "rejected_alternates": [
+   "kernel/signal.c::__sigqueue_free",
+   "kernel/signal.c::flush_sigqueue_mask",
+   "kernel/signal.c::__flush_itimer_signals"
+  ],
+  "evidence": [
+   {
+    "path": "kernel/signal.c",
+    "contains": "sigemptyset(&queue->signal);"
+   }
+  ],
+  "author_notes": "Gold enumerated by audit_failures.true_callers over the whole 86,605-file tree with include_defining_file=True, so neighbours and same-file callers count and the prose says so. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-callers-blk-tag-wake",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "block/blk-mq-tag.c::blk_mq_tag_wakeup_all",
+  "hops": 1,
+  "exhaustive": true,
+  "include_defining_file": true,
+  "question": "In the block layer's tag allocator, one two-line function wakes everything that might be sleeping on a tag: it wakes all waiters on the ordinary bitmap queue and, when its boolean argument says so, on the reserved one as well. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in the file that defines it and in files beside it, and name each caller once.",
+  "expected_json": {
+   "answer": [
+    "block/blk-mq-tag.c::__blk_mq_tag_idle",
+    "block/blk-mq.c::blk_mq_wake_waiters"
+   ]
+  },
+  "rejected_alternates": [
+   "block/blk-mq-tag.c::__blk_mq_tag_busy",
+   "block/blk-mq-tag.c::blk_mq_get_tag",
+   "block/blk-mq-tag.c::blk_mq_put_tag"
+  ],
+  "evidence": [
+   {
+    "path": "block/blk-mq-tag.c",
+    "contains": "sbitmap_queue_wake_all(&tags->breserved_tags);"
+   }
+  ],
+  "author_notes": "Gold enumerated by audit_failures.true_callers over the whole 86,605-file tree with include_defining_file=True, so neighbours and same-file callers count and the prose says so. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-callers-sctp-shkey-release",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "net/sctp/auth.c::sctp_auth_shkey_release",
+  "hops": 1,
+  "exhaustive": true,
+  "include_defining_file": true,
+  "question": "In SCTP's authentication code, one function drops a reference on a shared key and destroys it only when that reference count reaches zero. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in the file that defines it and in files beside it, and name each caller once.",
+  "expected_json": {
+   "answer": [
+    "net/sctp/auth.c::sctp_auth_del_key_id",
+    "net/sctp/auth.c::sctp_auth_destroy_keys",
+    "net/sctp/auth.c::sctp_auth_set_key",
+    "net/sctp/sm_make_chunk.c::sctp_control_release_owner",
+    "net/sctp/socket.c::sctp_wfree"
+   ]
+  },
+  "rejected_alternates": [
+   "net/sctp/auth.c::sctp_auth_shkey_hold",
+   "net/sctp/auth.c::sctp_auth_shkey_destroy",
+   "net/sctp/auth.c::sctp_auth_key_put"
+  ],
+  "evidence": [
+   {
+    "path": "net/sctp/auth.c",
+    "contains": "if (refcount_dec_and_test(&sh_key->refcnt))"
+   }
+  ],
+  "author_notes": "Gold enumerated by audit_failures.true_callers over the whole 86,605-file tree with include_defining_file=True, so neighbours and same-file callers count and the prose says so. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-callers-tls-closure-alert",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "net/handshake/tlshd.c::tls_handshake_close",
+  "hops": 1,
+  "exhaustive": true,
+  "include_defining_file": true,
+  "question": "In the kernel's TLS handshake upcall layer, one exported function sends a closure alert on an open socket: it looks the request up by its sock, gives up if there is none or if the session flag was already clear, and otherwise sends a warning-level close-notify. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in the file that defines it and in files beside it, and name each caller once.",
+  "expected_json": {
+   "answer": [
+    "net/sunrpc/svcsock.c::svc_tcp_sock_detach",
+    "net/sunrpc/xprtsock.c::xs_close"
+   ]
+  },
+  "rejected_alternates": [
+   "net/handshake/tlshd.c::tls_handshake_cancel",
+   "net/handshake/tlshd.c::tls_handshake_done",
+   "net/handshake/tlshd.c::tls_handshake_accept"
+  ],
+  "evidence": [
+   {
+    "path": "net/handshake/tlshd.c",
+    "contains": "TLS_ALERT_DESC_CLOSE_NOTIFY);"
+   }
+  ],
+  "author_notes": "Gold enumerated by audit_failures.true_callers over the whole 86,605-file tree with include_defining_file=True, so neighbours and same-file callers count and the prose says so. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-callers-oom-shares-mm",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "mm/oom_kill.c::process_shares_mm",
+  "hops": 1,
+  "exhaustive": true,
+  "include_defining_file": true,
+  "question": "In the out-of-memory killer, one predicate decides whether a task is using a particular address space by walking that task's threads and comparing the first non-NULL mm it finds, because a group leader that has exited has none of its own. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in the file that defines it and in files beside it, and name each caller once.",
+  "expected_json": {
+   "answer": [
+    "fs/proc/base.c::__set_oom_adj",
+    "mm/oom_kill.c::__oom_kill_process",
+    "mm/oom_kill.c::task_will_free_mem"
+   ]
+  },
+  "rejected_alternates": [
+   "mm/oom_kill.c::oom_badness",
+   "mm/oom_kill.c::oom_evaluate_task",
+   "mm/oom_kill.c::oom_kill_process"
+  ],
+  "evidence": [
+   {
+    "path": "mm/oom_kill.c",
+    "contains": "for_each_thread(p, t) {"
+   }
+  ],
+  "author_notes": "Gold enumerated by audit_failures.true_callers over the whole 86,605-file tree with include_defining_file=True, so neighbours and same-file callers count and the prose says so. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-callers-perf-aux-free",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "kernel/events/ring_buffer.c::rb_free_aux",
+  "hops": 1,
+  "exhaustive": true,
+  "include_defining_file": true,
+  "question": "In the perf ring buffer, one function drops a reference on the AUX area and frees it only when that reference count reaches zero. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in the file that defines it and in files beside it, and name each caller once.",
+  "expected_json": {
+   "answer": [
+    "kernel/events/core.c::perf_mmap_close",
+    "kernel/events/ring_buffer.c::perf_aux_output_begin",
+    "kernel/events/ring_buffer.c::perf_aux_output_end"
+   ]
+  },
+  "rejected_alternates": [
+   "kernel/events/ring_buffer.c::__rb_free_aux",
+   "kernel/events/ring_buffer.c::rb_alloc_aux",
+   "kernel/events/ring_buffer.c::rb_free"
+  ],
+  "evidence": [
+   {
+    "path": "kernel/events/ring_buffer.c",
+    "contains": "if (refcount_dec_and_test(&rb->aux_refcount))"
+   }
+  ],
+  "author_notes": "Gold enumerated by audit_failures.true_callers over the whole 86,605-file tree with include_defining_file=True, so neighbours and same-file callers count and the prose says so. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-callers-tick-periodic-setup",
+  "category": "direct_caller_lookup",
+  "set": "dev",
+  "helper": "kernel/time/tick-common.c::tick_setup_periodic",
+  "hops": 1,
+  "exhaustive": true,
+  "include_defining_file": true,
+  "question": "In the tick layer, one function prepares a clock event device to deliver periodic ticks: it installs the periodic handler, returns early when the device is not functional, and otherwise either switches the device into its periodic state or programs the next event from the last jiffies update. Name every function or method in the corpus that calls it, each as path::name. Count every call in the corpus, including callers in the file that defines it and in files beside it, and name each caller once.",
+  "expected_json": {
+   "answer": [
+    "kernel/time/tick-broadcast.c::tick_broadcast_control",
+    "kernel/time/tick-broadcast.c::tick_broadcast_start_periodic",
+    "kernel/time/tick-common.c::tick_resume_local",
+    "kernel/time/tick-common.c::tick_setup_device"
+   ]
+  },
+  "rejected_alternates": [
+   "kernel/time/tick-common.c::tick_set_periodic_handler",
+   "kernel/time/tick-common.c::tick_handle_periodic",
+   "kernel/time/tick-common.c::tick_install_replacement"
+  ],
+  "evidence": [
+   {
+    "path": "kernel/time/tick-common.c",
+    "contains": "Setup the device for a periodic tick"
+   }
+  ],
+  "author_notes": "Gold enumerated by audit_failures.true_callers over the whole 86,605-file tree with include_defining_file=True, so neighbours and same-file callers count and the prose says so. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-mixed-bridge-stp-disable",
+  "category": "mixed_discovery_structure",
+  "set": "dev",
+  "helper": "net/bridge/br_stp_if.c::br_stp_disable_port",
+  "hops": 1,
+  "exhaustive": true,
+  "include_defining_file": true,
+  "caller_key": "callers",
+  "question": "In the bridge driver's spanning-tree code, one function takes a bridge port out of the protocol: it remembers whether the bridge was root, makes the port a designated port, moves it to the disabled state, clears its topology-change acknowledgement and pending-config flags, notifies link watchers and deletes its message-age, forward-delay and hold timers. Identify it, then name every function in the corpus that calls it. Count every call in the corpus, including callers in the file that defines it and in files beside it, and name each caller once. Return a JSON object with \"implementation\" as path::name and \"callers\" as a list of path::name.",
+  "expected_json": {
+   "answer": {
+    "implementation": "net/bridge/br_stp_if.c::br_stp_disable_port",
+    "callers": [
+     "net/bridge/br.c::br_device_event",
+     "net/bridge/br_if.c::br_port_carrier_check",
+     "net/bridge/br_if.c::del_nbp",
+     "net/bridge/br_stp_bpdu.c::br_stp_rcv",
+     "net/bridge/br_stp_if.c::br_stp_disable_bridge"
+    ]
+   }
+  },
+  "rejected_alternates": [
+   "net/bridge/br_stp_if.c::br_stp_enable_port",
+   "net/bridge/br_stp_if.c::br_stp_enable_bridge",
+   "net/bridge/br_stp.c::br_become_designated_port"
+  ],
+  "evidence": [
+   {
+    "path": "net/bridge/br_stp_if.c",
+    "contains": "wasroot = br_is_root_bridge(br);"
+   }
+  ],
+  "author_notes": "Two facts in one gold: the implementation and its verified caller set, separated by caller_key so the implementation is checked as a definition rather than demanded to call itself. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-conceptual-irq-reservation-undo",
+  "category": "conceptual_lookup",
+  "set": "dev",
+  "question": "In the interrupt allocation matrix, one bookkeeping function decrements the count of globally reserved interrupt bits. It exists to undo a reservation when the interrupt was never actually used and a real vector was allocated instead. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "kernel/irq/matrix.c::irq_matrix_remove_reserved"
+  },
+  "rejected_alternates": [
+   "kernel/irq/matrix.c::irq_matrix_reserve",
+   "kernel/irq/matrix.c::irq_matrix_free",
+   "kernel/irq/matrix.c::irq_matrix_assign"
+  ],
+  "evidence": [
+   {
+    "path": "kernel/irq/matrix.c",
+    "contains": "Remove interrupt reservation"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-conceptual-relay-subbuffer-switch",
+  "category": "conceptual_lookup",
+  "set": "dev",
+  "question": "In the relay channel implementation, one function moves a channel buffer on to a new sub-buffer: it performs the switch bookkeeping - invoking callbacks, updating padding counts and waking readers - and returns the event length it was given, or zero when the buffer is full. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "kernel/relay.c::relay_switch_subbuf"
+  },
+  "rejected_alternates": [
+   "kernel/relay.c::relay_reset",
+   "kernel/relay.c::relay_close_buf",
+   "kernel/relay.c::relay_subbufs_consumed"
+  ],
+  "evidence": [
+   {
+    "path": "kernel/relay.c",
+    "contains": "switch to a new sub-buffer"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-conceptual-statd-reboot-notify",
+  "category": "conceptual_lookup",
+  "set": "dev",
+  "question": "In the lock manager's status-monitor client, one function arranges for a peer to be told if this machine reboots: when the peer is not already monitored it sends an upcall to the local userspace status daemon to record the peer's name and address, returning zero once the peer is monitored and a negative errno otherwise. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "fs/lockd/mon.c::nsm_monitor"
+  },
+  "rejected_alternates": [
+   "fs/lockd/mon.c::nsm_unmonitor",
+   "fs/lockd/mon.c::nsm_get_handle",
+   "fs/lockd/mon.c::nsm_reboot_lookup"
+  ],
+  "evidence": [
+   {
+    "path": "fs/lockd/mon.c",
+    "contains": "Notify a peer in case we reboot"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-conceptual-key-payload-update",
+  "category": "conceptual_lookup",
+  "set": "dev",
+  "question": "In the kernel keyring implementation, one function replaces the contents of an existing key with a supplied payload. The caller must hold write permission on the key, a negative key can be instantiated this way, and the key type must support the operation or the call is refused. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "security/keys/key.c::key_update"
+  },
+  "rejected_alternates": [
+   "security/keys/key.c::key_instantiate_and_link",
+   "security/keys/key.c::key_reject_and_link",
+   "security/keys/keyctl.c::keyctl_update_key"
+  ],
+  "evidence": [
+   {
+    "path": "security/keys/key.c",
+    "contains": "Update a key's contents"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-conceptual-probe-entry-check",
+  "category": "conceptual_lookup",
+  "set": "dev",
+  "question": "In the dynamic probe machinery, one function answers whether a given address, or a symbol plus offset, lands exactly on a function's entry point. It returns zero when it does, an invalid-argument error when it does not, and a not-found error when the symbol or address cannot be resolved at all. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "kernel/kprobes.c::kprobe_on_func_entry"
+  },
+  "rejected_alternates": [
+   "kernel/kprobes.c::register_kprobe",
+   "kernel/kprobes.c::arch_check_ftrace_location",
+   "kernel/kprobes.c::within_kprobe_blacklist"
+  ],
+  "evidence": [
+   {
+    "path": "kernel/kprobes.c",
+    "contains": "check whether given address is function entry"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-conceptual-pid-charge-over-limit",
+  "category": "conceptual_lookup",
+  "set": "dev",
+  "question": "In the process-number controller, one function adds to the process count of a cgroup and of every ancestor above it, deliberately ignoring the configured limit: it cannot fail, may push the count past the maximum, and exists only so a failed attach can be reverted. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "kernel/cgroup/pids.c::pids_charge"
+  },
+  "rejected_alternates": [
+   "kernel/cgroup/pids.c::pids_try_charge",
+   "kernel/cgroup/pids.c::pids_uncharge",
+   "kernel/cgroup/pids.c::pids_can_attach"
+  ],
+  "evidence": [
+   {
+    "path": "kernel/cgroup/pids.c",
+    "contains": "hierarchically charge the pid count"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-conceptual-default-irq-domain",
+  "category": "conceptual_lookup",
+  "set": "dev",
+  "question": "In the interrupt domain layer, one function records the domain that should be used whenever a mapping is created with no domain given, as a convenience for platforms with a few hard-coded interrupt numbers that the device tree does not describe. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "kernel/irq/irqdomain.c::irq_set_default_host"
+  },
+  "rejected_alternates": [
+   "kernel/irq/irqdomain.c::irq_get_default_host",
+   "kernel/irq/irqdomain.c::irq_create_mapping",
+   "kernel/irq/irqdomain.c::irq_domain_associate"
+  ],
+  "evidence": [
+   {
+    "path": "kernel/irq/irqdomain.c",
+    "contains": "Set a \"default\" irq domain"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-symbol-oom-reenable",
+  "category": "symbol_resolution",
+  "set": "dev",
+  "question": "In the out-of-memory killer, one function does exactly two things: it clears the flag that forces allocations to fail instead of triggering the killer, and it logs a line saying the killer is on again. Name that function, not the one that turns the killer off and waits for victims. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "mm/oom_kill.c::oom_killer_enable"
+  },
+  "rejected_alternates": [
+   "mm/oom_kill.c::oom_killer_disable",
+   "mm/oom_kill.c::exit_oom_victim",
+   "mm/oom_kill.c::mark_oom_victim"
+  ],
+  "evidence": [
+   {
+    "path": "mm/oom_kill.c",
+    "contains": "oom_killer_disabled = false;"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-symbol-timer-pinned-start",
+  "category": "symbol_resolution",
+  "set": "dev",
+  "question": "In the timer wheel, one function starts a timer on the CPU that arms it: it behaves exactly like the ordinary start routine except that it sets the pinned flag first. Name that function, not the ordinary one and not its counterpart that clears the flag so the timer may migrate. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "kernel/time/timer.c::add_timer_local"
+  },
+  "rejected_alternates": [
+   "kernel/time/timer.c::add_timer",
+   "kernel/time/timer.c::add_timer_global",
+   "kernel/time/timer.c::add_timer_on"
+  ],
+  "evidence": [
+   {
+    "path": "kernel/time/timer.c",
+    "contains": "Start a timer on the local CPU"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-symbol-gfs2-dir-hash-drop",
+  "category": "symbol_resolution",
+  "set": "dev",
+  "question": "In the GFS2 directory code, one function invalidates a directory inode's cached hash table and must be called either under an exclusive glock or during glock invalidation. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "fs/gfs2/dir.c::gfs2_dir_hash_inval"
+  },
+  "rejected_alternates": [
+   "fs/gfs2/dir.c::gfs2_dir_read",
+   "fs/gfs2/dir.c::dir_split_leaf",
+   "fs/gfs2/glops.c::gfs2_inode_metasync"
+  ],
+  "evidence": [
+   {
+    "path": "fs/gfs2/dir.c",
+    "contains": "Invalidate dir hash"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-symbol-synth-event-cmd-start",
+  "category": "symbol_resolution",
+  "set": "dev",
+  "question": "In the synthetic event tracing code, one function prepares a dynamic-event command object against a caller-supplied buffer and its maximum length, and must be called before any of the other command functions. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "kernel/trace/trace_events_synth.c::synth_event_cmd_init"
+  },
+  "rejected_alternates": [
+   "kernel/trace/trace_events_synth.c::synth_event_gen_cmd_array_start",
+   "kernel/trace/trace_events_synth.c::synth_event_add_field",
+   "kernel/trace/trace_events_synth.c::synth_event_create"
+  ],
+  "evidence": [
+   {
+    "path": "kernel/trace/trace_events_synth.c",
+    "contains": "Initialize a synthetic event command object"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-generic-inode-timestamps",
+  "category": "generic_name",
+  "set": "dev",
+  "question": "In the VFS inode code, one function updates an inode's modification and change times and marks it for writeback. It is meant only for a filesystem's write path, and a filesystem can opt out of it with an inode flag - network filesystems do. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "fs/inode.c::file_update_time"
+  },
+  "rejected_alternates": [
+   "fs/inode.c::inode_update_time",
+   "fs/inode.c::touch_atime",
+   "fs/inode.c::generic_update_time"
+  ],
+  "evidence": [
+   {
+    "path": "fs/inode.c",
+    "contains": "update mtime and ctime time"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ },
+ {
+  "id": "lx-generic-mac80211-unused-key",
+  "category": "generic_name",
+  "set": "dev",
+  "question": "In the soft-MAC wireless stack, one function frees a key that was allocated but never attached to an interface or a local device: it warns if either of those pointers is set, then hands the key to the common free path. Return the qualified symbol as path::name.",
+  "expected_json": {
+   "answer": "net/mac80211/key.c::ieee80211_key_free_unused"
+  },
+  "rejected_alternates": [
+   "net/mac80211/key.c::ieee80211_key_free",
+   "net/mac80211/key.c::ieee80211_key_link",
+   "net/mac80211/key.c::__ieee80211_key_destroy"
+  ],
+  "evidence": [
+   {
+    "path": "net/mac80211/key.c",
+    "contains": "WARN_ON(key->sdata || key->local);"
+   }
+  ],
+  "author_notes": "Behavioural cues taken from the function's own body and its kernel-doc block; the alternates are the neighbours a reader would reach for first. Survived lexical_oracle.py at budget 25 over the whole kernel; two questions that did not were removed from the set before it was frozen."
+ }
+]
