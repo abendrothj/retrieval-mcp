@@ -104,6 +104,40 @@
         }
       }
     },
+    "linux-kernel-scanfix": {
+      "model": "gpt-5.6-luna",
+      "questions": 21,
+      "repetitions": 3,
+      "note": "The same kernel plan with one variable changed - rarity-weighted candidate selection. Every question predicted to recover did; the token gap against native halves to +8.3%; two of three registered criteria still missed.",
+      "sources": [
+        {
+          "report": "runs/linux-scanfix-20260920/end-to-end.json",
+          "sha256": "d79ce71a0a7ce8bbbf48edf6b19c0420b710a2dc2abef33a19f1c316d0220582"
+        }
+      ],
+      "arms": {
+        "native-control": {
+          "trials": 63,
+          "correct": 61,
+          "input_tokens": 8476336,
+          "input_tokens_with_cache_reads": 15031728,
+          "calls": 234,
+          "context_token_turns": 52231827,
+          "calls_to_first_evidence": 1.762,
+          "answered_without_evidence": 5
+        },
+        "retrieval-mcp": {
+          "trials": 63,
+          "correct": 58,
+          "input_tokens": 9176136,
+          "input_tokens_with_cache_reads": 16697160,
+          "calls": 200,
+          "context_token_turns": 13398178,
+          "calls_to_first_evidence": 1.377,
+          "answered_without_evidence": 4
+        }
+      }
+    },
     "linux-kernel": {
       "model": "gpt-5.6-luna",
       "questions": 21,

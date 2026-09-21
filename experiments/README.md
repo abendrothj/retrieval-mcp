@@ -1566,8 +1566,65 @@ immediately. Workers now merge when they are dropped.
 **What is and is not claimed.** This is offline: a rank, not an answer. Six of the nine questions
 still unrecalled at kernel scale are caller questions, which an agent answers with `find_callers`
 rather than `search_concept`, so the metric is hardest on the shape it least describes. Whether
-tripling candidate recall changes what a model answers is **unmeasured**, and
-`runs/linux-agent-20260919` is the registered baseline waiting for it.
+tripling candidate recall changes what a model answers was measured next, in
+`runs/linux-scanfix-20260920` against `runs/linux-agent-20260919` as the registered baseline.
+
+### The repair, measured under a model: every predicted answer, and a new failure one level down
+
+`runs/linux-scanfix-20260920`. One variable against `runs/linux-agent-20260919`: the binary. Same
+21 questions and hashes, same corpus fingerprint, same seed 29, same three repetitions, same
+25-call cap, same client and model. 126 trials, none failed, zero contamination flags.
+
+The registration was written against the mechanism rather than the arithmetic, which is the part
+worth copying. An earlier draft said "recover 4 of the 6 lost answers" — a bar set by counting
+what was lost, which cannot be wrong for an interesting reason. The offline ladder said something
+sharper: `search_concept` now returns the gold at rank 1-2 for four *named* questions and still
+does not for a fifth, `lx-callers-tls-closure-alert`, because that is a caller question this
+change does not touch. So the registered claim named the four, named the fifth as not moving, and
+asked for at least 5 of their 6 lost trials back.
+
+| | baseline `0.1.6` scan | rarity scan |
+|---|---:|---:|
+| Resolved correct / 63 | 56 | **58** |
+| Graded credit | 0.889 | **0.931** |
+| Input tokens, mean | 161,451 | **145,653** |
+| Against the native control | +16.4% | **+8.3%** |
+| Answered without evidence | 7 | **4** |
+| Median wall time | 29.3 s | **27.8 s** |
+| Per repetition | 19, 19, 18 | 20, 19, 19 |
+
+**Criterion 1, the per-question prediction: passed exactly.** `synth-event-cmd-start` 1/3 → 3/3,
+`inode-timestamps` 1/3 → 3/3, `probe-entry-check` 2/3 → 3/3, `key-payload-update` 2/3 → 3/3. Six
+of six, against a bar of five, and no question that stood at 3/3 fell below 2/3.
+
+**Criterion 2, paired tokens: missed on its own test.** Against the archived arm over 21 question
+medians, 11 were lower and the paired median is −3,568 tokens. The median is negative and the sign
+test is a coin flip; the registration asked for the sign test, so this is a miss rather than a
+small win. **Criterion 3, safety: missed** at 4 unevidenced answers against a bar of 2, improving
+from 7.
+
+**The interesting part is what the prediction did not cover.** The guard protected questions the
+baseline answered 3/3. `lx-callers-tls-closure-alert` stood at 2/3, fell to **0/3**, and no
+criterion saw it. That is a hole in the registration, and the data behind it is a real mechanism:
+
+> The question describes a function that "looks the request up by its sock, gives up if there is
+> none or if the session flag was already clear, and otherwise sends a warning-level close-notify".
+> That is `net/handshake/tlshd.c::tls_handshake_close`, whose last statement calls
+> `tls_alert_send`. The baseline asked `find_callers` about `tls_handshake_close` in two trials of
+> three. The repaired arm asked about **`tls_alert_send` in all three**.
+
+Rarity weighting ranks the site where the rare tokens literally appear, and for a wrapper that
+site is the callee it names. `lx-callers-blk-tag-wake` fails the same way into `lib/sbitmap.c`;
+`lx-callers-oom-shares-mm` fails differently, an over-inclusive caller set scored 0.667. All four
+lost trials are caller questions. The question was checked before any of this was interpreted:
+`tls_handshake_close` performs every step the prose names and `tls_alert_send` performs none, so
+the question is sound and the answers are wrong.
+
+**Where that leaves it.** Candidate selection was the kernel study's dominant failure and the
+repair removes it — every question predicted to recover did, first attempt, nothing solid broke,
+and the token gap halves. It also exposes a narrower failure one level down: choosing between a
+wrapper and the callee it names. That is now the largest remaining loss on this corpus, it is a
+ranking question rather than a selection one, and it is open.
 
 ### Two handshake sentences, measured and rejected
 

@@ -109,6 +109,17 @@ per round trip. On a few hundred files, grep is a poor summary of the tree; on t
 pipeline is a good one.
 [The run, its audit, and the four harness defects it exposed](experiments/README.md#the-linux-kernel-where-the-claim-stops).
 
+**Most of that was a defect, and it is fixed.** A nested ladder cut from the same corpus - 928,
+5,637, 18,652 and 86,605 files, every answer present in the smallest - showed the payload holding
+flat at 73-75 KB while the gold definition was found for 14, 9, 8 and then **4 of 21** questions.
+Not the page size: `limit: 100` returned the same four. In 17 of the 21 the answer's own file
+never entered the 400-file candidate set, because files were scored by how many query words they
+carried and 56,000 of 60,000 Linux files carry at least one. Scoring by rarity instead takes that
+to **12 of 21**, and the same kernel plan re-run under the model gives **58 of 63 against 56, the
+token gap against native halving from +16.4% to +8.3%**, with every question predicted to recover
+recovering. Two of three registered criteria were still missed and are published as misses.
+[The ladder, the repair, and the failure it exposed one level down](experiments/README.md#the-ladder-what-size-actually-did-and-what-the-scorer-did).
+
 **Which binary produced these.** The held-out table is the frozen four-tool surface as of
 2026-09-12; the etcd replication ran on the binary that became `0.1.6` minus its last four changes.
 Nothing in `0.1.6` has an agent-level measurement behind it: the routing filter is −13.3% of

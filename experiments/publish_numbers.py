@@ -38,6 +38,15 @@ STUDIES = {
         "note": "Independent etcd client corpus on HEAD; missed its registered quality criterion "
                 "by one answer and is published as a miss.",
     },
+    "linux-kernel-scanfix": {
+        "reports": ["runs/linux-scanfix-20260920/end-to-end.json"],
+        "model": "gpt-5.6-luna",
+        "questions": 21,
+        "repetitions": 3,
+        "note": "The same kernel plan with one variable changed - rarity-weighted candidate "
+                "selection. Every question predicted to recover did; the token gap against "
+                "native halves to +8.3%; two of three registered criteria still missed.",
+    },
     "linux-kernel": {
         "reports": ["runs/linux-agent-20260919/end-to-end.json"],
         "model": "gpt-5.6-luna",

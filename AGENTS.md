@@ -112,7 +112,7 @@ measured over 351 trials in `runs/instructions-ab-rerun-20260916` and both came 
 registered +3 bar, so the prompt side of this server has nothing left that measurement supports
 changing.
 
-**The size clause is new and it was paid for.** `runs/linux-agent-20260919` put the same two arms
+**The size clause is new, it was paid for, and most of it turned out to be a defect.** `runs/linux-agent-20260919` put the same two arms
 on Linux 6.12 — 86,602 files, 21 questions, 126 trials — and missed all three registered criteria:
 56 resolved against native's 62, **+16.4% input tokens** where the bar was −20%, and seven answers
 whose gold identity no payload contained. The mechanism is measured, not guessed: attaching the
@@ -120,6 +120,25 @@ four-tool surface costs zero prompt tokens (stub-server probe, 13,802 either way
 ripgrep prints locally reaches the model against ~4× re-sending for an MCP payload, and a native
 shell call chains a mean of 1.95 sub-commands while an MCP call answers one question per round
 trip. At a few hundred files grep is a poor summary; at kernel scale a pipeline is a good one.
+
+Then the identified experiment. `runs/scale-response-20260920` cuts four nested corpora from the
+same tree - 928, 5,637, 18,652, 86,605 files, every gold in the smallest - and holds retrieval
+behaviour fixed by replaying the archived run's own calls. The payload is scale-invariant at
+73-75 KB; recall is not, falling 14, 9, 8, **4** of 21. It was never the page size, and 17 of the
+21 losses were the gold file never entering the 400-file candidate set. `files_about` scored a
+file by how many distinct query words it wrote, and 56,000 of 60,000 Linux source files write at
+least one, so ties were broken by path order. Scoring by rarity - `ln(1 + eligible/df)`, document
+frequency accumulated in the walk already running - plus a budget that stops sampling long files
+and a word boundary that can see inside `quiesce_bucket` takes the kernel to **12 of 21** and
+flattens the ladder to 15, 13, 13, 12, with Django and etcd unmoved.
+
+`runs/linux-scanfix-20260920` re-ran the kernel plan with that one variable: **58 of 63 against
+56, +8.3% input tokens against native where it was +16.4%, unevidenced answers 7 to 4.** Every
+question the registration predicted would recover did, on the first attempt; the paired token test
+and the safety bar were both missed and are published as misses. It also exposed the next failure:
+rarity ranks the site where a rare word literally appears, which for a wrapper is the callee it
+calls, so the agent asked `find_callers` about `tls_alert_send` rather than the
+`tls_handshake_close` that the question described. All four lost trials were caller questions.
 
 Everything measured lives under `runs/`, which is gitignored and therefore local: each study
 directory holds its `preregistration.json`, per-repetition reports, and a note for any chunk that
@@ -129,6 +148,13 @@ bytes, and the corpora are re-cuttable from `corpora/` against the fingerprints 
 
 Open threads:
 
+- **Wrapper against callee is the next failure, and it is measured.** Rarity-weighted selection
+  ranks the site where a rare word appears, which for a thin wrapper is the function it calls.
+  In `runs/linux-scanfix-20260920` that cost all four lost trials, every one a caller question:
+  three trials asked `find_callers` about `tls_alert_send` where the question described
+  `tls_handshake_close`, its caller. This is a ranking problem inside the candidate set, not a
+  selection problem, and nothing in the record says yet whether it is best fixed by scoring, by
+  the tool description, or by a disambiguation step the agent runs itself.
 - **`runs/etcd-caller-20260915` is built, gated and deliberately unrun**: 39 questions, 27
   attribution-hard and 12 local controls, enriched 2.4× over its corpus's own 38% base rate. It
   answers "does attribution change answers, or only cost", and that question has not been worth
