@@ -6,6 +6,24 @@ releases only.
 
 ## Unreleased
 
+**A C parameter's type is no longer a definition.** `struct inode *inode` in a parameter list and
+`struct inode { ... }` are the same node in the C grammar and only the definition has a body;
+both were indexed, so C definitions were named after types they merely mention. On Linux 6.12
+that was 190 of 211 returned concept rows and 17 of 21 rank-1 rows, and the row for
+`int file_update_time(struct file *file)` - the gold answer to a suite question - came back named
+`file`. Refusing bodyless specifiers takes rank-1 rows from 3 of 21 real functions to 20 of 21,
+gold found in the top ten from 12 to 13, and the share of questions whose whole answer sits in one
+payload from **2 of 21 to 11 of 21**. C++ is unaffected: leveldb audits at 25 of 25 definitions,
+caller precision and recall 0.951, ctags cross-check 149 of 150.
+
+Under a model (`runs/linux-complete-20260921`, 126 trials, one variable) that converted into
+**3.20 to 2.50 retrieval calls per trial** and a 7% fall in this arm's own input tokens, with
+quality held at 58 of 63 and unevidenced answers at 4. It did not close the gap against a shell
+agent: native fell further over the same interval, so the same-day comparison went +8.3% to
++10.1%, and the token criterion is published as a miss. The registration's own instrument run
+explains why the axis is hard: a dependent round trip costs ~15,000 tokens on this client, a 20 KB
+payload ~2,400, and native's tokens moved 8.6% between two runs of an identical configuration.
+
 **`search_exact` answers several patterns in one call.** The kernel runs say where an agent's
 tokens go: the arm makes 2.83 tool calls per trial, and 90 of those 356 calls are consecutive
 calls to the same tool - 59 of them `search_exact`. At the measured ~29k input tokens per round

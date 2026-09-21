@@ -1626,6 +1626,46 @@ and the token gap halves. It also exposes a narrower failure one level down: cho
 wrapper and the callee it names. That is now the largest remaining loss on this corpus, it is a
 ranking question rather than a selection one, and it is open.
 
+### Completeness, and the drift that swallowed it
+
+`runs/linux-complete-20260921`. One variable against `runs/linux-scanfix-20260920`: a C struct,
+union, enum or class specifier with no body is a type reference, not a definition. Offline that
+took one-call completeness - the share of questions whose whole answer already sits in a single
+payload - from **2 of 21 to 11 of 21**, and rank-1 rows from 3 of 21 real functions to 20 of 21.
+The cost model said why it should matter: a dependent round trip costs about 15,000 input tokens
+on this client, a 20 KB payload about 2,400, so a removed hop is worth ~10% of a trial and a
+smaller payload is worth almost nothing.
+
+| kernel, 126 trials each | baseline `0.1.6` | rarity scan | + completeness |
+|---|---:|---:|---:|
+| Resolved / 63 | 56 | 58 | **58** |
+| Retrieval calls per trial | 3.20 | 3.20 | **2.50** |
+| Input tokens, mean | 161,451 | 145,653 | **135,448** |
+| Against same-day native | +16.4% | **+8.3%** | +10.1% |
+| Answered without evidence | 7 | 4 | **4** |
+
+**Calls: the mean passed, the paired test did not.** 3.20 to 2.50 is inside the registered 2.70
+bar, but the paired per-question median change is +0.0 with only 7 of 21 questions lower. The mean
+moved because a few questions shed several calls, not because most shed one, and the registration
+asked for both.
+
+**Tokens: missed, and the reason is the instrument.** This arm's own tokens fell 7.0% on the same
+questions, 14 of 21 question medians lower, paired median −14,202. But **native, on an identical
+binary, corpus, seed and question set, spent 134,545 tokens one day and 123,001 the next — 8.6%
+apart.** Provider drift between runs is the same size as the effect being chased. Only the
+same-day within-run comparison can be read, and it says +10.1%, worse than the +8.3% it replaced.
+Quality held at 58 of 63 with no question falling from 3/3, and safety held at 4.
+
+**What the mechanism check says.** Tokens per call rose 45,517 to 54,179 while calls fell 22%. The
+calls that vanished were the cheap ones; the expensive dependent hops remain. Completeness removed
+exactly what it was built to remove and did not touch the rest.
+
+**Three kernel studies now agree.** At 86,602 files the structural surface is level on quality -
+56, 58, 58 against native's 62, 61, 61 - and behind on tokens by +16.4%, +8.3%, +10.1%. The
+deficit is not made of retrieval bytes: payload is a 2,400-token term against a 15,000-token hop,
+and this server already returns 40x fewer bytes than the shell arm. Whatever closes it has to
+remove dependent round trips wholesale, not shave payloads.
+
 ### Two handshake sentences, measured and rejected
 
 The one prompt-side change left untested was the handshake itself: does a single added sentence

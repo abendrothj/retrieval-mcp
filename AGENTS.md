@@ -148,6 +148,13 @@ bytes, and the corpora are re-cuttable from `corpora/` against the fingerprints 
 
 Open threads:
 
+- **The kernel deficit is round trips, not bytes, and it is not closed.** Three studies:
+  +16.4%, +8.3%, +10.1% input tokens against a shell agent, with quality level at 56, 58, 58
+  against 62, 61, 61. `runs/token-metric-20260921` prices the axis - a dependent hop is ~15,000
+  tokens, a 20 KB payload ~2,400 - so payload efficiency, where this server wins 40x, is the
+  wrong lever. `runs/linux-complete-20260921` removed a hop's worth of calls (3.20 to 2.50) and
+  still lost ground, because native drifted 8.6% between two runs of an identical configuration.
+  Any future token claim on this client must be same-day and within-run.
 - **Wrapper against callee is the next failure, and it is measured.** Rarity-weighted selection
   ranks the site where a rare word appears, which for a thin wrapper is the function it calls.
   In `runs/linux-scanfix-20260920` that cost all four lost trials, every one a caller question:

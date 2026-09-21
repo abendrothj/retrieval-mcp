@@ -38,6 +38,16 @@ STUDIES = {
         "note": "Independent etcd client corpus on HEAD; missed its registered quality criterion "
                 "by one answer and is published as a miss.",
     },
+    "linux-kernel-complete": {
+        "reports": ["runs/linux-complete-20260921/end-to-end.json"],
+        "model": "gpt-5.6-luna",
+        "questions": 21,
+        "repetitions": 3,
+        "note": "Third kernel run: C type references refused as definitions, which took one-call "
+                "completeness from 2 of 21 to 11 of 21 offline. Calls fell 3.20 to 2.50 and this "
+                "arm's own tokens fell 7%, but native fell 8.6% on an identical configuration, "
+                "so the same-day gap widened to +10.1% and the token criterion is a miss.",
+    },
     "linux-kernel-scanfix": {
         "reports": ["runs/linux-scanfix-20260920/end-to-end.json"],
         "model": "gpt-5.6-luna",
