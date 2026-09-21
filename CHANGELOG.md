@@ -23,6 +23,18 @@ path, line, span, caller, snippet, excerpt, qualified symbol, name, expression, 
 resolution - identical before and after. A single-row caller page is 2.4% larger, because a
 page-level field costs more than one row saves.
 
+**And the model reads a table, not JSON.** A client bills the `content` text and not
+`structuredContent` - measured - and `content` was the serialised JSON, so every row paid for
+every key name. Arrays now name their columns once and give one tab-separated line per row, with
+tabs and newlines inside values escaped and scores rounded to three decimals;
+`structuredContent` is unchanged and remains canonical for programmatic consumers. Billed bytes
+on the kernel: `search_concept` 3,488 to 2,043, a twenty-row `find_callers` 11,499 to 6,075,
+`search_exact` 2,408 to 1,302, `read_source` 1,830 to 1,203 - **44.7% lighter** over those four.
+
+Together with the de-duplication, per-call context growth should fall from 6,042 tokens to about
+3,800, against a shell agent's 4,378 - the first time the arithmetic predicts this server costing
+less per call than the thing it competes with. Whether an agent's bill follows is unmeasured.
+
 **A C parameter's type is no longer a definition.** `struct inode *inode` in a parameter list and
 `struct inode { ... }` are the same node in the C grammar and only the definition has a body;
 both were indexed, so C definitions were named after types they merely mention. On Linux 6.12

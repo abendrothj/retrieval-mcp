@@ -510,6 +510,84 @@ fn definition<T: JsonSchema>(name: &'static str, description: &'static str) -> T
 /// from the end and setting `has_more`/`next_offset` says the same thing in the vocabulary the
 /// caller already knows how to follow. A response that is oversized with a single row left, or
 /// that has no page to shrink, still fails - there is nothing honest to return.
+/// The text a model actually reads, and the only part of a tool result it is billed for.
+///
+/// A client is charged for `content`; `structuredContent` is free - measured, by sending the same
+/// payload twice and seeing no change in reported usage - and remains the canonical machine
+/// channel. Serialising JSON into `content` therefore pays for every key on every row: a
+/// twenty-row caller page repeats seven field names twenty times. This writes each table's column
+/// names once and one tab-separated line per row, which costs a client nothing in information and
+/// is what a shell agent's output already looks like.
+///
+/// Values are escaped so a tab or newline inside a snippet cannot be read as structure.
+fn render(value: &Value) -> String {
+    fn escape(text: &str) -> String {
+        text.replace('\\', "\\\\").replace('\t', "\\t").replace('\n', "\\n")
+    }
+    fn scalar(value: &Value) -> String {
+        match value {
+            Value::String(text) => escape(text),
+            Value::Null => String::new(),
+            // A ranking score orders rows; seventeen digits of it order them no better and cost
+            // twenty characters on every row.
+            Value::Number(number) => match number.as_f64() {
+                Some(float) if !number.is_i64() && !number.is_u64() => format!("{float:.3}"),
+                _ => number.to_string(),
+            },
+            other => other.to_string(),
+        }
+    }
+    let mut out = String::new();
+    let Some(object) = value.as_object() else {
+        return scalar(value);
+    };
+    for (key, field) in object {
+        match field {
+            Value::Array(rows) if rows.iter().all(|row| row.is_object()) && !rows.is_empty() => {
+                // Column names once, then one line per row.
+                let mut columns: Vec<&String> = Vec::new();
+                for row in rows {
+                    for name in row.as_object().into_iter().flatten().map(|(name, _)| name) {
+                        if !columns.contains(&name) {
+                            columns.push(name);
+                        }
+                    }
+                }
+                out.push_str(&format!("{key}[{}] ", rows.len()));
+                out.push_str(&columns.iter().map(|c| c.as_str()).collect::<Vec<_>>().join("\t"));
+                out.push('\n');
+                for row in rows {
+                    let cells: Vec<String> = columns
+                        .iter()
+                        .map(|column| {
+                            row.get(column.as_str()).map(scalar).unwrap_or_default()
+                        })
+                        .collect();
+                    out.push_str(&cells.join("\t"));
+                    out.push('\n');
+                }
+            }
+            Value::Array(items) if items.is_empty() => {}
+            Value::Array(items) => {
+                out.push_str(&format!(
+                    "{key}: {}\n",
+                    items.iter().map(scalar).collect::<Vec<_>>().join(", ")
+                ));
+            }
+            Value::Object(inner) => {
+                for (name, field) in inner {
+                    if !field.is_null() {
+                        out.push_str(&format!("{key}.{name}: {}\n", scalar(field)));
+                    }
+                }
+            }
+            Value::Null => {}
+            other => out.push_str(&format!("{key}: {}\n", scalar(other))),
+        }
+    }
+    out
+}
+
 fn fit_response(mut value: Value, offset: usize) -> Result<Value> {
     let size = |value: &Value| serde_json::to_vec(value).map_or(usize::MAX, |bytes| bytes.len());
     if size(&value) <= crate::source::MAX_RESPONSE_BYTES {
@@ -722,7 +800,9 @@ impl ServerHandler for RetrievalServer {
             .or_else(|| value.get("lines"))
             .and_then(Value::as_array)
             .map_or(0, Vec::len);
+        // The model reads the table; a programmatic consumer reads the JSON beside it.
         let mut result = CallToolResult::structured(value.clone());
+        result.content = vec![ContentBlock::text(render(&value))];
         if error.is_some() {
             result.is_error = Some(true);
         }
@@ -744,5 +824,52 @@ impl ServerHandler for RetrievalServer {
         }
         self.session.lock().await.stale = true;
         tracing::info!(event = "roots_changed");
+    }
+}
+
+#[cfg(test)]
+mod render_tests {
+    use super::render;
+    use serde_json::json;
+
+    /// Column names once, not once per row - that is the whole saving.
+    #[test]
+    fn a_table_names_its_columns_once() {
+        let text = render(&json!({
+            "results": [
+                {"path": "a.rs", "line": 1, "caller": "one"},
+                {"path": "b.rs", "line": 2, "caller": "two"},
+            ],
+            "has_more": false,
+        }));
+        assert_eq!(text.matches("path").count(), 1, "{text}");
+        // Columns come out in the object's own order, which is stable.
+        assert!(text.contains("results[2] caller\tline\tpath\n"), "{text}");
+        assert!(text.contains("one\t1\ta.rs\n"), "{text}");
+        assert!(text.contains("has_more: false"), "{text}");
+    }
+
+    /// A snippet carrying a tab or a newline must not be readable as structure.
+    #[test]
+    fn a_value_cannot_forge_a_row() {
+        let text = render(&json!({"results": [{"snippet": "a\tb\nc", "path": "x.rs"}]}));
+        let rows: Vec<&str> = text.lines().collect();
+        assert_eq!(rows.len(), 2, "{text}");
+        assert!(rows[1].contains("a\\tb\\nc"), "{text}");
+    }
+
+    /// A ranking score orders rows; seventeen digits of it order them no better.
+    #[test]
+    fn a_score_is_rounded_in_the_text_only() {
+        let text = render(&json!({"results": [{"score": 30.727970699504798}]}));
+        assert!(text.contains("30.728"), "{text}");
+        assert!(!text.contains("30.72797"), "{text}");
+    }
+
+    /// Absent is absent: an empty list and a null field say nothing and cost nothing.
+    #[test]
+    fn nothing_is_spent_saying_nothing() {
+        let text = render(&json!({"imports": [], "next_offset": null, "has_more": true}));
+        assert_eq!(text, "has_more: true\n");
     }
 }

@@ -1725,9 +1725,31 @@ ten calls are identical before and after. This is not the chunk diet that failed
 `runs/concept-chunk-lean-20260919`: that one cut evidence and collapsed recall 59 to 13; this one
 cuts repeated field names and cannot touch recall.
 
-Per-call context growth was 6,042 tokens against a shell agent's 4,378; 16% lighter puts it near
-5,100. That narrows the gap, it does not close it, and whether it moves an agent's bill is
-unmeasured.
+**Then the larger half: stop paying for JSON.** A client bills the `content` text and not
+`structuredContent` - measured by sending the same payload in both and seeing no change in usage -
+and `content` was the JSON, so a twenty-row caller page spelled seven field names twenty times.
+`content` is now a table: columns named once per array, one tab-separated line per row, tabs and
+newlines inside values escaped so a snippet cannot forge structure, scores rounded to three
+decimals. `structuredContent` is untouched, so every instrument in this harness reads exactly what
+it read before.
+
+| billed content bytes | before | after | |
+|---|---:|---:|---:|
+| `search_concept` | 3,488 | 2,043 | 41.4% |
+| `find_callers`, 20 rows | 11,499 | 6,075 | 47.2% |
+| `search_exact` | 2,408 | 1,302 | 45.9% |
+| `read_source` | 1,830 | 1,203 | 34.3% |
+
+Per-call context growth was 6,042 tokens against a shell agent's 4,378. Roughly 40% lighter puts
+it near **3,800 - below the shell arm** - while this server already makes fewer calls. That is the
+first configuration whose arithmetic predicts a win rather than a narrowing, and it is still only
+arithmetic: no agent has run against it.
+
+**And the asymmetry is not Codex's alone.** In the Claude held-out run, bytes per tool result were
+704 median and 1,531 mean for the native arm against 3,458 and 3,292 here - also about twice as
+heavy per call. That study was won on call count, 77 against 146. So the rule is not "Codex
+truncates": it is **fewer calls AND payloads that are not heavier**. Django had a 2:1 call ratio
+and could afford heavy payloads; the kernel's ratio is near 1:1, so the payload decides.
 
 ### Two handshake sentences, measured and rejected
 
