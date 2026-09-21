@@ -75,16 +75,29 @@ pub struct Symbol {
     pub excerpt: String,
 }
 
+/// One call site or identifier reference.
+///
+/// `kind` is omitted for a plain call and `expression` when it merely repeats `name`, because
+/// both are the ordinary case and a repeated field is re-sent with every later request of the
+/// session. Measured per-call context growth on Linux was 6,042 tokens here against 4,378 for a
+/// shell agent whose output the client truncates on the way in.
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct Reference {
     pub name: String,
+    #[serde(skip_serializing_if = "is_plain_call")]
     pub kind: String,
     pub path: String,
     pub line: usize,
     pub column: usize,
     pub caller: Option<String>,
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub expression: String,
     pub excerpt: String,
+}
+
+/// A reference whose kind is the default a caller page is made of.
+fn is_plain_call(kind: &str) -> bool {
+    kind == "call"
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
@@ -224,14 +237,22 @@ pub struct InspectResult {
 }
 
 /// The symbol a retrieved range falls inside, with honest call-graph salience.
+///
+/// Every field here is paid for on every later request in the session, because a client re-sends
+/// the whole conversation each time: measured per-call context growth on Linux was 6,042 tokens
+/// for this server against 4,378 for a shell agent, whose output the client truncates before it
+/// ever reaches the model. So the block says each thing once. `symbol` is `path::name` and the
+/// separate `name` and `path` it used to repeat are recoverable from it; `line` and `end_line`
+/// appear only when the definition's span differs from the row's own, which is the only case
+/// where they carry information.
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct SymbolLocation {
     pub symbol: String,
-    pub name: String,
     pub kind: String,
-    pub path: String,
-    pub line: usize,
-    pub end_line: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<usize>,
     /// Same-language call sites with this unqualified spelling. These are candidates for this
     /// definition, not resolved callers when several definitions share the name.
     pub name_candidate_callers: usize,
@@ -354,13 +375,21 @@ impl Bm25 {
     }
 }
 
+/// One call site. Anything identical for every row of the page is stated once on the page, not
+/// once per row: a client re-sends the whole conversation on every later request, so a repeated
+/// field is paid for again and again. The same argument already moved `candidate_definitions` up
+/// here and removed 27-61% of a caller response; these fields are the rest of it.
 #[derive(Serialize, JsonSchema)]
 pub struct CallerHit {
     #[serde(flatten)]
     pub reference: Reference,
-    pub candidate_count: usize,
+    /// Present only where this row disagrees with the page's `resolution`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub candidate_count: Option<usize>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub candidates_truncated: bool,
-    pub resolution: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<String>,
 }
 
 #[derive(Serialize, JsonSchema)]
@@ -371,6 +400,11 @@ pub struct CallersResult {
     /// of the name that was asked about - so they are stated once for the page rather than once per
     /// call site. Measured: 27-61% of a caller response was that repetition.
     pub candidate_definitions: Vec<Symbol>,
+    /// How the rows resolve to those definitions, and how many candidates each row had, when
+    /// every row agrees - which is the ordinary case, because they all concern one name. A row
+    /// that disagrees carries its own `resolution` and `candidate_count`.
+    pub resolution: Option<String>,
+    pub candidate_count: Option<usize>,
     /// Full definition count before the bounded page-level list.
     pub candidate_definition_count: usize,
     /// Whether `candidate_definitions` omits definitions after its first five entries.
@@ -1017,14 +1051,16 @@ impl StructuralBackend for StructuralIndex {
                     .collect();
                 CallerHit {
                     reference,
-                    candidate_count: candidates.len(),
+                    candidate_count: Some(candidates.len()),
                     candidates_truncated: candidates.len() > 5,
-                    resolution: match candidates.len() {
-                        0 => "unresolved",
-                        1 => "unique_name_candidate",
-                        _ => "ambiguous",
-                    }
-                    .into(),
+                    resolution: Some(
+                        match candidates.len() {
+                            0 => "unresolved",
+                            1 => "unique_name_candidate",
+                            _ => "ambiguous",
+                        }
+                        .into(),
+                    ),
                 }
             })
             .collect();
@@ -1067,6 +1103,24 @@ impl StructuralBackend for StructuralIndex {
             })
             .collect();
         let (symbol_status, nearest_indexed_names) = self.seed_status(&args.name);
+        // Every row of a caller page concerns one name, so `resolution` and `candidate_count`
+        // are almost always the same value repeated per row. State it once where it is uniform,
+        // and leave it on the rows that disagree.
+        let mut results = results;
+        let uniform = results
+            .first()
+            .map(|first| (first.resolution.clone(), first.candidate_count))
+            .filter(|(resolution, count)| {
+                results.iter().all(|row| &row.resolution == resolution && row.candidate_count == *count)
+            });
+        if uniform.is_some() {
+            for row in &mut results {
+                row.resolution = None;
+                row.candidate_count = None;
+            }
+        }
+        let (page_resolution, page_candidate_count) =
+            uniform.map_or((None, None), |(resolution, count)| (resolution, count));
         Ok(CallersResult {
             retrieval: StructuralResult {
                 page: Page {
@@ -1079,6 +1133,8 @@ impl StructuralBackend for StructuralIndex {
                 nearest_indexed_names,
             },
             candidate_definitions: candidates.iter().take(5).cloned().collect(),
+            resolution: page_resolution,
+            candidate_count: page_candidate_count,
             candidate_definition_count: candidates.len(),
             candidate_definitions_truncated: candidates.len() > 5,
             confidence:
@@ -1192,11 +1248,9 @@ impl StructuralBackend for StructuralIndex {
         });
         Some(SymbolLocation {
             symbol: format!("{}::{}", symbol.path, symbol.name),
-            name: symbol.name.clone(),
             kind: symbol.kind.clone(),
-            path: symbol.path.clone(),
-            line: symbol.line,
-            end_line: symbol.end_line,
+            line: Some(symbol.line),
+            end_line: Some(symbol.end_line),
             name_candidate_callers,
             direct_callees,
         })
@@ -2458,8 +2512,12 @@ fn reference(
     expression: &str,
 ) -> Reference {
     let line = node.start_position().row + 1;
+    let spelled = excerpt(node_text(name, file.source), 200);
+    // An unqualified call writes its own name as the expression; saying it twice costs a field
+    // in every row of every page for the whole session.
+    let expression = if expression == spelled { "" } else { expression };
     Reference {
-        name: excerpt(node_text(name, file.source), 200),
+        name: spelled,
         kind: kind.into(),
         path: file.path.into(),
         line,
@@ -2749,8 +2807,11 @@ mod tests {
             .unwrap();
         let hit = &callers.retrieval.page.results[0];
         assert_eq!(hit.reference.caller.as_deref(), Some("Run"));
-        assert_eq!(hit.candidate_count, 1, "the decoy is not in `real`");
-        assert_eq!(hit.resolution, "unique_name_candidate");
+        // Uniform across the page, so the page states it and the rows stay silent.
+        assert_eq!(callers.candidate_count, Some(1), "the decoy is not in `real`");
+        assert_eq!(callers.resolution.as_deref(), Some("unique_name_candidate"));
+        assert_eq!(hit.candidate_count, None);
+        assert_eq!(hit.resolution, None);
 
         // A corpus that is not a module root claims nothing: both definitions stay candidates,
         // because dropping one would cost a real caller to save an ambiguous label.
@@ -2768,7 +2829,7 @@ mod tests {
                 },
             )
             .unwrap();
-        assert_eq!(callers.retrieval.page.results[0].candidate_count, 2);
+        assert_eq!(callers.candidate_count, Some(2));
     }
 
     #[test]
@@ -2818,9 +2879,9 @@ mod tests {
         assert_eq!(callers.retrieval.page.results.len(), 3);
         assert!(callers.retrieval.page.results.iter().all(|r| {
             if r.reference.path.ends_with(".rs") {
-                r.resolution == "ambiguous" && r.candidate_count == 2
+                r.resolution.as_deref() == Some("ambiguous") && r.candidate_count == Some(2)
             } else {
-                r.resolution == "unresolved" && r.candidate_count == 0
+                r.resolution.as_deref() == Some("unresolved") && r.candidate_count == Some(0)
             }
         }));
         assert!(
@@ -2849,7 +2910,7 @@ mod tests {
                 },
             )
             .unwrap();
-        assert_eq!(unknown.retrieval.page.results[0].resolution, "unresolved");
+        assert_eq!(unknown.resolution.as_deref(), Some("unresolved"));
         assert_eq!(
             unknown.retrieval.page.results[0]
                 .reference
@@ -3063,7 +3124,10 @@ mod tests {
             .collect();
         assert_eq!(calls.len(), 1, "{calls:?}");
         assert_eq!(calls[0].caller.as_deref(), Some("load"));
-        assert_eq!(calls[0].expression, "import_string");
+        // An unqualified call spells its own name, so `expression` is left empty and the row
+        // carries the name once. A qualified call keeps its expression - the Go package
+        // resolution in `qualified_package_dir` reads it.
+        assert_eq!(calls[0].expression, "");
     }
 
     /// Candidate definitions and graph degrees have different scopes. Definition context remains
@@ -3192,7 +3256,7 @@ mod tests {
             .search_concept(&ws, "trim incoming records to a column budget", None, 3)
             .unwrap()
             .regions;
-        assert_eq!(index.locate(&hits[0].path, hits[0].start_line).unwrap().name, "handler");
+        assert!(index.locate(&hits[0].path, hits[0].start_line).unwrap().symbol.ends_with("::handler"));
     }
     #[test]
     fn neighbourhood_shows_both_sides_and_counts_beyond_its_caps() {
@@ -3290,7 +3354,7 @@ mod tests {
         assert_eq!(inner.direct_callees, 2);
         assert_eq!(inner.name_candidate_callers, 0);
         let leaf = index.locate("chain.rs", 1).unwrap();
-        assert_eq!(leaf.name, "leaf");
+        assert!(leaf.symbol.ends_with("::leaf"));
         assert_eq!(leaf.name_candidate_callers, 3);
         // Same-named definitions share candidate callers, but their owned body counts are exact.
         let empty = index.locate("empty.rs", 3).unwrap();
@@ -3415,6 +3479,9 @@ mod tests {
                 },
             )
             .unwrap();
+        // A row states its resolution only when it differs from the page's, so the effective
+        // value is the row's if present and the page's otherwise.
+        let page_resolution = found.resolution.clone();
         let mut rows: Vec<_> = found
             .retrieval
             .page
@@ -3425,7 +3492,7 @@ mod tests {
                     "{}::{}:{}",
                     hit.reference.path,
                     hit.reference.caller.clone().unwrap_or_default(),
-                    hit.resolution
+                    hit.resolution.clone().or_else(|| page_resolution.clone()).unwrap_or_default()
                 )
             })
             .collect();
@@ -3584,7 +3651,7 @@ mod tests {
         // reported is what was read rather than what the repository holds.
         assert_eq!(ranked.files, 1);
         // The hit is labelled by the definition it sits in without a snapshot existing.
-        assert_eq!(scan.locate("src/text.rs", 2).unwrap().name, "break_lines");
+        assert_eq!(scan.locate("src/text.rs", 2).unwrap().symbol, "src/text.rs::break_lines");
         // A description with no word long enough to search for is refused, not answered emptily.
         assert!(scan.search_concept(&workspace, "a b c", None, 3).is_err());
     }
@@ -4034,7 +4101,7 @@ mod tests {
             .search_concept(&workspace, "clamp a width value", None, 3)
             .unwrap()
             .regions;
-        assert_eq!(index.locate(&hits[0].path, hits[0].start_line).unwrap().name, "clampWidth");
+        assert!(index.locate(&hits[0].path, hits[0].start_line).unwrap().symbol.ends_with("::clampWidth"));
         assert!(
             index.symbols.contains_key("report"),
             "the namespace itself stays indexed as a definition"

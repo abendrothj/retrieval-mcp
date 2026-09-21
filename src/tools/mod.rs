@@ -404,6 +404,16 @@ impl RetrievalServer {
             let index = self.index(session).await?;
             for hit in &mut result.results {
                 hit.symbol = index.locate(&hit.path, hit.start_line);
+                // The row already states its own span. Repeating it inside the symbol block buys
+                // the model nothing and is re-sent with every later request in the session.
+                if let Some(symbol) = &mut hit.symbol {
+                    if symbol.line == Some(hit.start_line) {
+                        symbol.line = None;
+                    }
+                    if symbol.end_line == Some(hit.end_line) {
+                        symbol.end_line = None;
+                    }
+                }
             }
         }
         Ok(result)

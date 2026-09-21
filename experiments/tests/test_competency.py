@@ -79,7 +79,9 @@ class CompetencyTests(unittest.TestCase):
         self.assertFalse(symbols["coverage"]["complete"])
         direct = responses["direct-not-transitive"][0]["results"]
         self.assertEqual([hit["caller"] for hit in direct], gold["direct-not-transitive"])
-        self.assertTrue(all(hit["kind"] == "call" for hit in direct))
+        # A caller page is made of calls, so a row states `kind` only when it is
+        # something else; the default is omitted rather than repeated per row.
+        self.assertTrue(all(hit.get("kind", "call") == "call" for hit in direct))
         chain = responses["transitive-chain"]
         self.assertEqual([chain[2]["results"][0]["caller"],
                           chain[1]["results"][0]["caller"], chain[1]["results"][0]["name"]],
@@ -87,10 +89,12 @@ class CompetencyTests(unittest.TestCase):
         refs = responses["reference-not-call"][0]["results"]
         self.assertTrue(any(hit["caller"] == gold["reference-not-call"] and hit["kind"] == "possible_reference"
                             for hit in refs))
-        unresolved = responses["unresolved-dispatch"][0]["results"]
+        page = responses["unresolved-dispatch"][0]
+        unresolved = page["results"]
         self.assertEqual(len(unresolved), 1)
-        self.assertEqual(unresolved[0]["candidate_count"], 0)
-        self.assertEqual(unresolved[0]["resolution"], "unresolved")
+        # Uniform over the page, so the page states it once and the row omits it.
+        self.assertEqual(unresolved[0].get("candidate_count", page.get("candidate_count")), 0)
+        self.assertEqual(unresolved[0].get("resolution", page.get("resolution")), "unresolved")
         self.assertIsNone(gold["unresolved-dispatch"])
         self.assertEqual(len(responses["unresolved-dispatch"][2]["results"]), 1)
         for response in responses["absent-definition"]:

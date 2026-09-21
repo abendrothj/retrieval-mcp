@@ -61,6 +61,9 @@ pub struct ExactHit {
     pub path: String,
     pub line: usize,
     pub snippet: String,
+    /// Omitted when false, which is the ordinary case: a field that says "nothing happened" in
+    /// every row is re-sent with the whole conversation on every later request.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub snippet_truncated: bool,
 }
 

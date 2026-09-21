@@ -6,6 +6,23 @@ releases only.
 
 ## Unreleased
 
+**Responses say each fact once.** Per-request accounting from Codex's own session log - six real
+kernel questions, both arms - found that this server already makes fewer requests (32 against 34)
+and fewer calls (26 against 28) than a shell agent, that its four tools cost 42 tokens against
+Codex's built-ins, and that the whole token deficit is weight: **6,042 tokens of context added
+per call against 4,378**. Codex truncates shell output before it reaches the model and forwards
+MCP results whole, so the client trims for the competitor and not for us.
+
+So the payloads trim themselves. A ranked row's symbol block no longer repeats the row's path and
+span or spells its name twice; caller rows no longer repeat the `resolution` and `candidate_count`
+that concern the one name the page is about, nor `kind: "call"` on a page made of calls, nor an
+`expression` that merely respells the name; `snippet_truncated` and `truncated` are omitted when
+false. Over ten representative kernel calls that is **46,185 bytes to 38,807, 16% lighter**, with
+`search_concept` down ~24%, a twenty-row `find_callers` down 22.6%, and every recoverable fact -
+path, line, span, caller, snippet, excerpt, qualified symbol, name, expression, kind, truncation,
+resolution - identical before and after. A single-row caller page is 2.4% larger, because a
+page-level field costs more than one row saves.
+
 **A C parameter's type is no longer a definition.** `struct inode *inode` in a parameter list and
 `struct inode { ... }` are the same node in the C grammar and only the definition has a body;
 both were indexed, so C definitions were named after types they merely mention. On Linux 6.12

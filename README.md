@@ -186,15 +186,20 @@ a live call by `experiments/check_docs.py`:
 ```json
 {
   "results": [
-    {"path": "src/tools/mod.rs", "kind": "call", "name": "launch_directory",
-     "expression": "launch_directory", "caller": "resolve_root",
-     "resolution": "unique_name_candidate", "candidate_count": 1}
+    {"path": "src/tools/mod.rs", "name": "launch_directory", "caller": "resolve_root"}
   ],
+  "resolution": "unique_name_candidate", "candidate_count": 1,
   "orientation": {"symbol": "launch_directory", "returned_relation": "callers",
                   "incoming_callers": 1, "outgoing_callees": 9},
   "symbol_status": "indexed"
 }
 ```
+
+Each fact appears once. `kind` is omitted because a caller page is made of calls, `expression`
+because it repeats the name, and `resolution` and `candidate_count` sit on the page because they
+concern the one name it is about — a row carries them only where it disagrees. Every field a
+client needs is still derivable, and the repetition is what a session pays for again on every
+later request.
 
 Each call site with the definition enclosing it, the relationship counted in both directions, and
 a coverage block saying how much of the repository the answer read — from one call, against the

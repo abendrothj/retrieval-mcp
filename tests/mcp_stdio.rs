@@ -388,10 +388,12 @@ async fn profiles_and_structural_queries_over_stdio() {
                 callers["structuredContent"]["results"][0]["caller"],
                 "caller"
             );
+            // Uniform across the page, so it is stated once on the page and the rows omit it.
             assert_eq!(
-                callers["structuredContent"]["results"][0]["resolution"],
+                callers["structuredContent"]["resolution"],
                 "unique_name_candidate"
             );
+            assert!(callers["structuredContent"]["results"][0]["resolution"].is_null());
             let trace = client
                 .tool(
                     "trace_dependencies",

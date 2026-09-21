@@ -37,6 +37,8 @@ pub struct SourceResult {
     pub path: String,
     pub lines: Vec<SourceLine>,
     pub total_lines: usize,
+    /// Omitted when false.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub truncated: bool,
     pub next_line: Option<usize>,
 }

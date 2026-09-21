@@ -148,7 +148,15 @@ bytes, and the corpora are re-cuttable from `corpora/` against the fingerprints 
 
 Open threads:
 
-- **The kernel deficit is round trips, not bytes, and it is not closed.** Three studies:
+- **The kernel deficit is payload weight per call, and the instrument to see it is Codex's own
+  session log.** A non-ephemeral run writes a `token_count` event per model request;
+  `runs/per-request-20260921` used it on six kernel questions and found this server already
+  ahead on requests (32 against 34) and calls (26 against 28), its four tools costing 42 tokens,
+  and the entire gap in context added per call: **6,042 against a shell agent's 4,378**. Codex
+  truncates shell output on the way in (coefficient 0.09) and forwards MCP results whole, so a
+  client trims for the competitor and not for us. Any payload we do not trim ourselves is paid
+  for again on every later request of the session.
+- **The earlier round-trip framing was half right.** Three studies:
   +16.4%, +8.3%, +10.1% input tokens against a shell agent, with quality level at 56, 58, 58
   against 62, 61, 61. `runs/token-metric-20260921` prices the axis - a dependent hop is ~15,000
   tokens, a 20 KB payload ~2,400 - so payload efficiency, where this server wins 40x, is the

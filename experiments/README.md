@@ -1666,6 +1666,69 @@ deficit is not made of retrieval bytes: payload is a 2,400-token term against a 
 and this server already returns 40x fewer bytes than the shell arm. Whatever closes it has to
 remove dependent round trips wholesale, not shave payloads.
 
+### Where the tokens actually go: per-request accounting
+
+`runs/per-request-20260921`. Three kernel studies had this server behind a shell agent on input
+tokens while returning 40× fewer bytes and making fewer calls, and the harness could not say why,
+because Codex reports usage once per turn. It does not have to: **a non-ephemeral session writes a
+log with a `token_count` event per model request**. Six real kernel questions through both arms,
+with that log on:
+
+| | native | retrieval-mcp |
+|---|---:|---:|
+| First request | 15,393 | 15,435 |
+| Requests | 34 | **32** |
+| Calls | 28 | **26** |
+| **Context added per call** | **4,378** | 6,042 |
+| Total over six questions | 987,245 | 1,022,405 |
+
+Three things fall out, and two of them correct earlier claims in this record.
+
+**The advertised tool surface is free.** 15,393 against 15,435 on the first request — 42 tokens.
+An earlier stub probe had priced four tools at ~1k per request; it was measuring four tools
+*stacked on top of* an existing surface, not four instead of Codex's built-ins.
+
+**Requests and calls already favour this server**, 32 against 34 and 26 against 28. The
+completeness work did what it was built to do.
+
+**The entire deficit is weight per call: 6,042 tokens against 4,378.** Every later request
+re-reads the conversation, so that difference compounds. And the asymmetry belongs to the client,
+not the corpus: **Codex truncates shell output before it enters context — the fitted coefficient
+is 0.09 — and forwards MCP results whole.** A shell agent's megabytes arrive as ~17 KB of context
+per call; this server's disciplined payloads arrive as ~24 KB. We were losing the axis we thought
+we owned because the client trims for the competitor and not for us.
+
+That also retires "payload is a second-order term", which came from a stub whose payload was
+fixed. Payload bytes are the cost — but only the bytes nobody trims on your behalf.
+
+### The response diet: say each fact once
+
+`runs/payload-diet-20260921`. Nothing dropped, only repetition. A ranked row carried `symbol`
+(`path::name`) beside a separate `name` and `path` and repeated its own line span; caller rows
+repeated `resolution` and `candidate_count`, which concern the single name the page is about, and
+`kind: "call"` on a page made of calls, and `expression` where it merely spells the name again;
+`snippet_truncated` and `truncated` were serialised when false.
+
+| call | before | after | |
+|---|---:|---:|---:|
+| `search_concept` ×3 | 3,750 / 4,051 / 4,132 | 2,854 / 3,057 / 3,100 | ~24% |
+| `find_callers`, 20 rows | 12,323 | 9,544 | 22.6% |
+| `find_callers`, other | 6,895 / 5,223 / 1,852 | 6,518 / 4,998 / 1,897 | 5.5% / 4.3% / **−2.4%** |
+| `search_exact`, single and batched | 2,574 / 3,407 | 2,014 / 2,847 | 21.8% / 16.4% |
+| `read_source` | 1,978 | 1,978 | nothing to remove |
+| **total** | **46,185** | **38,807** | **16.0%** |
+
+The one row that got worse is a single-hit caller page, where a page-level field costs more than
+one row saves. **Every recoverable fact was compared call by call** — path, line, span, caller,
+snippet, excerpt, qualified symbol, name, expression, kind, truncation flags, resolution — and all
+ten calls are identical before and after. This is not the chunk diet that failed in
+`runs/concept-chunk-lean-20260919`: that one cut evidence and collapsed recall 59 to 13; this one
+cuts repeated field names and cannot touch recall.
+
+Per-call context growth was 6,042 tokens against a shell agent's 4,378; 16% lighter puts it near
+5,100. That narrows the gap, it does not close it, and whether it moves an agent's bill is
+unmeasured.
+
 ### Two handshake sentences, measured and rejected
 
 The one prompt-side change left untested was the handshake itself: does a single added sentence
