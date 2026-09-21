@@ -10,11 +10,11 @@
     "src/index/mod.rs": "bde25dfbcafae241d6abd7f4357db2f0af05f01675ef231fe123456d6e03904c",
     "src/logging/mod.rs": "45cc308d50c77ead9cebae858aba354613988dcf46fb76d8f9c0088eabf3ac8e",
     "src/search/mod.rs": "b90120e8ed00b2871344807d4f914beea1edf6e2ee1d00a400dda7aad80f2e5f",
-    "src/search/lexical.rs": "87dbc11445a75715465ee4508873fe6db0e93821c7299e131efe2c939a400bd0",
+    "src/search/lexical.rs": "9d078cd43c547445a88e961c5850f2e69788285f43cf6d13a83a14851f17623c",
     "src/search/process.rs": "e374206308a7df2ba39a1227e69b1f2749cec7cee21f63a59f8c5ef39086d770",
     "src/search/semantic.rs": "52b6b2c4324acf01539ff3371e0f441547bd92fcb8eef84263768ebcaf8a8474",
     "src/source/mod.rs": "82c7f29fd3cbcaf1803267be10f52dbe87d9f58d222d86265da27b04649bb30e",
-    "src/tools/mod.rs": "1940344a5c4577fc9656a5ecb9f714026313b7368aea6e7ed7483aaa2cb04317",
+    "src/tools/mod.rs": "85fe5bc5c7e2c11dd729d3c7cf675cafc76989e5b51ca9fe215df4af86ebc356",
     "examples/ollama_backend.rs": "413f40ece28b28f6d711062dc9d79e8f570b7cfcf72665ce46ff0f3db443717e",
     "examples/support/cache.rs": "56d98597c67919fd26c73dd696398712d989f46e39b58b2d2e68e9384dd377eb"
   },
@@ -557,7 +557,7 @@
           "path": "src/search/lexical.rs",
           "contains": [
             "pub fn validate_query(",
-            "validate_query(&args.query)?"
+            "validate_query(pattern)?"
           ]
         },
         {

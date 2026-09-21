@@ -6,6 +6,36 @@ releases only.
 
 ## Unreleased
 
+**`search_exact` answers several patterns in one call.** The kernel runs say where an agent's
+tokens go: the arm makes 2.83 tool calls per trial, and 90 of those 356 calls are consecutive
+calls to the same tool - 59 of them `search_exact`. At the measured ~29k input tokens per round
+trip, merging them is about 14% of a trial's input, because a round trip re-sends the whole
+conversation and a payload is a few thousand tokens at most. `queries:[...]` takes up to eight
+patterns, searches the tree once, and tags each hit with the pattern that found it; a
+single-pattern call carries no tag, so existing responses are byte-identical.
+
+Thirty random three-pattern batches across Linux, Django and etcd return exactly what the same
+three searches return one at a time - every hit, path, line and snippet, in order. One walk rather
+than three also costs less time: 4.3 s against 16.8 s on the kernel, 303 ms against 512 ms at the
+median across corpora.
+
+Two things this does not claim. Whether a model uses the plural form is unmeasured until an agent
+run says so. And batching `find_callers` was dropped before it was written: it was proposed as a
+way to disambiguate sibling symbols by asking about both at once, and the agents did that once in
+356 calls.
+
+**A name-weighted ranker was measured and rejected.** The kernel's remaining errors are lexical
+siblings - `oom_killer_disable` for a question about re-enabling, `add_timer_on` for
+`add_timer_local`, `dynevent_cmd_init` for `synth_event_cmd_init` - so a definition's own name was
+scored as a separate BM25 field, on the theory that the name is the only field that separates
+them. Swept at weights 0, 1, 2 and 4: the kernel goes 12 found and 8 first-place at weight 0 to
+11 and 6 at weight 2, and 8 and 4 at weight 4. At the best kernel weight the four sibling pairs
+come out one fixed, one broken, two untouched. The hypothesis fails on the corpus it was written
+for - upweighting a name amplifies both halves of a sibling pair, because the pairs differ by one
+modifier token and agree on everything else - and the change is reverted. Django and etcd improve
+at weight 1-2, which is a different claim on different corpora and is recorded in
+`runs/name-field-20260920` rather than acted on.
+
 **`search_concept` chooses candidate files by rarity, and can see a word inside a snake_case
 name.** The agent study on Linux 6.12 lost on every registered axis, and the offline ladder in
 `runs/scale-response-20260920` says why: across four nested cuts of the same corpus — 928, 5,637,

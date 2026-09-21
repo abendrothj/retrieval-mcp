@@ -524,7 +524,7 @@ subprocess calls.
 
 ```sh
 cargo build --locked --release --bin retrieval-mcp
-cargo test --locked --all-targets            # 37 library, 22 stdio (1 ignored), 6 example tests
+cargo test --locked --all-targets            # 39 library, 22 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
 python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 265 tests
 python3 experiments/check_docs.py            # the docs still describe the server that exists
