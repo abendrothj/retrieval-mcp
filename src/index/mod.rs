@@ -2062,6 +2062,26 @@ fn holds_definition(language: SourceLanguage, node: Node<'_>) -> bool {
     })
 }
 
+/// `struct inode *inode` in a parameter list declares nothing.
+///
+/// The C grammar spells a type *reference* and a type *definition* with the same node: both are
+/// `struct_specifier`, and only the definition carries a body. Treating both as definitions named
+/// every parameter, field and local after its type, which on Linux 6.12 is almost everything:
+/// **90% of the rows `search_concept` returned over the kernel suite were these**, and 17 of 21
+/// rank-1 rows. Worse than noise, they mislabel the right answer - the row for
+/// `fs/inode.c:2266`, which is `int file_update_time(struct file *file)`, came back named `file`,
+/// so an agent that ranked the correct line was told the wrong symbol and had to spend another
+/// call to learn the name. Same family as the iteration-macro and pointer-return-type defects:
+/// the grammar's shape, not the text, decides what declares something.
+fn type_reference(language: SourceLanguage, node: Node<'_>) -> bool {
+    language.family() == LanguageFamily::CFamily
+        && matches!(
+            node.kind(),
+            "struct_specifier" | "union_specifier" | "enum_specifier" | "class_specifier"
+        )
+        && node.child_by_field_name("body").is_none()
+}
+
 /// `for_each_online_node(nid) { ... }` is a macro that expands to a loop, and the C grammar
 /// reads the line as a function definition: type `for_each_online_node`, declarator `(nid)`,
 /// body the loop. Nothing there declares a function - a real definition's declarator holds a
@@ -2154,6 +2174,7 @@ fn enclosing_definition(
         // to `value`. Only function-valued declarators pass the same definition predicate used by
         // the symbol index.
         if (is_definition(language, parent.kind())
+            && !type_reference(language, parent)
             || (language == SourceLanguage::Rust && parent.kind() == "impl_item"))
             && holds_definition(language, parent)
             && !macro_block(language, parent)
@@ -2335,6 +2356,7 @@ fn parse_file(path: &str, source: &str, timeout: Duration) -> Result<ParsedFile>
         if is_definition(source_language, node.kind())
             && holds_definition(source_language, *node)
             && !macro_block(source_language, *node)
+            && !type_reference(source_language, *node)
             && let Some(name) = definition_name(source_language, *node)
         {
             definitions.insert(name.id());
@@ -3565,6 +3587,43 @@ mod tests {
         assert_eq!(scan.locate("src/text.rs", 2).unwrap().name, "break_lines");
         // A description with no word long enough to search for is refused, not answered emptily.
         assert!(scan.search_concept(&workspace, "a b c", None, 3).is_err());
+    }
+
+    /// A parameter's type declares nothing, and the function it sits in declares everything.
+    ///
+    /// The C grammar spells `struct inode *inode` in a parameter list with the same node kind as
+    /// `struct inode { ... }`. Indexing both named every C definition after a type it mentions:
+    /// on Linux 6.12, 90% of the rows `search_concept` returned were these, 17 of 21 rank-1 rows
+    /// were, and the row for `int file_update_time(struct file *file)` came back named `file`.
+    #[test]
+    fn a_c_type_reference_is_not_a_definition_and_a_real_struct_still_is() {
+        let (_dir, workspace, index) = snapshot(&[(
+            "src/fs.c",
+            "struct inode {\n\tint mode;\n};\n\
+             int file_update_time(struct file *file)\n{\n\treturn 0;\n}\n\
+             static void helper(struct timespec64 *times)\n{\n\tfile_update_time(0);\n}\n",
+        )]);
+        let names = |name: &str| {
+            index
+                .find_symbol(
+                    &workspace,
+                    SymbolArgs {
+                        name: name.into(),
+                        path: None,
+                        limit: None,
+                        offset: None,
+                    },
+                )
+                .map(|found| found.page.results.len())
+                .unwrap_or(0)
+        };
+        // The function is indexed under its own name, not its parameter's type.
+        assert_eq!(names("file_update_time"), 1);
+        assert_eq!(names("helper"), 1);
+        // A struct with a body is a definition; a type named in a parameter list is not.
+        assert_eq!(names("inode"), 1, "a struct with a body is a real definition");
+        assert_eq!(names("file"), 0, "struct file *file declares no symbol named file");
+        assert_eq!(names("timespec64"), 0, "nor does a parameter's type in a declaration");
     }
 
     /// A rare word decides the file; a word the corpus writes everywhere does not.
