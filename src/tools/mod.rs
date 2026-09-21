@@ -415,6 +415,19 @@ impl RetrievalServer {
                     }
                 }
             }
+            // Which returned rows call which other returned rows. A page that says
+            // "this one calls that one" resolves a wrapper against its callee without a request.
+            let names: Vec<String> = result
+                .results
+                .iter()
+                .filter_map(|hit| hit.symbol.as_ref())
+                .filter_map(|symbol| symbol.symbol.rsplit_once("::").map(|(_, n)| n.to_owned()))
+                .collect();
+            if names.len() > 1 {
+                for hit in &mut result.results {
+                    hit.calls = index.calls_among(&hit.path, hit.start_line, &names);
+                }
+            }
         }
         Ok(result)
     }

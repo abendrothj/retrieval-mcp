@@ -479,6 +479,15 @@ pub trait StructuralBackend: Send + Sync {
     ) -> Result<Ranked>;
     /// The innermost indexed definition containing the given line, if any.
     fn locate(&self, path: &str, line: usize) -> Option<SymbolLocation>;
+    /// Which of `names` this definition's body calls.
+    ///
+    /// A ranking that reaches the right neighbourhood and returns two plausible siblings leaves
+    /// the model to choose, and on the kernel suite it chose wrong four times - asking
+    /// `find_callers` about `tls_alert_send` where the question described
+    /// `tls_handshake_close`, the function whose last line calls it. The relationship between two
+    /// returned rows is already in the index, so the page can state it instead of making the
+    /// model spend a request inferring it.
+    fn calls_among(&self, path: &str, line: usize, names: &[String]) -> Vec<String>;
     /// The snapshot's coverage, so callers can report corpus size alongside derived results.
     fn coverage(&self) -> &Coverage;
 }
@@ -1256,6 +1265,35 @@ impl StructuralBackend for StructuralIndex {
         })
     }
 
+    fn calls_among(&self, path: &str, line: usize, names: &[String]) -> Vec<String> {
+        let Some(symbol) = self
+            .symbols
+            .values()
+            .flatten()
+            .filter(|symbol| symbol.path == path && symbol.line <= line && line <= symbol.end_line)
+            .min_by_key(|symbol| symbol.end_line - symbol.line)
+        else {
+            return Vec::new();
+        };
+        let mut found: Vec<String> = names
+            .iter()
+            .filter(|name| name.as_str() != symbol.name)
+            .filter(|name| {
+                self.references_by_name.get(name.as_str()).is_some_and(|positions| {
+                    positions.iter().any(|position| {
+                        let reference = &self.references[*position];
+                        reference.kind == "call"
+                            && reference.path == symbol.path
+                            && (symbol.line..=symbol.end_line).contains(&reference.line)
+                    })
+                })
+            })
+            .cloned()
+            .collect();
+        found.dedup();
+        found
+    }
+
     fn coverage(&self) -> &Coverage {
         &self.coverage
     }
@@ -1820,6 +1858,13 @@ impl StructuralBackend for Retrieval {
         StructuralIndex::snapshot(&self.workspace, vec![path.to_owned()], self.timeout)
             .ok()?
             .locate(path, line)
+    }
+
+    /// One file answers this: whether the definition at `line` calls any of the other candidates.
+    fn calls_among(&self, path: &str, line: usize, names: &[String]) -> Vec<String> {
+        StructuralIndex::from_files(&self.workspace, vec![path.to_owned()], self.timeout)
+            .map(|index| index.calls_among(path, line, names))
+            .unwrap_or_default()
     }
 
     /// There is no standing index to describe, and saying "zero files indexed" without saying why
@@ -3654,6 +3699,32 @@ mod tests {
         assert_eq!(scan.locate("src/text.rs", 2).unwrap().symbol, "src/text.rs::break_lines");
         // A description with no word long enough to search for is refused, not answered emptily.
         assert!(scan.search_concept(&workspace, "a b c", None, 3).is_err());
+    }
+
+    /// A page that returns a wrapper and its callee says which is which.
+    ///
+    /// The kernel suite lost four trials to this: the model was handed two plausible siblings and
+    /// asked `find_callers` about `tls_alert_send` where the question described
+    /// `tls_handshake_close`, whose last line calls it. The relationship is in the index already.
+    #[test]
+    fn a_page_states_which_candidate_calls_which() {
+        let (_dir, workspace, index) = snapshot(&[(
+            "src/tls.c",
+            "void tls_alert_send(int level)\n{\n\tsend(level);\n}\n\
+             void tls_handshake_close(void)\n{\n\ttls_alert_send(1);\n}\n\
+             void unrelated(void)\n{\n\tnothing();\n}\n",
+        )]);
+        let _ = &workspace;
+        let names = vec![
+            "tls_alert_send".to_string(),
+            "tls_handshake_close".to_string(),
+            "unrelated".to_string(),
+        ];
+        // The wrapper names its callee.
+        assert_eq!(index.calls_among("src/tls.c", 5, &names), vec!["tls_alert_send".to_string()]);
+        // The callee names nobody, and a definition never names itself.
+        assert!(index.calls_among("src/tls.c", 1, &names).is_empty());
+        assert!(index.calls_among("src/tls.c", 9, &names).is_empty());
     }
 
     /// A parameter's type declares nothing, and the function it sits in declares everything.

@@ -6,6 +6,19 @@ releases only.
 
 ## Unreleased
 
+**A ranked page says which candidate calls which.** The kernel studies lost four trials to one
+decision: handed two plausible siblings, the model asked `find_callers` about `tls_alert_send`
+where the question described `tls_handshake_close`, whose last line calls it. A wrapper is the row
+that calls its sibling and the call index already knows, so the page states it. On the kernel
+suite that is **0 of 21 pages before, 10 of 21 after, at no byte cost** - median billed content
+6,924 either way, because the field is omitted when empty - and no ranking moves:
+`keyctl_update_key calls key_update`, `synth_event_cmd_init calls dynevent_cmd_init`.
+
+Measured and rejected in the same sitting: centring a row's excerpt on the query's most
+distinguishing word rather than the head of the definition. It left rank and top-1 unchanged and
+took one-call completeness from 12 of 21 to 11, because the head of a definition carries its name.
+Reverted.
+
 **Measured under a model: the kernel token gap is closed to parity.** `runs/linux-diet-20260921`,
 126 trials, one variable. Across four kernel studies the gap against a shell agent went +16.4%,
 +8.3%, +10.1%, **+1.0%**, while quality rose 56 to **59 of 63**, calls fell 3.20 to **2.10** and

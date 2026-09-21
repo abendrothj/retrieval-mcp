@@ -1795,6 +1795,42 @@ most of the distance between parity and the win the payload arithmetic predicted
 is not bytes and not ranking: it is whether a response is sufficient enough, and trusted enough,
 that the model answers instead of thinking again.
 
+### Which candidate calls which, and an excerpt idea that did not survive
+
+`runs/candidate-relations-20260921`. The diet benchmark left two open terms and the transition
+counts say they are one term. The model goes `search_concept` → `find_callers` 20 times and almost
+never returns to a caller page, so the two model requests per trial that call nothing sit
+*between* those two calls: it is deciding which symbol to ask about. That decision is also where
+all four lost answers went - `tls_alert_send` for `tls_handshake_close`, `keyctl_update_key` for
+`key_update`, `dynevent_cmd_init` for `synth_event_cmd_init`, `add_timer_on` for
+`add_timer_local`.
+
+**Rejected: excerpt the distinguishing line.** Instead of the head of a definition, centre the
+window on the line carrying the query's most distinguishing word, so that `enable` against
+`disable` is visible. Measured: found 13/21 and top-1 8/21 unchanged, one-call completeness
+**12/21 to 11/21**, and even the crude check for discriminating text went 5 of 5 to 4 of 5. The
+head of a definition carries its name, which is what completeness needs, so splitting a fixed
+budget between head and window loses more than the window gains. Reverted - the sixth post-freeze
+optimisation killed by its own measurement.
+
+**Kept: state which returned rows call which.** A wrapper is the row that calls its sibling, and
+the call index already knows. Adding it:
+
+| | before | after |
+|---|---:|---:|
+| Pages stating a relation | 0/21 | **10/21** |
+| Median billed content bytes | 6,924 | **6,924** |
+| Gold found / top-1 / one-call complete | 13 / 8 / 12 | 13 / 8 / 12 |
+
+No byte cost, because the field is omitted when empty, and no retrieval change, because it adds a
+field and touches no ranking. What it adds is exactly the sentence the model needed:
+`keyctl_update_key calls key_update`, `synth_event_cmd_init calls dynevent_cmd_init`.
+
+Whether that stops the deliberating, or stops the wrong sibling being chosen, is an agent-level
+question. The registered primary for that run should be **requests that make no tool call** - 2.0
+here against a shell agent's 0.0 - with tokens secondary, because the mechanism does not drift
+8.6% between days and the token axis does.
+
 ### Two handshake sentences, measured and rejected
 
 The one prompt-side change left untested was the handshake itself: does a single added sentence

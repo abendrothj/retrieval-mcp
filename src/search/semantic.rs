@@ -60,6 +60,15 @@ pub struct ConceptHit {
     /// The enclosing indexed definition and its call-graph degrees, when the index covers the file.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub symbol: Option<SymbolLocation>,
+    /// Other rows of this page that this definition calls.
+    ///
+    /// Two plausible siblings leave the model to choose which one the question described, and a
+    /// wrapper is the one that calls the other: `tls_handshake_close` looks the request up, clears
+    /// the session flag and then calls `tls_alert_send`. The relationship is in the index, so the
+    /// page states it rather than letting the model spend a request inferring it - or guessing
+    /// wrong, which it did four times on the kernel suite.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub calls: Vec<String>,
     /// Present only when the caller asked for the "excerpt" field.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excerpt: Option<String>,
@@ -208,6 +217,7 @@ fn validate_response(
             end_line: hit.end_line,
             score: hit.score,
             symbol: None,
+            calls: Vec::new(),
             excerpt: include_excerpt.then_some(shortened),
             excerpt_truncated,
         });
