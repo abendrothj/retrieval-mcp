@@ -38,6 +38,16 @@ STUDIES = {
         "note": "Independent etcd client corpus on HEAD; missed its registered quality criterion "
                 "by one answer and is published as a miss.",
     },
+    "linux-kernel-diet": {
+        "reports": ["runs/linux-diet-20260921/end-to-end.json"],
+        "model": "gpt-5.6-luna",
+        "questions": 21,
+        "repetitions": 3,
+        "note": "Fourth kernel run: de-duplicated payloads rendered to the model as tables. "
+                "Quality 59 of 63 against native's 63, input tokens +1.0% where the first study "
+                "was +16.4%, calls 2.10 against 3.67, unevidenced answers 2. The registered sign "
+                "change was missed; the arms are at parity.",
+    },
     "linux-kernel-complete": {
         "reports": ["runs/linux-complete-20260921/end-to-end.json"],
         "model": "gpt-5.6-luna",

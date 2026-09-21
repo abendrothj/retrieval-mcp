@@ -104,6 +104,40 @@
         }
       }
     },
+    "linux-kernel-diet": {
+      "model": "gpt-5.6-luna",
+      "questions": 21,
+      "repetitions": 3,
+      "note": "Fourth kernel run: de-duplicated payloads rendered to the model as tables. Quality 59 of 63 against native's 63, input tokens +1.0% where the first study was +16.4%, calls 2.10 against 3.67, unevidenced answers 2. The registered sign change was missed; the arms are at parity.",
+      "sources": [
+        {
+          "report": "runs/linux-diet-20260921/end-to-end.json",
+          "sha256": "189a19c3427f9ac672dd2ef69e2385fac7477f8dff7a331dc29286548906538b"
+        }
+      ],
+      "arms": {
+        "native-control": {
+          "trials": 63,
+          "correct": 63,
+          "input_tokens": 8613114,
+          "input_tokens_with_cache_reads": 15490810,
+          "calls": 231,
+          "context_token_turns": 41867204,
+          "calls_to_first_evidence": 1.667,
+          "answered_without_evidence": 9
+        },
+        "retrieval-mcp": {
+          "trials": 63,
+          "correct": 59,
+          "input_tokens": 8698354,
+          "input_tokens_with_cache_reads": 15552498,
+          "calls": 132,
+          "context_token_turns": 8501459,
+          "calls_to_first_evidence": 1.111,
+          "answered_without_evidence": 2
+        }
+      }
+    },
     "linux-kernel-complete": {
       "model": "gpt-5.6-luna",
       "questions": 21,

@@ -1751,6 +1751,50 @@ heavy per call. That study was won on call count, 77 against 146. So the rule is
 truncates": it is **fewer calls AND payloads that are not heavier**. Django had a 2:1 call ratio
 and could afford heavy payloads; the kernel's ratio is near 1:1, so the payload decides.
 
+### The payload benchmark: parity, and the term that replaced bytes
+
+`runs/linux-diet-20260921`. One variable: a binary whose payloads say each fact once and reach the
+model as tables. 126 trials, none failed, zero contamination. The wrapper also stopped passing
+`--ephemeral` so each trial keeps its Codex rollout log, which carries a token count **per model
+request** - applied to both arms, changing no prompt, tool or policy, and declared in the
+registration.
+
+| kernel study | native | retrieval-mcp | gap | calls | unevidenced |
+|---|---:|---:|---:|---:|---:|
+| baseline `0.1.6` | 62/63 · 138,757 | 56/63 · 161,451 | +16.4% | 3.20 | 7 |
+| rarity scan | 61/63 · 134,545 | 58/63 · 145,653 | +8.3% | 3.20 | 4 |
+| completeness | 61/63 · 123,001 | 58/63 · 135,448 | +10.1% | 2.50 | 4 |
+| **payload diet** | 63/63 · 136,716 | **59/63** · 138,069 | **+1.0%** | **2.10** | **2** |
+
+Quality is the best this suite has recorded and so is the control's; safety is the best; calls are
+the fewest. **The registered sign change did not happen**: +1.0% is parity, comfortably inside the
+8.6% drift measured between two runs of an identical configuration, so the claim as written is a
+miss.
+
+**The mechanism criterion was written with the wrong denominator, and both readings are
+published.** It asked for context added *per call* at or below native. That reads 9,662 against
+5,796 and fails. But a client bills *requests*, and the two arms no longer make them the same way:
+
+| per trial | native | retrieval-mcp |
+|---|---:|---:|
+| First request | 15,904 | 16,292 |
+| Requests | 4.67 | 5.05 |
+| Tool calls | 3.67 | **2.10** |
+| Context added per call | 5,796 | 9,662 |
+| Context added **per request** | 5,796 | **4,462** |
+| Requests that make no tool call | **0** | **2.0** |
+
+Per request this server now adds **4,462 tokens against a shell agent's 5,796 - 23% lighter**,
+which is what the offline byte work predicted. Dividing by calls charges an arm for thinking
+between them.
+
+**And that is the finding worth keeping.** A shell arm's requests are its calls plus one: it
+thinks by running another command. This arm spends about **two model requests per trial that call
+nothing** - deliberation between retrievals. Two requests at ~4,500 tokens is ~9,000, which is
+most of the distance between parity and the win the payload arithmetic predicted. The next lever
+is not bytes and not ranking: it is whether a response is sufficient enough, and trusted enough,
+that the model answers instead of thinking again.
+
 ### Two handshake sentences, measured and rejected
 
 The one prompt-side change left untested was the handshake itself: does a single added sentence

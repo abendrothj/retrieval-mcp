@@ -148,7 +148,14 @@ bytes, and the corpora are re-cuttable from `corpora/` against the fingerprints 
 
 Open threads:
 
-- **The kernel deficit is payload weight per call, and the instrument to see it is Codex's own
+- **The kernel gap is closed to parity, and what remains is deliberation, not retrieval.** Four
+  studies: +16.4%, +8.3%, +10.1%, **+1.0%** input tokens against a shell agent, with quality
+  56 → 59 of 63, calls 3.20 → 2.10 and unevidenced answers 7 → 2. Per model request this server
+  adds 4,462 tokens against native's 5,796. The remaining term is that a shell agent's requests
+  are its calls plus one - it thinks by running another command - while this arm spends about two
+  requests per trial that call nothing. Any further token work should target response sufficiency
+  and the handshake, not bytes: `runs/linux-diet-20260921`.
+- **Payload weight per call was the deficit, and the instrument to see it is Codex's own
   session log.** A non-ephemeral run writes a `token_count` event per model request;
   `runs/per-request-20260921` used it on six kernel questions and found this server already
   ahead on requests (32 against 34) and calls (26 against 28), its four tools costing 42 tokens,

@@ -144,8 +144,14 @@ def main():
     session_home = run_dir / "codex-home"
     session_home.mkdir(parents=True, exist_ok=True)
 
+    # Per-request accounting, for both arms alike. Codex reports usage once per turn on stdout,
+    # which cannot say whether a session was expensive because it took many model requests or
+    # because each carried more context - the question three kernel studies could not answer. A
+    # non-ephemeral session writes a rollout log with a `token_count` event per request, so the
+    # run keeps one and the analysis reads it. Nothing else about the session changes.
+    before = set(home.glob("sessions/**/*.jsonl"))
     command = ["codex", "exec", "--json", "--ignore-user-config", "--skip-git-repo-check",
-               "--ephemeral", "--sandbox", "read-only", "--cd", os.getcwd(), "--model", model]
+               "--sandbox", "read-only", "--cd", os.getcwd(), "--model", model]
     if retrieval and retrieval.get("command"):
         command += ["-c", f"mcp_servers.retrieval.command={json.dumps(retrieval['command'])}",
                     "-c", "mcp_servers.retrieval.args=" + json.dumps(retrieval.get("args", []))]
@@ -157,6 +163,24 @@ def main():
     process = subprocess.run(command, env=isolated, capture_output=True, text=True, timeout=None)
     (run_dir / "codex-events.jsonl").write_text(process.stdout, encoding="utf-8")
     (run_dir / "codex-stderr.log").write_text(process.stderr, encoding="utf-8")
+    # The session log belongs to this trial, not to the shared credential home it landed in.
+    for rollout in sorted(set(home.glob("sessions/**/*.jsonl")) - before):
+        shutil.move(str(rollout), run_dir / "codex-session.jsonl")
+    requests = []
+    session = run_dir / "codex-session.jsonl"
+    if session.is_file():
+        for line in session.read_text(encoding="utf-8", errors="replace").splitlines():
+            if not line.strip():
+                continue
+            try:
+                payload = (json.loads(line).get("payload") or {})
+            except ValueError:
+                continue
+            if payload.get("type") == "token_count":
+                last = (payload.get("info") or {}).get("last_token_usage") or {}
+                if last.get("input_tokens"):
+                    requests.append(last["input_tokens"])
+    (run_dir / "requests.json").write_text(json.dumps(requests), encoding="utf-8")
 
     events = []
     for line in process.stdout.splitlines():

@@ -6,6 +6,18 @@ releases only.
 
 ## Unreleased
 
+**Measured under a model: the kernel token gap is closed to parity.** `runs/linux-diet-20260921`,
+126 trials, one variable. Across four kernel studies the gap against a shell agent went +16.4%,
++8.3%, +10.1%, **+1.0%**, while quality rose 56 to **59 of 63**, calls fell 3.20 to **2.10** and
+answers with no supporting payload fell 7 to **2**. The registered criterion asked for a sign
+change and +1.0% is parity, so it is published as a miss.
+
+Per model request - the unit a client bills - this server now adds **4,462 tokens of context
+against a shell agent's 5,796**, 23% lighter, exactly as the offline byte work predicted. The gain
+does not reach the total because the arms differ in a way no byte count shows: a shell agent's
+requests are its calls plus one, and this arm spends about two requests per trial that call
+nothing at all.
+
 **Responses say each fact once.** Per-request accounting from Codex's own session log - six real
 kernel questions, both arms - found that this server already makes fewer requests (32 against 34)
 and fewer calls (26 against 28) than a shell agent, that its four tools cost 42 tokens against
