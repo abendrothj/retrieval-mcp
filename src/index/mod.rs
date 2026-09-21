@@ -1229,6 +1229,24 @@ fn scan_pattern(name: &str) -> String {
     pattern
 }
 
+/// One query word as a regex that matches it as a word *of code*.
+///
+/// `scan_pattern` anchors on `\b`, which is right for a symbol scan and wrong for a description:
+/// `_` is a word character, so `\bbucket\b` never matches `quiesce_bucket`, and snake_case is
+/// how a C corpus spells exactly the thing a question describes. Here the boundary is any
+/// character that is not a letter or digit, so `_`, `.`, `->` and end of line all separate words,
+/// and a query saying "probe entry" can select the file that writes `kprobe_on_func_entry`.
+fn concept_pattern(token: &str) -> String {
+    let mut inner = String::with_capacity(token.len() + 8);
+    for character in token.chars() {
+        if !(character.is_alphanumeric() || character == '_') {
+            inner.push('\\');
+        }
+        inner.push(character);
+    }
+    format!("(?:^|[^0-9A-Za-z])(?:{inner})")
+}
+
 /// Every source file whose text names one of `names`, found by the walk `search_exact` uses, plus
 /// the number of source files that walk saw. Reading the corpus is what a caller question already
 /// costs; this stops one file short of that, because a file that never writes the name cannot
@@ -1269,10 +1287,7 @@ fn files_naming(
     overrides.add("!.git/**")?;
     overrides.add("!target/**")?;
     let mut walk = ignore::WalkBuilder::new(workspace.root());
-    walk.overrides(overrides.build()?)
-        .hidden(true)
-        .max_filesize(Some(2 * 1024 * 1024))
-        .sort_by_file_path(Path::cmp);
+    walk.overrides(overrides.build()?).hidden(true).max_filesize(Some(2 * 1024 * 1024));
     if no_ignore {
         walk.ignore(false)
             .git_ignore(false)
@@ -1327,11 +1342,18 @@ fn files_about(
     wanted: usize,
 ) -> Result<(Vec<String>, usize)> {
     use grep_searcher::{BinaryDetection, SearcherBuilder, Sink, SinkMatch};
+    use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+    use std::sync::Mutex;
 
     /// Which of the query's tokens this file writes. A matched line is lowercased once and tested
-    /// for every token, and the file stops being read as soon as it has shown all of them or spent
-    /// its line budget: the score only has to separate files, and a file that has matched thirty
-    /// lines without carrying a word has answered the question.
+    /// for every token, and the file stops being read as soon as it has shown all of them or
+    /// spends its line budget.
+    ///
+    /// The budget decides what the score is allowed to see, and 32 lines was too few for a reason
+    /// that only appears on a large tree: a long source file spends the whole budget on lines
+    /// carrying the query's common words and never reaches the one line with the rare identifier,
+    /// and a long source file is exactly where a kernel answer lives. The budget exists to bound a
+    /// pathological file, not to sample a normal one.
     struct Seen<'a> {
         tokens: &'a [String],
         hit: &'a mut Vec<bool>,
@@ -1357,11 +1379,11 @@ fn files_about(
             Ok(self.budget > 0 && self.hit.iter().any(|seen| !seen))
         }
     }
-    const LINES_PER_FILE: usize = 32;
+    const LINES_PER_FILE: usize = 2_048;
 
     ensure!(!tokens.is_empty(), "a concept scan needs at least one query token");
     let alternatives =
-        tokens.iter().map(|token| scan_pattern(token)).collect::<Vec<_>>().join("|");
+        tokens.iter().map(|token| concept_pattern(token)).collect::<Vec<_>>().join("|");
     let matcher = grep_regex::RegexMatcherBuilder::new()
         .case_insensitive(true)
         .line_terminator(Some(b'\n'))
@@ -1383,40 +1405,137 @@ fn files_about(
             .git_exclude(false)
             .parents(false);
     }
-    let mut searcher = SearcherBuilder::new()
-        .binary_detection(BinaryDetection::quit(b'\x00'))
-        .line_number(false)
-        .build();
-    let (mut scored, mut eligible) = (Vec::new(), 0usize);
-    for entry in walk.build() {
-        ensure!(
-            Instant::now() < deadline,
-            "concept scan timed out; narrow --root or increase --timeout-seconds"
-        );
-        let entry = entry.context("cannot walk the repository")?;
-        if !entry.file_type().is_some_and(|kind| kind.is_file()) {
-            continue;
-        }
-        let Ok(relative) = workspace.relative(entry.path()) else {
-            continue;
-        };
-        if source_language(&relative).is_none() {
-            continue;
-        }
-        eligible += 1;
-        let mut hit = vec![false; tokens.len()];
-        let sink = Seen { tokens, hit: &mut hit, budget: LINES_PER_FILE };
-        if searcher.search_path(&matcher, entry.path(), sink).is_err() {
-            continue;
-        }
-        let carried = hit.iter().filter(|seen| **seen).count();
-        if carried > 0 {
-            scored.push((carried, relative));
+    // Reading the tree one file after another is what made a 32-line budget look necessary. The
+    // walk is I/O and regex, both of which scale across cores, and the result stays deterministic
+    // because order is imposed below on scores and paths, never on arrival.
+    //
+    // Each worker keeps its own tallies and merges them once, when the walk drops it. Merging on a
+    // threshold instead loses whatever the last partial batch held - on a three-file repository
+    // that is every file, which is how the unit test caught it.
+    type Carried = (Vec<(Vec<bool>, String)>, Vec<usize>, usize);
+    struct Worker<'a> {
+        workspace: &'a Workspace,
+        tokens: &'a [String],
+        matcher: &'a grep_regex::RegexMatcher,
+        searcher: grep_searcher::Searcher,
+        deadline: Instant,
+        timed_out: &'a AtomicBool,
+        shared: &'a Mutex<Carried>,
+        local: Carried,
+    }
+    impl ignore::ParallelVisitor for Worker<'_> {
+        fn visit(&mut self, entry: Result<ignore::DirEntry, ignore::Error>) -> ignore::WalkState {
+            if Instant::now() >= self.deadline {
+                self.timed_out.store(true, AtomicOrdering::Relaxed);
+                return ignore::WalkState::Quit;
+            }
+            let Ok(entry) = entry else { return ignore::WalkState::Continue };
+            if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+                return ignore::WalkState::Continue;
+            }
+            let Ok(relative) = self.workspace.relative(entry.path()) else {
+                return ignore::WalkState::Continue;
+            };
+            if source_language(&relative).is_none() {
+                return ignore::WalkState::Continue;
+            }
+            self.local.2 += 1;
+            let mut hit = vec![false; self.tokens.len()];
+            let sink = Seen { tokens: self.tokens, hit: &mut hit, budget: LINES_PER_FILE };
+            if self.searcher.search_path(self.matcher, entry.path(), sink).is_err() {
+                return ignore::WalkState::Continue;
+            }
+            if hit.iter().any(|seen| *seen) {
+                for (position, seen) in hit.iter().enumerate() {
+                    self.local.1[position] += usize::from(*seen);
+                }
+                self.local.0.push((hit, relative));
+            }
+            ignore::WalkState::Continue
         }
     }
-    // Most of the query's words first; path order decides ties, so the same question over the same
-    // bytes always reads the same files.
-    scored.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
+    impl Drop for Worker<'_> {
+        fn drop(&mut self) {
+            let mut total = self.shared.lock().unwrap_or_else(|error| error.into_inner());
+            total.0.append(&mut self.local.0);
+            for (slot, count) in total.1.iter_mut().zip(self.local.1.iter_mut()) {
+                *slot += std::mem::take(count);
+            }
+            total.2 += std::mem::take(&mut self.local.2);
+        }
+    }
+    struct Workers<'a> {
+        workspace: &'a Workspace,
+        tokens: &'a [String],
+        matcher: &'a grep_regex::RegexMatcher,
+        deadline: Instant,
+        timed_out: &'a AtomicBool,
+        shared: &'a Mutex<Carried>,
+    }
+    impl<'a> ignore::ParallelVisitorBuilder<'a> for Workers<'a> {
+        fn build(&mut self) -> Box<dyn ignore::ParallelVisitor + 'a> {
+            Box::new(Worker {
+                workspace: self.workspace,
+                tokens: self.tokens,
+                matcher: self.matcher,
+                searcher: SearcherBuilder::new()
+                    .binary_detection(BinaryDetection::quit(b'\x00'))
+                    .line_number(false)
+                    .build(),
+                deadline: self.deadline,
+                timed_out: self.timed_out,
+                shared: self.shared,
+                local: (Vec::new(), vec![0usize; self.tokens.len()], 0),
+            })
+        }
+    }
+    let shared: Mutex<Carried> = Mutex::new((Vec::new(), vec![0usize; tokens.len()], 0usize));
+    let timed_out = AtomicBool::new(false);
+    walk.build_parallel().visit(&mut Workers {
+        workspace,
+        tokens,
+        matcher: &matcher,
+        deadline,
+        timed_out: &timed_out,
+        shared: &shared,
+    });
+    let (carried, frequency, eligible) = {
+        let mut total = shared.into_inner().unwrap_or_else(|error| error.into_inner());
+        (std::mem::take(&mut total.0), std::mem::take(&mut total.1), total.2)
+    };
+    ensure!(
+        !timed_out.load(AtomicOrdering::Relaxed),
+        "concept scan timed out; narrow --root or increase --timeout-seconds"
+    );
+    // Rarity, accumulated by the walk that just finished: a token half the corpus writes separates
+    // nothing, and one that five files write separates everything. `ln(1 + eligible/df)` is the
+    // usual shape, and the +1 keeps a token every file carries at a small positive weight, so a
+    // query made entirely of common words still ranks something.
+    let weight: Vec<f64> = frequency
+        .iter()
+        .map(|&count| (1.0f64 + eligible as f64 / count.max(1) as f64).ln())
+        .collect();
+    let mut scored: Vec<(f64, String)> = carried
+        .into_iter()
+        .map(|(hit, path)| {
+            let score: f64 = hit
+                .iter()
+                .enumerate()
+                .filter(|(_, seen)| **seen)
+                .map(|(position, _)| weight[position])
+                .sum();
+            (score, path)
+        })
+        .collect();
+    // Rarest words first; path order decides ties, so the same question over the same bytes always
+    // reads the same files.
+    scored.sort_by(|left, right| {
+        right
+            .0
+            .partial_cmp(&left.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.1.cmp(&right.1))
+    });
     scored.truncate(wanted);
     let mut files: Vec<String> = scored.into_iter().map(|(_, path)| path).collect();
     files.sort();
@@ -3446,6 +3565,61 @@ mod tests {
         assert_eq!(scan.locate("src/text.rs", 2).unwrap().name, "break_lines");
         // A description with no word long enough to search for is refused, not answered emptily.
         assert!(scan.search_concept(&workspace, "a b c", None, 3).is_err());
+    }
+
+    /// A rare word decides the file; a word the corpus writes everywhere does not.
+    ///
+    /// Counting distinct matched tokens ties every file that carries the query's English, and on
+    /// Linux 6.12 that was 56,000 of 60,000 files, so path order chose the candidates and the
+    /// answer's own file was never read: gold entered the candidate set for 4 of 21 questions,
+    /// and 17 of the losses were this selection rather than any ranking below it. Weighting by
+    /// how few files carry each token restores 12 of 21 at 86,605 files and 15 of 21 at 928.
+    #[test]
+    fn a_rare_word_outranks_a_common_one_when_files_are_chosen() {
+        // The answer carries one rare identifier and none of the query's filler; sixty decoys
+        // carry every common word and nothing rare.
+        let mut files = vec![(
+            "src/answer.rs".to_string(),
+            "pub fn quiesce_bucket(id: u64) -> u64 {\n\tid\n}\n".to_string(),
+        )];
+        for index in 0..60 {
+            files.push((
+                format!("src/decoy{index}.rs"),
+                format!("pub fn handle_request_value{index}() {{\n\tlet request = value;\n}}\n"),
+            ));
+        }
+        let owned: Vec<(&str, &str)> =
+            files.iter().map(|(path, text)| (path.as_str(), text.as_str())).collect();
+        let (_dir, workspace, _index) = snapshot(&owned);
+        let scan = Retrieval::new(workspace.clone(), Duration::from_secs(5), false);
+        let ranked = scan
+            .search_concept(&workspace, "handle the request value that quiesce bucket", None, 5)
+            .unwrap();
+        assert_eq!(ranked.regions[0].path, "src/answer.rs", "{:?}", ranked.regions);
+    }
+
+    /// The per-file line budget decides what the score is allowed to see.
+    ///
+    /// A long file whose first lines carry only the query's common words used to exhaust a
+    /// 32-line budget before reaching its one rare line, which is precisely the shape of a kernel
+    /// source file, and the file was then scored as if it never carried the word.
+    #[test]
+    fn a_rare_word_deep_in_a_long_file_is_still_seen() {
+        let mut long = String::new();
+        for index in 0..400 {
+            long.push_str(&format!("// request value handler line {index}\n"));
+        }
+        long.push_str("pub fn quiesce_bucket(id: u64) -> u64 {\n\tid\n}\n");
+        let (_dir, workspace, _index) = snapshot(&[
+            ("src/long.rs", long.as_str()),
+            ("src/other.rs", "pub fn request_value() {\n\tlet request = 1;\n}\n"),
+        ]);
+        let scan = Retrieval::new(workspace.clone(), Duration::from_secs(5), false);
+        let ranked = scan
+            .search_concept(&workspace, "quiesce the bucket identifier", None, 5)
+            .unwrap();
+        assert_eq!(ranked.regions.first().map(|region| region.path.as_str()), Some("src/long.rs"),
+                   "{:?}", ranked.regions);
     }
 
     /// JavaScript and TypeScript are one language, written in eight extensions. Matching a call

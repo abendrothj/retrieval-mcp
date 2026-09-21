@@ -6,6 +6,34 @@ releases only.
 
 ## Unreleased
 
+**`search_concept` chooses candidate files by rarity, and can see a word inside a snake_case
+name.** The agent study on Linux 6.12 lost on every registered axis, and the offline ladder in
+`runs/scale-response-20260920` says why: across four nested cuts of the same corpus — 928, 5,637,
+18,652 and 86,605 files, every gold present in the smallest — the payload stayed flat at 73-75 KB
+while the gold definition was found for 14, 9, 8 and finally **4 of 21** questions. It was not the
+page size: `limit: 100` returned the same four. In 17 of the 21, the answer's own file never
+entered the 400-file candidate set, and in none did it enter and rank badly.
+
+`files_about` scored a file by how many distinct query tokens it wrote, and on Linux 56,000 of
+60,000 source files write at least one word of any question, so hundreds tied at the top and path
+order chose between them. It also read 32 matched lines per file, which a long file spends on
+common words before reaching its rare identifier, and it seeded with the symbol scanner's `\b`
+anchor, which cannot match `bucket` inside `quiesce_bucket` because `_` is a word character.
+
+Files are now scored by `ln(1 + eligible/df)` summed over the tokens they carry, with document
+frequency accumulated in the walk that was already running; the per-file budget is 2,048 matched
+lines, which bounds a pathological file instead of sampling a normal one; the walk runs across
+cores, with each worker merging its tallies when it is dropped; and the concept scan has its own
+word boundary, where any non-alphanumeric character separates words. At 86,605 files that is
+**4 of 21 to 12 of 21** at 6.5 s against 4.3 s, and across the ladder the decay flattens to 15,
+13, 13, 12. Neither published corpus moves: Django 16/30 before and after with the median rank
+improving from 2.0 to 1.0, etcd 10/30 both, latency within a tenth of a second. Rarity alone buys
+5 of the 8 recovered answers at no latency cost; the budget buys the rest and the parallel walk
+pays for it.
+
+This is an offline result — a rank, not an answer. Whether it changes what a model answers is
+unmeasured, and `runs/linux-agent-20260919` is the registered baseline waiting for it.
+
 **The whole-repository snapshot is gone, at every repository size.** Three changes had already
 moved every question onto a search — callers and symbols onto the name, ranking onto the
 description's own words, `locate` onto the one file being labelled — and each was measured to

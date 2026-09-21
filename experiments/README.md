@@ -1499,6 +1499,76 @@ boundary: on a corpus of this size, with a shell-capable client, it reverses on 
 one corpus, one client and 126 trials, so the boundary is as provisional as the claim was after its
 first corpus. What it is not is unknown.
 
+### The ladder: what size actually did, and what the scorer did
+
+`runs/scale-response-20260920`. The kernel study could report a reversal and could not attribute
+it: size, language, question author and suite vintage all moved together. This is the identified
+version, offline and free. Four nested corpora are cut from Linux 6.12 — **928, 5,637, 18,652 and
+86,605 files** — with every gold and evidence file present in the smallest, so the only thing that
+grows is the distractor set. Two behaviours are measured at each rung: the archived run's own 243
+shell commands and 203 tool calls, replayed verbatim, and `search_concept` asked the raw question.
+
+| rung | files | gold found, before | MCP payload | shell output | shell calls carrying gold |
+|---|---:|---:|---:|---:|---:|
+| r1 | 928 | 14/21 | 75 KB | 1.5 MB | 16.6 |
+| r2 | 5,637 | 9/21 | 75 KB | 2.9 MB | 16.1 |
+| r3 | 18,652 | 8/21 | 73 KB | 4.4 MB | 16.0 |
+| r4 | 86,605 | **4/21** | 74 KB | 5.9 MB | 16.0 |
+
+**The payload discipline is scale-invariant and the recall was not.** 73-75 KB across a 93× range
+of corpus size, against a shell arm whose output grows four-fold; and a hit rate that falls by
+more than half while the shell arm's is flat. The efficiency half of this project's claim survived
+the kernel. The retrieval half did not.
+
+**Then the audit, before any interpretation.** At 86,605 files, `limit: 10` and `limit: 100`
+returned the same four hits, so nothing was being cut off by the page size. Of the 21 questions,
+**17 failed because the gold file never entered the 400-file candidate set, and none failed inside
+it.** One function, `files_about`, owned the whole result, and it held three defects that only a
+large tree exposes:
+
+- It scored a file by **how many distinct query tokens it wrote**. On Linux, 56,000 of 60,000
+  source files write at least one of a question's words, hundreds tie at the top on `event`,
+  `buffer`, `return`, and the tie-break is path order — the "answer everything out of `arch/`"
+  failure that this scoring was introduced to prevent, re-created by ties at a scale it was never
+  measured at.
+- It read **32 matched lines per file**. A long source file spends that budget on lines carrying
+  the query's common words and never reaches the one line with the rare identifier, and a long
+  source file is where a kernel answer lives.
+- It seeded with `scan_pattern`, whose `\b` anchor is right for a symbol scan and wrong for a
+  description: `_` is a word character, so `\bbucket\b` **cannot match `quiesce_bucket`** — the
+  spelling a C corpus uses for exactly the thing the question describes.
+
+**The repair, one variable at a time.** Score by rarity, `ln(1 + eligible/df)` with document
+frequency accumulated in the walk that was already running; raise the per-file budget to bound a
+pathological file rather than sample a normal one; walk across cores so the budget costs wall time
+instead of forbidding it; and give the concept scan its own code-aware word boundary.
+
+| arm at 86,605 files | gold found | median latency |
+|---|---:|---:|
+| count + 32 lines (shipped in 0.1.6) | 4/21 | 4.3 s |
+| rarity + 32 lines | 9/21 | 4.5 s |
+| count + 2,048 lines | 12/21 | 10.0 s |
+| rarity + 2,048 lines, serial | 12/21 | 13.0 s |
+| **rarity + 2,048 lines, parallel** | **12/21** | **6.5 s** |
+
+Across the ladder the decay is flattened rather than removed: **15, 13, 13, 12** where it was 14,
+9, 8, 4. Latency roughly doubles on the largest corpus and is unchanged on small ones. The two
+corpora this project publishes on do not move — Django 16/30 before and after with the median rank
+improving 2.0 to 1.0, etcd 10/30 both, latency 2.6 s to 2.7 s and 0.69 s to 0.80 s — which is the
+point: this is a defect that only existed above the sizes ever measured.
+
+**A defect the repair introduced, caught by a three-file test.** The first parallel version merged
+each worker's tallies only after 512 files, so a worker's last partial batch was dropped. At
+kernel scale every worker crosses 512 and the answers looked perfect; on a three-file repository
+every file is lost, and `a_description_ranks_over_the_files_its_own_words_choose` failed
+immediately. Workers now merge when they are dropped.
+
+**What is and is not claimed.** This is offline: a rank, not an answer. Six of the nine questions
+still unrecalled at kernel scale are caller questions, which an agent answers with `find_callers`
+rather than `search_concept`, so the metric is hardest on the shape it least describes. Whether
+tripling candidate recall changes what a model answers is **unmeasured**, and
+`runs/linux-agent-20260919` is the registered baseline waiting for it.
+
 ### Two handshake sentences, measured and rejected
 
 The one prompt-side change left untested was the handshake itself: does a single added sentence

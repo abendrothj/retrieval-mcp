@@ -7,7 +7,7 @@
     "src/lib.rs": "3491d7f875642a69c473c5609a14c4671f9754ff0ef9e29b6ebacb6c2257d153",
     "src/main.rs": "df28de1c1685167cb125585ce22691c05c0ad1e6d3e2010e0ddc675ae57ba73d",
     "src/config/mod.rs": "f8590f133cf6306e468d51e45ae5fcdcd33ab0b07d949ac8ecdb50e2263c3b98",
-    "src/index/mod.rs": "635efcaa9419629067d5930be74eaf141a3b54c4ef7082250293bedec3d63080",
+    "src/index/mod.rs": "bde25dfbcafae241d6abd7f4357db2f0af05f01675ef231fe123456d6e03904c",
     "src/logging/mod.rs": "45cc308d50c77ead9cebae858aba354613988dcf46fb76d8f9c0088eabf3ac8e",
     "src/search/mod.rs": "b90120e8ed00b2871344807d4f914beea1edf6e2ee1d00a400dda7aad80f2e5f",
     "src/search/lexical.rs": "87dbc11445a75715465ee4508873fe6db0e93821c7299e131efe2c939a400bd0",
