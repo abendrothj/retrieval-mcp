@@ -1999,6 +1999,48 @@ between definitions inside a file the ranker already found - matching a *describ
 function body, which BM25 over definition text cannot express. That is a research problem rather
 than another week of tuning.
 
+### Correction: semantics is not the gap, and three of four losses are not retrieval
+
+`runs/precision-20260922`, continued. The "top-1 precision of 8 of 21" that justified three days of
+work was measured by **sending the question verbatim**. Agents do not do that - the tool
+description tells them to write the vocabulary the code uses - so the number describes a usage that
+does not occur.
+
+Replaying the `search_concept` queries the archived runs actually issued:
+
+| | gold on the page | gold at rank 1 |
+|---|---:|---:|
+| question sent verbatim | 13/21 | 8/21 |
+| **the agent's own queries** | **19/21** | 10/21 |
+
+And for caller questions the metric was wrong in a second way: their gold is the *caller set*, so
+"rank of gold" asked whether a caller appears on a concept page. Deriving the **described target**
+instead - the callee every gold caller shares - it is on the page for **7 of 8** caller questions
+and at rank 1 for five.
+
+That decomposes the four remaining losses of the best run:
+
+| question | what happened |
+|---|---|
+| `perf-aux-free` | target `rb_free_aux` served at **rank 1**; the model asked `find_callers` about a different symbol |
+| `tls-closure-alert` | target `tls_handshake_close` served at **rank 1**; the model answered the target instead of its callers |
+| `timer-pinned-start` | target at rank 2; the model answered `add_timer_on` |
+| `sigqueue-flush` | `flush_sigqueue` never reaches the page - **the one genuine retrieval failure** |
+
+**One of the four is ours.** Three are the agent's second hop over evidence we served correctly,
+usually first. Semantics, negation handling and behavioural representation address none of them -
+and `lx-symbol-oom-reenable`, the antonym question the whole negation argument was built on,
+scored **3 of 3** in the diet run from a rank-7 result.
+
+**The reverted co-occurrence change, re-measured on the agent's own queries:** 19 of 21 found and
+10 of 21 at rank 1, identical to HEAD, recovering neither miss. Its 13-to-15 recall gain existed
+only for verbatim question text. The revert stands, now for the right reason.
+
+So the remaining work is two things, neither of them a research programme: `flush_sigqueue`, a
+helper with no doc comment whose body is a generic list walk, which no description can reach
+lexically; and **exhaustive caller enumeration on the agent side**, where three losses come from a
+correct page being mis-used. That is a response-shape and instruction question.
+
 ### Two handshake sentences, measured and rejected
 
 The one prompt-side change left untested was the handshake itself: does a single added sentence

@@ -148,7 +148,16 @@ bytes, and the corpora are re-cuttable from `corpora/` against the fingerprints 
 
 Open threads:
 
-- **Top-1 precision is a within-file problem, and it is a research problem.**
+- **Semantics is not the gap, and three of the four remaining kernel losses are not retrieval.**
+  The precision figure that motivated the search - gold at rank 1 for 8 of 21 - came from sending
+  the question verbatim, which is not how agents use the tool. On the queries the archived runs
+  actually issued the gold is on the page for **19 of 21**, and the described target of a caller
+  question is on the page for 7 of 8 and rank 1 for five. Of the four losses in the best run,
+  three had the right target served at rank 1 or 2 and failed on the agent's second hop; only
+  `flush_sigqueue` is a genuine miss. The antonym question the negation argument was built on
+  scored 3 of 3. The reverted co-occurrence change, re-measured on agent queries, is identical to
+  HEAD. `runs/precision-20260922`.
+- **Top-1 precision, measured on verbatim questions, is a within-file problem.**
   `runs/precision-20260922`: over 100 rows the gold is rank 1 for 8 of 21, ranks 2-4 for 5,
   absent for 6 - and in **10 of 21 the right file is on the page while the right definition is
   not at the top of it**, three of them with the file at rank 1 and the definition missing
