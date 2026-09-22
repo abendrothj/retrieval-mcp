@@ -1956,6 +1956,43 @@ not move at all because selection only binds above the 400-file budget. **Revert
 was precision, and three agent-level studies this week have rejected changes that looked good on
 an offline secondary metric.
 
+**Road A, tested as two oracles before building anything.** If precision needs a representation
+of what a function *does*, the cheapest test is whether such a representation separates the pairs
+we confuse.
+
+*Structural signature* - callees, `ALL_CAPS` constants and parameter types, word-pieced, scored
+against the question. On the 13 questions where rank 1 is wrong or missing: **gold 6, ties 2, the
+current rival 5.** Barely better than chance. The diagnostic case is `oom_killer_enable` against
+`oom_killer_disable`, which score **0 against 0** - a five-line function with one callee has no
+body to reason about.
+
+*Doc-comment coverage* - how much of a candidate's own comment and signature the question covers,
+length-normalised, **with the gold injected into the candidate set** so that recall is perfect and
+only ranking is measured. Result: **9 of 21** against today's 8, with the answer handed to it.
+
+Both fail for the same reason, and the reason is the finding. `lx-symbol-oom-reenable` asks for the
+function that "clears the flag that forces allocations to fail… **not the one that turns the killer
+off**". The question contains the antonym *and* an explicit negation, and both candidates' doc
+comments share every content word. No bag-of-words can represent that - and a static embedding is
+also a bag of words.
+
+So Road A forks, and the fork is a product decision as much as a research one:
+
+- **A1, structural predicates.** Extract polarity and control facts the AST already has: does the
+  body set a flag or clear it, does it return a value, which guard does it exit on. That separates
+  enable from disable exactly, needs no model, keeps the single static binary - but it is a family
+  of narrow rules, and the 13 remaining failures have at least six distinct causes.
+- **A2, semantic reranking.** Rerank the ten candidates already selected with a cross-encoder or
+  small model - the only representation considered here that could handle negation. It breaks the
+  no-model property, and `--semantic-command` already exists, so it can be *measured* without
+  being shipped.
+
+**Recommended order: measure A2 offline first.** Recall already permits 15 of 21; the question is
+purely whether a semantic reranker moves top-1 from 8 towards that ceiling. If it does, shipping
+an optional reranker becomes a design decision with evidence. If it does not, then precision on
+described behaviour is beyond any reranking of this candidate set - which is a publishable negative
+result about retrieval for agents, and a better outcome than another tuning pass.
+
 **What it says about the roadmap.** Precision at rank 1 is not a tuning knob on this instrument.
 Selection is rarity-weighted and now demonstrably co-occurrence-aware, and the residue is choosing
 between definitions inside a file the ranker already found - matching a *described behaviour* to a
