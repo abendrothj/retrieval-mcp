@@ -1854,6 +1854,38 @@ gain and this one showed none. Reverted. `calls_among` stays in the index with i
 nothing unserialised, and it is the right primitive if a later design states candidate relations
 with an explicit scope.
 
+### Is the deliberation ours or the task's?
+
+`runs/deliberation-20260922`, offline, over the 126 retrieval-mcp trials that carry a per-request
+token log. The arm spends about two model requests per trial that call nothing where a shell agent
+spends none, and three studies had treated that as a cost to remove. It is not ours.
+
+The cross-question signal looked strong and servable:
+
+| | n | top-1 score gap | correct |
+|---|---:|---:|---:|
+| idle 0-1 | 31 | **21.8%** | 94% |
+| idle 3+ | 44 | **12.5%** | 82% |
+
+A flat page goes with deliberation and with errors, and the server knows the gap at serve time -
+so this reads like a property worth acting on. The within-question test says otherwise. The model
+phrases its own query, so pages differ between trials of the same question; splitting each
+question's trials into its flatter and sharper halves gives **+0.08 requests** of extra
+deliberation on the flatter half, in **10 of 21** questions. A coin flip. The correlation is a
+statement about *questions*, not about the pages we serve.
+
+`lx-callers-tls-closure-alert` finishes the argument: the **sharpest** pages in the suite, a 40.3%
+top-1 gap, with 20% accuracy and 2.60 idle requests. A decisive-looking page can be decisively
+wrong - the top row is the function the question describes, and the question asks for its callers.
+
+**So the thread closes with a negative result, and it corrects a framing this record carried for
+three studies.** Calling those requests waste presumed the thinking bought nothing. A shell agent
+does not think less; it thinks by running another command, which this client truncates cheaply.
+Requests-that-call-nothing measures where thinking is *stored* as much as whether it is needed,
+and it should never have been a registered primary. It stays as a diagnostic. Two attempts to move
+it by improving the page - candidate relations under a model, discriminating excerpts offline -
+both failed, which is consistent.
+
 ### Two handshake sentences, measured and rejected
 
 The one prompt-side change left untested was the handshake itself: does a single added sentence

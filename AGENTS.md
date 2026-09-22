@@ -148,6 +148,13 @@ bytes, and the corpora are re-cuttable from `corpora/` against the fingerprints 
 
 Open threads:
 
+- **Deliberation is the task's, not the response's, and that thread is closed.**
+  `runs/deliberation-20260922`: flat pages correlate with deliberation across questions (21.8%
+  against 12.5% top-1 score gap) and not within them (+0.08 requests, 10 of 21 - a coin flip),
+  and the suite's sharpest pages belong to its worst question. A shell agent does not think less,
+  it thinks by running another command that the client truncates cheaply, so
+  requests-that-call-nothing measures where thinking is stored as much as whether it is needed.
+  It should not have been a registered primary; it stays a diagnostic.
 - **Deliberation did not respond to better evidence on the page.** `runs/linux-relations-20260922`
   stated which candidate calls which - 10 of 21 pages, no byte cost, offline-proven - and under a
   model it missed every registered criterion: idle requests 1.95 to 2.03, quality 59 to 56 of 63,
