@@ -148,6 +148,14 @@ bytes, and the corpora are re-cuttable from `corpora/` against the fingerprints 
 
 Open threads:
 
+- **Top-1 precision is the root blocker, and working around it has failed three times.**
+  `search_concept` puts the gold definition at rank 1 for 8 of 21 kernel questions. Rarity-
+  weighted selection fixed *recall* - 4 of 21 to 13 - and never touched precision. Three
+  mechanisms built to work around it all failed: candidate relations under a model
+  (`runs/linux-relations-20260922`), discriminating excerpts offline, and a `find_callers` that
+  resolves a description itself (`runs/composed-callers-20260922`, right 3 of 8 against an agent
+  two-hop that is near ceiling). The model's two hops are error-correcting; removing the check
+  removes the correction. Precision at rank 1 is the thing to attack.
 - **Deliberation is the task's, not the response's, and that thread is closed.**
   `runs/deliberation-20260922`: flat pages correlate with deliberation across questions (21.8%
   against 12.5% top-1 score gap) and not within them (+0.08 requests, 10 of 21 - a coin flip),

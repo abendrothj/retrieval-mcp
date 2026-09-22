@@ -1886,6 +1886,36 @@ and it should never have been a registered primary. It stays as a diagnostic. Tw
 it by improving the page - candidate relations under a model, discriminating excerpts offline -
 both failed, which is consistent.
 
+### Collapsing the two-hop, and what it reveals about all of this
+
+`runs/composed-callers-20260922`. The dominant caller path is two hops with a decision between
+them, so `find_callers` was given a `describes` argument: the server ranks the description,
+resolves the top definition, answers about it, and reports the resolution and its runners-up so a
+wrong one is visible.
+
+It works beautifully when the resolution is right. On `lx-callers-tls-closure-alert` - the
+question that cost three trials because the agent asked about `tls_alert_send` - one call resolved
+`net/handshake/tlshd.c::tls_handshake_close` and returned exactly the two gold callers,
+`svc_tcp_sock_detach` and `xs_close`, in 7.6 s and 5,811 bytes.
+
+It is right 2 of 8 times from the question text, and **3 of 8** when replayed with the agent's own
+first query from the archived run. The wrong resolutions are the ranking's known weakness:
+`release_one_tty`, `__pidfd_prepare`, `dec_ref`, `vfs_lock_file`. The agent's own two hops do far
+better - the diet run scored 59 of 63 with the caller bucket near ceiling - so **composition is
+worse than the thing it replaces**, and it is reverted.
+
+**Why it fails is the finding.** The weak link is resolution, not the extra hop. `search_concept`
+puts the gold definition at rank 1 for **8 of 21** questions, so a server that commits to its own
+rank 1 commits to the wrong symbol most of the time. The model's two hops are *error-correcting*:
+it reads the page, sees the candidate does not do what the question described, and asks again.
+That is the third mechanism in three days to fail for the same reason - candidate relations under
+a model, discriminating excerpts offline, and now composition - and it reframes the roadmap:
+
+> Deliberation between calls, the sibling and wrapper confusions, and the failure of composition
+> are one problem wearing three faces: **top-1 precision of 8 of 21.** Rarity-weighted selection
+> fixed *recall*, 4 of 21 to 13 of 21, and never touched precision. Every attempt to work around
+> precision has now failed, twice under a model.
+
 ### Two handshake sentences, measured and rejected
 
 The one prompt-side change left untested was the handshake itself: does a single added sentence
