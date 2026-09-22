@@ -148,6 +148,12 @@ bytes, and the corpora are re-cuttable from `corpora/` against the fingerprints 
 
 Open threads:
 
+- **Deliberation did not respond to better evidence on the page.** `runs/linux-relations-20260922`
+  stated which candidate calls which - 10 of 21 pages, no byte cost, offline-proven - and under a
+  model it missed every registered criterion: idle requests 1.95 to 2.03, quality 59 to 56 of 63,
+  unevidenced answers 2 to 6. It also produced this project's first negative kernel token gap,
+  −5.4%, bought with three answers, which is why the safety column is gated. Reverted. Seven
+  post-freeze optimisations have now been rejected by their own runs.
 - **The kernel gap is closed to parity, and what remains is deliberation, not retrieval.** Four
   studies: +16.4%, +8.3%, +10.1%, **+1.0%** input tokens against a shell agent, with quality
   56 → 59 of 63, calls 3.20 → 2.10 and unevidenced answers 7 → 2. Per model request this server

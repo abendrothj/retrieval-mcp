@@ -6,6 +6,14 @@ releases only.
 
 ## Unreleased
 
+**A ranked page saying which candidate calls which was measured under a model and rejected.**
+`runs/linux-relations-20260922`, 126 trials: requests-that-call-nothing 1.95 to 2.03 against a
+1.40 bar, the four targeted questions 8 of 12 to 5, quality 59 to 56 of 63, unevidenced answers 2
+to 6. Tokens reached −5.4% against native - the first negative gap measured at kernel scale - and
+it was paid for in answers, which is the trade the safety column exists to catch. The field is
+reverted; `calls_among` stays in the index, unserialised, with its test. What follows is the
+offline evidence that justified trying it.
+
 **A ranked page says which candidate calls which.** The kernel studies lost four trials to one
 decision: handed two plausible siblings, the model asked `find_callers` about `tls_alert_send`
 where the question described `tls_handshake_close`, whose last line calls it. A wrapper is the row

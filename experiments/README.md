@@ -1826,10 +1826,33 @@ No byte cost, because the field is omitted when empty, and no retrieval change, 
 field and touches no ranking. What it adds is exactly the sentence the model needed:
 `keyctl_update_key calls key_update`, `synth_event_cmd_init calls dynevent_cmd_init`.
 
-Whether that stops the deliberating, or stops the wrong sibling being chosen, is an agent-level
-question. The registered primary for that run should be **requests that make no tool call** - 2.0
-here against a shell agent's 0.0 - with tokens secondary, because the mechanism does not drift
-8.6% between days and the token axis does.
+**Measured under a model, and rejected.** `runs/linux-relations-20260922`, 126 trials, one
+variable, with requests-that-make-no-tool-call as the registered primary:
+
+| | diet baseline | relations |
+|---|---:|---:|
+| Idle requests (primary, bar 1.40) | 1.95 | **2.03** |
+| The four questions it targeted (bar 11/12) | 8/12 | **5/12** |
+| Quality (bar 59) | 59/63 | **56/63** |
+| Answered without evidence (bar 2) | 2 | **6** |
+| Calls | 2.10 | 1.80 |
+| Tokens against same-day native | +1.0% | **−5.4%** |
+
+All four criteria missed. The one question the mechanism was built for did recover -
+`lx-symbol-timer-pinned-start`, the `add_timer_on` against `add_timer_local` confusion, 2/3 to
+3/3 - while `sigqueue-flush` and `tls-closure-alert` each collapsed 2/3 to 0/3.
+
+**And it produced the first negative token gap this project has measured at kernel scale, −5.4%,
+which is worthless: it was bought with three fewer correct answers and three times the unevidenced
+ones.** That is exactly the trade the safety column exists to catch.
+
+The obvious explanation - the model reading the relation field as a caller set and answering from
+it - was tested and is wrong: all seven losing trials called `find_callers`. Across five kernel
+studies this arm has scored 56, 58, 58, 59, 56 of 63, so a three-answer fall is inside the range
+the suite produces; that does not rescue the change, because the burden is on a change to show a
+gain and this one showed none. Reverted. `calls_among` stays in the index with its test - it costs
+nothing unserialised, and it is the right primitive if a later design states candidate relations
+with an explicit scope.
 
 ### Two handshake sentences, measured and rejected
 

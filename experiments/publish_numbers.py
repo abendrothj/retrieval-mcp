@@ -38,6 +38,16 @@ STUDIES = {
         "note": "Independent etcd client corpus on HEAD; missed its registered quality criterion "
                 "by one answer and is published as a miss.",
     },
+    "linux-kernel-relations": {
+        "reports": ["runs/linux-relations-20260922/end-to-end.json"],
+        "model": "gpt-5.6-luna",
+        "questions": 21,
+        "repetitions": 3,
+        "note": "Fifth kernel run, rejected: a page stating which candidate calls which missed "
+                "every registered criterion - idle requests 1.95 to 2.03, quality 59 to 56 of 63, "
+                "unevidenced answers 2 to 6 - while producing the first negative token gap at "
+                "this scale, -5.4%, bought with three answers. Reverted.",
+    },
     "linux-kernel-diet": {
         "reports": ["runs/linux-diet-20260921/end-to-end.json"],
         "model": "gpt-5.6-luna",
