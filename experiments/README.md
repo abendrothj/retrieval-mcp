@@ -1916,6 +1916,52 @@ a model, discriminating excerpts offline, and now composition - and it reframes 
 > fixed *recall*, 4 of 21 to 13 of 21, and never touched precision. Every attempt to work around
 > precision has now failed, twice under a model.
 
+### Where the gold sits when it is not rank 1
+
+`runs/precision-20260922`. Three mechanisms failed because `search_concept` puts the gold at rank 1
+for 8 of 21 kernel questions, so the next step was to find out what kind of failure that is.
+Asking for 100 rows instead of 10:
+
+| | count |
+|---|---:|
+| rank 1 | 8 |
+| ranks 2-4 | 5 |
+| rank 44 and rank 57 | 2 |
+| absent from 100 | 6 |
+| **gold file returned, gold definition not rank 1** | **10** |
+| gold file at rank 1, gold definition absent entirely | 3 |
+
+**It is mostly a within-file problem.** The ranker finds the right file and then fails to put the
+right definition at the top of it.
+
+**The description is usually in the source, and we do index it.** Kernel-doc blocks are captured:
+`"enable OOM killer"` returns `mm/oom_kill.c::oom_killer_enable` at rank 1, and `"Same as
+add_timer except that the timer flag TIMER_PINNED is set"` returns `add_timer_local` at rank 2.
+
+**What separates a hit from a miss is one rare word.** `TIMER_PINNED` resolves `add_timer_local`;
+`"Start a timer on the local CPU"` - a phrase verbatim in that function's doc comment - returns
+unrelated files, because all four words are common and selection scores tokens independently and
+file-wide. A description's words *co-occur in one place*; presence throws that away.
+
+So the scan was taught co-occurrence: rarity multiplied by `ln(1 + the most query tokens seen
+together within six lines)`.
+
+| | kernel found | kernel top-1 | kernel MRR | django | etcd |
+|---|---:|---:|---:|---|---|
+| before | 13/21 | **8** | **0.480** | 16/30, top-1 9 | 10/30, top-1 5 |
+| co-occurrence | **15/21** | 7 | 0.468 | identical | identical |
+
+Recall rose by two, precision fell by one, MRR is flat to slightly worse, and the small corpora do
+not move at all because selection only binds above the 400-file budget. **Reverted** - the target
+was precision, and three agent-level studies this week have rejected changes that looked good on
+an offline secondary metric.
+
+**What it says about the roadmap.** Precision at rank 1 is not a tuning knob on this instrument.
+Selection is rarity-weighted and now demonstrably co-occurrence-aware, and the residue is choosing
+between definitions inside a file the ranker already found - matching a *described behaviour* to a
+function body, which BM25 over definition text cannot express. That is a research problem rather
+than another week of tuning.
+
 ### Two handshake sentences, measured and rejected
 
 The one prompt-side change left untested was the handshake itself: does a single added sentence

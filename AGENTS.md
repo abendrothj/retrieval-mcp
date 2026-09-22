@@ -148,7 +148,17 @@ bytes, and the corpora are re-cuttable from `corpora/` against the fingerprints 
 
 Open threads:
 
-- **Top-1 precision is the root blocker, and working around it has failed three times.**
+- **Top-1 precision is a within-file problem, and it is a research problem.**
+  `runs/precision-20260922`: over 100 rows the gold is rank 1 for 8 of 21, ranks 2-4 for 5,
+  absent for 6 - and in **10 of 21 the right file is on the page while the right definition is
+  not at the top of it**, three of them with the file at rank 1 and the definition missing
+  entirely. Kernel-doc is indexed and works when the query carries a rare word (`TIMER_PINNED`
+  resolves `add_timer_local`; the same sentence without it returns noise), so the scan was taught
+  co-occurrence - rarity times `ln(1 + tokens seen within six lines)` - which bought recall
+  13 to 15 of 21 and cost top-1 8 to 7, unchanged on Django and etcd, and was reverted. What
+  remains is matching a described behaviour to a function body, which BM25 over definition text
+  cannot express.
+- **Working around precision has failed three times.**
   `search_concept` puts the gold definition at rank 1 for 8 of 21 kernel questions. Rarity-
   weighted selection fixed *recall* - 4 of 21 to 13 - and never touched precision. Three
   mechanisms built to work around it all failed: candidate relations under a model
