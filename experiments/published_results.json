@@ -389,7 +389,7 @@
         "question_class": "mixed shapes, kernel scale",
         "suite_authored": "in-loop",
         "prompt_documents": "present in both arms",
-        "prompt_document_effect": "Not reconstructed: the sessions were ephemeral.",
+        "prompt_document_effect": "Not reconstructed: the sessions were ephemeral. This is the launch on which the fetched-document leak was caught and closed mid-arc: 7 of its 181 trials (2 native, 5 retrieval) still opened ~/.agents/skills/retrieval-mcp/SKILL.md before codex_wrapper.py gave each trial its own HOME. Every kernel study after it is clean.",
         "prompt_document_evidence": {
           "derived": "present in both arms",
           "launches": 126,

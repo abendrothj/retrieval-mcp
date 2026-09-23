@@ -337,23 +337,35 @@ is why the claim rests on its own paired within-run token accounting.
   record, the kernel arc included, measures shell-plus-MCP against shell. `--disable shell_tool`
   removes it — verified: a session asked to run a command executes none and reports having no
   such tool.
-- **An operator document can reach a trial by being *fetched*, not only by being prefixed.** This
-  project's contamination work chased what the client loads into the first user message:
-  `AGENTS.md`, `project_doc_max_bytes=0`, `claudeMdExcludes`, all verified against a request
-  sink. It did not chase what the agent goes and reads on its own. In **all 270 trials of each
-  etcd run, in all three arms**, the agent spent a shell call on
+- **An operator document can reach a trial by being *fetched*, not only by being prefixed — and
+  the fix landing is not the same as the scope being known.** `codex_wrapper.py` already carries
+  this: `--ignore-user-config` covers Codex's own config and not the operator's home directory,
+  so from `linux-agent-20260919` each trial gets its own `HOME` and a `read_outside_corpus`
+  detector refuses to be quiet about an absolute path outside the corpus. Its note says the leak
+  "went unnoticed for three published studies because nothing looked". Counting the archive on
+  2026-09-23 says it was wider than three: **2,109 trials across 15 run directories** opened
   `~/.agents/skills/retrieval-mcp/SKILL.md` — 4,253 B naming the four tools under test and
   calling them "cheaper and more precise than reading files at random, and the first thing to
-  reach for". Exposure was symmetric, usefulness was not, since only one arm has the tools it
-  describes, so the likely direction is to widen the measured gap; the magnitude is not
-  recoverable, because the sessions were ephemeral. The held-out Django study is clean (0 of
-  90, a Claude client with documents excluded) and so is every kernel run from
-  `linux-scanfix-20260920` onward (0 of 126), as is the LOC-BENCH work. So the −42.4% leg of the
-  headline claim carries this term and the −33.5% leg does not. Declared in
-  `publish_numbers.py`. The uncomfortable coincidence is that the confound is aligned with the
-  outcome: the runs this server won big are the contaminated ones, and the runs it lost are
-  clean — which is an alternative reading of the "scale boundary" that has nothing to do with
-  scale, and which only a clean etcd re-run can separate.
+  reach for". Codex advertises the skill's frontmatter without being asked; in the etcd runs the
+  agent's *first* message announces it is using the retrieval skill, before any tool call, and
+  the prompt never mentions skills. The detector post-dates almost all of it: 2 trials in the
+  whole archive carry the flag.
+  Of the published studies two are affected — `etcd-mixed-rerun` at 270 of 270 and
+  `linux-agent-20260919` at 7 of 181 — and both are now declared in `publish_numbers.py`. The
+  held-out Django study is clean (0 of 90, a Claude client with documents excluded), as is every
+  kernel study after `linux-agent` and all the LOC-BENCH work. So the −42.4% leg of the headline
+  claim carries this term and the −33.5% leg does not.
+  Two consequences beyond the headline. Exposure was symmetric and usefulness was not, since
+  only one arm has the tools the document describes, so the likely direction is to widen the
+  measured gap — and the confound is aligned with the outcome, because the runs this server won
+  big carry it and the runs it lost are clean. That is a reading of the "scale boundary" with
+  nothing to do with scale, and only a clean etcd re-run separates them. Second, the affected
+  set includes runs that are not published but are load-bearing in `AGENTS.md`:
+  `instructions-ab-rerun-20260916` at 408 of 408, `go-caller-restated-20260915` at 198 of 198,
+  and the Django tool ablations. The instructions study is the sharp one — it measured two
+  candidate handshake sentences, found +0 against a registered +3 bar, and concluded the prompt
+  side had nothing left worth changing, with every trial reading an external routing guide that
+  did the routing those two sentences were competing to do.
 
 ---
 
