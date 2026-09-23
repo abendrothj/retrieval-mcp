@@ -21,12 +21,25 @@ class CodexParserTests(unittest.TestCase):
         """The defect that stopped runs/linux-agent-20260919 on its seventh trial.
 
         Both arms opened a skill document describing the tools under test, from the operator's
-        home directory, as their first command. It is evidence no corpus contains.
+        home directory, as their first command:
+
+            /bin/zsh -lc "sed -n 1,240p ~/.agents/skills/retrieval-mcp/SKILL.md"
+
+        It is evidence no corpus contains. The fixture builds its own file rather than naming
+        that one, because `outside_corpus` only flags a path that exists and the real document
+        is exactly the thing an operator deletes once the leak is published - which turned this
+        regression test off at the moment it started mattering.
         """
-        outcome = parse_events(
-            [command_event('/bin/zsh -lc "sed -n 1,240p /Users/ja/.agents/skills/retrieval-mcp/SKILL.md"')],
-            "/tmp/corpus")
-        self.assertEqual(outcome["unexpected_tools"], ["read_outside_corpus"])
+        with tempfile.TemporaryDirectory() as tmp:
+            corpus = Path(tmp) / "corpus"
+            corpus.mkdir()
+            skill = Path(tmp) / "home" / ".agents" / "skills" / "retrieval-mcp"
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text("routing guide for the tools under test\n")
+            outcome = parse_events(
+                [command_event(f'/bin/zsh -lc "sed -n 1,240p {skill}/SKILL.md"')],
+                str(corpus))
+            self.assertEqual(outcome["unexpected_tools"], ["read_outside_corpus"])
 
     def test_work_inside_the_corpus_and_the_usual_binaries_stay_clean(self):
         with tempfile.TemporaryDirectory() as tmp:
