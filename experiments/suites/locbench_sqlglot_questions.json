@@ -1,0 +1,274 @@
+[
+ {
+  "id": "tobymao__sqlglot-4480",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "Wrong result for transpiling `OVER (ORDER BY .. )` from `trino` to `bigquery` \n**Fully reproducible code snippet**\r\nIt can be reproduced by the following code:\r\n```python\r\nimport sqlglot\r\n\r\nsql = \"\"\"\r\nWITH t1 as (\r\n  select 1 f1, 2 f2 union all select 2 f1, 4 f2 union all select 3 f1, 6 f2\r\n)\r\nselect sum(f1) over (order by f2) from t1;\r\n\"\"\"\r\nresult = sqlglot.transpile(sql, read=\"trino\", write=\"bigquery\")[0]\r\nprint(result)\r\n# the output is\r\n# WITH t1 AS (SELECT 1 AS f1, 2 AS f2 UNION ALL SELECT 2 AS f1, 4 AS f2 UNION ALL SELECT 3 AS f1, 6 AS f2)\r\n# SELECT SUM(f1) OVER (ORDER BY f2 NULLS LAST) FROM t1\r\n```\r\nThis SQL isn't valid for BigQuery. It will get the error message from BigQuery:\r\n```\r\nNULLS LAST not supported with ascending sort order in RANGE clauses of analytic functions.\r\n```\r\nIt seems that `NULLS LAST` shouldn't be added in the `OVER` clause.\r\n\r\nIf I don't assign the `read` dialect, it works well.\r\n```python\r\nimport sqlglot\r\n\r\nsql = \"\"\"\r\nWITH t1 as (\r\n  select 1 f1, 2 f2 union all select 2 f1, 4 f2 union all select 3 f1, 6 f2\r\n)\r\nselect sum(f1) over (order by f2) from t1;\r\n\"\"\"\r\nresult = sqlglot.transpile(sql, read=None, write=\"bigquery\")[0]\r\nprint(result)\r\n# WITH t1 AS (SELECT 1 AS f1, 2 AS f2 UNION ALL SELECT 2 AS f1, 4 AS f2 UNION ALL SELECT 3 AS f1, 6 AS f2)\r\n# SELECT SUM(f1) OVER (ORDER BY f2) FROM t1\r\n```\r\n\r\n**Official Documentation**\r\n[Window function syntax](https://cloud.google.com/bigquery/docs/reference/standard-sql/window-function-calls#syntax)\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/generator.py::Generator::ordered_sql"
+  },
+  "rejected_alternates": [
+   "sqlglot/generator.py::unsupported_args",
+   "sqlglot/generator.py::decorator",
+   "sqlglot/generator.py::_func"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/generator.py",
+    "contains": "def ordered_sql(self, expression: exp.Ordered) -> str:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-4480 (tobymao/sqlglot @ 41c6d24c9), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-4480",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "41c6d24c99e130b3c8e35e348a25a59e9e3d5553",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 1488,
+   "corpus_fingerprint": {
+    "sha256": "9dc58e50840dad2369dc7637cebf7c5b344e2a1154438a3f2ee1f3302734df21",
+    "files": 306
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-4415",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "User defined function recognized as column (Snowflake dialect)\nThis query:\r\n`select COL1,COL2 from some_table,TABLE(SOME_DB.SOME_SCHEMA.TABLE_FUNC(value1, value2) over (PARTITION BY value1))`\r\n`p = sqlglot.parse_one(query, dialect=sqlglot.Dialects.SNOWFLAKE)`\r\ncreates this ast:\r\n`Select(\r\n  expressions=[\r\n    Column(\r\n      this=Identifier(this=COL1, quoted=False)),\r\n    Column(\r\n      this=Identifier(this=COL2, quoted=False))],\r\n  from=From(\r\n    this=Table(\r\n      this=Identifier(this=some_table, quoted=False))),\r\n  joins=[\r\n    Join(\r\n      this=Table(\r\n        this=Anonymous(\r\n          this=TABLE,\r\n          expressions=[\r\n            Column(\r\n              this=Window(\r\n                this=Anonymous(\r\n                  this=TABLE_FUNC,\r\n                  expressions=[\r\n                    Column(\r\n                      this=Identifier(this=value1, quoted=False)),\r\n                    Column(\r\n                      this=Identifier(this=value2, quoted=False))]),\r\n                partition_by=[\r\n                  Column(\r\n                    this=Identifier(this=value1, quoted=False))],\r\n                over=OVER),\r\n              table=Identifier(this=SOME_SCHEMA, quoted=False),\r\n              db=Identifier(this=SOME_DB, quoted=False))])))])`\r\n\r\nInside the anonymous TABLE (which is also a function that returns values as a table you can select on) we can see the expressions contain only one expression which should be another function but is recognized as a Column.\r\n\r\nVerified this still happens on 25.31.4.\r\ndialect: Snowflake\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/parser.py::Parser::_parse_column_ops"
+  },
+  "rejected_alternates": [
+   "sqlglot/parser.py::build_var_map",
+   "sqlglot/parser.py::build_like",
+   "sqlglot/parser.py::binary_range_parser"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/parser.py",
+    "contains": "def _parse_column_ops(self, this: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-4415 (tobymao/sqlglot @ 122ef5f41), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-4415",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "122ef5f41c4e29347026a81e6f6460ccf8e910ed",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 1554,
+   "corpus_fingerprint": {
+    "sha256": "7a9f63363fceaf3f2387646f52b98cab30ad24b68061aa8f1b233ee48986e89c",
+    "files": 306
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-4390",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "Simple query, wrong tables list\nVery simple query, wrong tables list! it considers `activity_id` as a table!\r\n\r\n```python\r\nsql='ALTER TABLE ride DROP COLUMN activity_id'\r\nlist(sqlglot.parse_one(sql, read='mysql').find_all(sqlglot.exp.Table))\r\n# list(sqlglot.parse_one(sql, read='mysql').find_all(sqlglot.exp.Table))\r\n#  0 = {Table} Table(\\n  this=Identifier(this=ride, quoted=False))\r\n#  1 = {Table} Table(\\n  this=Identifier(this=activity_id, quoted=False))\r\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/parser.py::Parser::_parse_drop"
+  },
+  "rejected_alternates": [
+   "sqlglot/parser.py::build_var_map",
+   "sqlglot/parser.py::build_like",
+   "sqlglot/parser.py::binary_range_parser"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/parser.py",
+    "contains": "def _parse_drop(self, exists: bool = False) -> exp.Drop | exp.Command:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-4390 (tobymao/sqlglot @ e7b67e0c2), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-4390",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "e7b67e0c280179188ce1bca650735978b758dca1",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 463,
+   "corpus_fingerprint": {
+    "sha256": "25b47af8d4d50d3153d71bcd87233fc53c5cf6c80fd588944d2a913071b5a070",
+    "files": 306
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-4366",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "BUG(duckdb): Compiling STRUCTs throws away field name info, which is sometimes needed\n**Fully reproducible code snippet**\r\n```python\r\nimport sqlglot\r\nprint(sqlglot.__version__)\r\n# 25.28.1.dev12\r\n\r\ninp = \"\"\"SELECT CAST({'i':1, 's':'foo'} AS STRUCT(\"s\" TEXT, \"i\" INT));\"\"\"\r\ne = sqlglot.parse_one(inp, \"duckdb\")\r\nactual = e.sql(\"duckdb\")\r\nprint(actual)\r\n# SELECT CAST(ROW(1, 'foo') AS STRUCT(\"s\" TEXT, \"i\" INT));\r\n```\r\n\r\nIf you run `actual` on https://shell.duckdb.org/, you get \"Conversion Error: Could not convert string 'foo' to INT32\".\r\nThis is because the names of the fields is important, and the simple `(ROW(1, 'foo')` that is currently given as output isn't adequate for this usage.\r\n\r\nI would expect that `actual == inp`. I think this should work even if the struct values are columns instead of literals, eg `{'i':my_int_col, 's':my_str_col}` should roundtrip exactly.\r\n\r\nI originally found this in [this ibis issue](https://github.com/ibis-project/ibis/issues/10417), but I think this should be fixed at the sqlglot level. Curious if you will agree.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/dialects/duckdb.py::_struct_sql"
+  },
+  "rejected_alternates": [
+   "sqlglot/dialects/duckdb.py::_date_delta_sql",
+   "sqlglot/dialects/duckdb.py::_date_sql",
+   "sqlglot/dialects/duckdb.py::_timediff_sql"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/dialects/duckdb.py",
+    "contains": "def _struct_sql(self: DuckDB.Generator, expression: exp.Struct) -> str:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-4366 (tobymao/sqlglot @ 79c675a49), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-4366",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "79c675a49fb44a6a7a97ea0de79822d8571724be",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 1058,
+   "corpus_fingerprint": {
+    "sha256": "4c93a5e7622acc63244603d4764c407b33bb3c5c135a53019c31c243c01855fb",
+    "files": 306
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-3901",
+  "category": "Performance Issue",
+  "set": "holdout",
+  "question": "Parsing APPLY doubles execution time per APPLY statement\nSQLGlot versions: tested with 25.9.0 and 25.8.1\r\n\r\nDialect: \"tsql\" \r\nDescription: When parsing SQL using an APPLY statement, each successive APPLY seems to double parsing time.\r\n\r\nI was parsing a (really badly written) SQL query and noticed my code sort of just stopped. I realized that the query had an excessive number of APPLY statements (a really ridiculous number). I broke it down and wrote a dummy query where I slowly started adding apply statements one by one and noticed the query times doubled every time I added an APPLY statement.\r\n\r\nSome quick numbers slowly adding 0..15 APPLY statements to the query:\r\n\r\n- Testing with 0 APPLY statements\r\n- test_apply executed in 0.001636 seconds\r\n- Testing with 1 APPLY statements\r\n- test_apply executed in 0.002330 seconds\r\n- Testing with 2 APPLY statements\r\n- test_apply executed in 0.004563 seconds\r\n- Testing with 3 APPLY statements\r\n- test_apply executed in 0.009903 seconds\r\n- Testing with 4 APPLY statements\r\n- test_apply executed in 0.019378 seconds\r\n- Testing with 5 APPLY statements\r\n- test_apply executed in 0.035283 seconds\r\n- Testing with 6 APPLY statements\r\n- test_apply executed in 0.065637 seconds\r\n- Testing with 7 APPLY statements\r\n- test_apply executed in 0.128544 seconds\r\n- Testing with 8 APPLY statements\r\n- test_apply executed in 0.258765 seconds\r\n- Testing with 9 APPLY statements\r\n- test_apply executed in 0.499099 seconds\r\n- Testing with 10 APPLY statements\r\n- test_apply executed in 1.008456 seconds\r\n- Testing with 11 APPLY statements\r\n- test_apply executed in 2.009916 seconds\r\n- Testing with 12 APPLY statements\r\n- test_apply executed in 3.927725 seconds\r\n- Testing with 13 APPLY statements\r\n- test_apply executed in 7.998525 seconds\r\n- Testing with 14 APPLY statements\r\n- test_apply executed in 16.154987 seconds\r\n- Testing with 15 APPLY statements\r\n- test_apply executed in 31.792223 seconds\r\n\r\n\r\nEach time I add one more APPLY, it takes 2x longer than the prior run.\r\n\r\nI'm attaching my sample \"apply generator\" that just spins out N APPLY blocks and does some very basic timing.\r\n\r\n\r\n```\r\nfrom sqlglot import parse_one\r\nimport time\r\n\r\nnum_apply = 15\r\n\r\ndef generate_apply(apply_n=0):\r\n\r\n    apply_template = \"\"\"\r\n        OUTER APPLY (\r\n            SELECT TOP 1\r\n                *\r\n            FROM my_other_catalog.my_other_schema.my_other_table_{i} b\r\n            WHERE\r\n                b.id = a.id\r\n        ORDER BY\r\n            b.a_date desc\r\n        ) b{i}\r\n    \"\"\"\r\n    apply = \"\"\r\n    for i in range(apply_n):\r\n        apply = apply + eval(f'f\"\"\"{apply_template}\"\"\"')\r\n\r\n    query_template = f\"\"\"\r\n    SELECT\r\n        *\r\n    FROM\r\n        my_catalog.my_schema.my_table a\r\n    {apply}\r\n    \"\"\"\r\n\r\n    return query_template\r\n\r\ndef timing_decorator(func):\r\n    def wrapper(*args, **kwargs):\r\n        start_time = time.time()\r\n        result = func(*args, **kwargs)\r\n        end_time = time.time()\r\n        print(f\"{func.__name__} executed in {end_time - start_time:.6f} seconds\")\r\n        return result\r\n    return wrapper\r\n\r\n@timing_decorator\r\ndef test_apply(sql):\r\n    x = parse_one(sql=sql, dialect=\"tsql\")\r\n\r\nfor i in range(num_apply+1):\r\n    sql = generate_apply(apply_n=i)\r\n    print(f\"Testing with {i} APPLY statements\")\r\n    #print(sql)\r\n    test_apply(sql=sql)\r\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/parser.py::Parser::_parse_join"
+  },
+  "rejected_alternates": [
+   "sqlglot/parser.py::build_var_map",
+   "sqlglot/parser.py::build_like",
+   "sqlglot/parser.py::binary_range_parser"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/parser.py",
+    "contains": "def _parse_join("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-3901 (tobymao/sqlglot @ e0cd7e202), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-3901",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "e0cd7e20298f84dc245676ecded6f174cf1c9c3e",
+   "gold_cardinality": 1,
+   "locbench_category": "Performance Issue",
+   "names_target": true,
+   "statement_chars": 3319,
+   "corpus_fingerprint": {
+    "sha256": "980ef262012b161279c24474133702d59a8455e7bb75449ae1e927a4bdbbe015",
+    "files": 303
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-3436",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "Allow comma-separated values for `CREATE SEQUENCE` properties (Snowflake)\nAllow comma-separated values for `CREATE SEQUENCE` properties in Snowflake queries.\r\n\r\nThis query can be parsed successfully (results is an instance of `exp.Create`):\r\n```\r\n    query = \"CREATE SEQUENCE seq1 WITH START=1 INCREMENT=1 ORDER\"\r\n    result = parse_one(query, dialect=\"snowflake\")\r\n    print(type(result))\r\n\r\n    --> <class 'sqlglot.expressions.Create'>\r\n```\r\n\r\n... whereas the following query cannot be fully parsed and is returned as a generic `exp.Command` as fallback:\r\n```\r\n    query = \"CREATE SEQUENCE seq1 WITH START=1, INCREMENT=1 ORDER\"\r\n    result = parse_one(query, dialect=\"snowflake\")\r\n    print(type(result))\r\n\r\n    --> <class 'sqlglot.expressions.Command'>\r\n```\r\n\r\n(note - the only subtle difference is the comma `,` between the `START` and `INCREMENT` properties)\r\n\r\nNote that the second query syntax may not be covered in the Snowflake docs, but it is indeed a valid syntax that can be executed against Snowflake (and some Snowflake client apps/SDKs are generating queries that are using this syntax, unfortunately).\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/parser.py::Parser::_parse_sequence_properties"
+  },
+  "rejected_alternates": [
+   "sqlglot/parser.py::build_var_map",
+   "sqlglot/parser.py::build_like",
+   "sqlglot/parser.py::binary_range_parser"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/parser.py",
+    "contains": "def _parse_sequence_properties(self) -> t.Optional[exp.SequenceProperties]:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-3436 (tobymao/sqlglot @ 30f9d30d8), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-3436",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "30f9d30d8ab3727a43b1e6f363f28631cbfa7f92",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": true,
+   "statement_chars": 1117,
+   "corpus_fingerprint": {
+    "sha256": "11dfeaf09fe34d5b1793410f70507d30e98007b7c164f3631727cf8e074345ee",
+    "files": 326
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-3417",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "SET TAG identifier containing dots is parsed as Command\nWould love for an identifier containing dots to be parsed as a `SetItem` ie: like an identifier without dots. \r\n\r\nWithout dots, is parsed as SetItem:\r\n```\r\n\u276f sqlglot.parse_one(\"ALTER TABLE table1 SET TAG foo='baz'\", read=\"snowflake\")\r\nAlterTable(\r\n  this=Table(\r\n    this=Identifier(this=table1, quoted=False)),\r\n  actions=[\r\n    Set(\r\n      expressions=[\r\n        SetItem(\r\n          this=EQ(\r\n            this=Identifier(this=foo, quoted=False),\r\n            expression=Literal(this=baz, is_string=True)))],\r\n      unset=False,\r\n      tag=True)])\r\n```\r\n\r\nvs with dots:\r\n \r\n```\r\n\u276f sqlglot.parse_one(\"ALTER TABLE table1 SET TAG foo.bar='baz'\", read=\"snowflake\")\r\nAlterTable(\r\n  this=Table(\r\n    this=Identifier(this=table1, quoted=False)),\r\n  actions=[\r\n    Command(this=TAG, expression=foo.bar='baz')])\r\n```\r\n\r\nIn sqlglot 15 this was parsed as SetTag:\r\n```\r\n\u276f python -c 'import sqlglot; print(repr(sqlglot.parse_one(\"ALTER TABLE table1 SET TAG foo.bar=''baz''\", read=\"snowflake\")));'\r\n(ALTERTABLE this: \r\n  (TABLE this: \r\n    (IDENTIFIER this: table1, quoted: False)), actions: \r\n  (SETTAG expressions: \r\n    (EQ this: \r\n      (COLUMN this: \r\n        (IDENTIFIER this: bar, quoted: False), table: \r\n        (IDENTIFIER this: foo, quoted: False)), expression: \r\n      (LITERAL this: baz, is_string: True)), unset: False))\r\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/parser.py::Parser::_parse_set_item_assignment"
+  },
+  "rejected_alternates": [
+   "sqlglot/parser.py::build_var_map",
+   "sqlglot/parser.py::build_like",
+   "sqlglot/parser.py::binary_range_parser"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/parser.py",
+    "contains": "def _parse_set_item_assignment("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-3417 (tobymao/sqlglot @ e1b6483d5), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-3417",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "e1b6483d5e26d556f6a3dd82c6d35f475c189c2b",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": true,
+   "statement_chars": 1382,
+   "corpus_fingerprint": {
+    "sha256": "d1377f7f67462eb9c48b0addf2a79b9c8bc89c592ba970d1be20fe0fd875b879",
+    "files": 326
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-3167",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "feat(snowflake): Adding support for DATE, TO_DATE, TRY_TO_DATE functions\nFixes #3152 \r\n\r\nAdd support for the mentioned functions by:\r\n\r\n- Converting all of them to `exp.TsOrDsToDate` expressions if the format is present _or_ to date casts otherwise\r\n- Adding a new argument `safe` in `exp.TsOrDsToDate` to preserve the roundtrip of `TRY_TO_DATE`, which has a different error handling behavior compared to `TO_DATE / DATE` \r\n\r\nFor the transpilation issue #3152, no change was needed in DuckDB as it already transpiles the aforementioned expression to `strptime` (note that it produces a `TIMESTAMP`, thus the cast to `DATE`):\r\n\r\n```\r\n>>> import sqlglot\r\n>>> sqlglot.transpile(\"SELECT try_to_date('01-01-1999', 'MM-DD-YYYY')\", read=\"snowflake\", write=\"duckdb\")\r\nSELECT CAST(STRPTIME('01-01-1999', '%m-%d-%Y') AS DATE)\r\n```\r\n\r\nDocs\r\n-----------\r\n\r\n1. [Snowflake TRY_TO_DATE](https://docs.snowflake.com/en/sql-reference/functions/try_to_date)\r\n2. [Snowflake DATE / TO_DATE](https://docs.snowflake.com/en/sql-reference/functions/to_date)\r\n3. [DuckDB strptime](https://duckdb.org/docs/sql/functions/dateformat.html#strptime-examples)\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/dialects/snowflake.py::_build_datetime"
+  },
+  "rejected_alternates": [
+   "sqlglot/dialects/snowflake.py::_builder",
+   "sqlglot/dialects/snowflake.py::_build_object_construct",
+   "sqlglot/dialects/snowflake.py::_build_datediff"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/dialects/snowflake.py",
+    "contains": "def _build_datetime("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-3167 (tobymao/sqlglot @ df4ce17f2), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-3167",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "df4ce17f24bbb16a64172e351f4e27ac74de668a",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": false,
+   "statement_chars": 1127,
+   "corpus_fingerprint": {
+    "sha256": "a71e160465d10cd5e1ca764f8143406cd3dc23c9a5e833c7868ea33a06bb737b",
+    "files": 323
+   }
+  }
+ }
+]
