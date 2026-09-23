@@ -58,6 +58,12 @@ def outside_corpus(token, root):
     return os.path.lexists(resolved)
 
 
+# `"agents_md":{}` is the empty config key every recent rollout writes; anything else is content.
+# Stated as what content looks like - a non-empty object, string or list - rather than as "not
+# empty", because `\s*` backtracks out of a negative lookahead and lets `"agents_md": {}` through.
+CARRIED_AGENTS_MD = re.compile(r'"agents_md"\s*:\s*(?:\{\s*"|"[^"]|\[\s*[^\s\]])')
+
+
 def session_instructions(session):
     """Did the client put a project document into this trial's context after all?
 
@@ -66,11 +72,16 @@ def session_instructions(session):
     shell-command detector cannot see it. The rollout log records what was sent, so it is read
     back. Five kernel studies were measured with 3,500-4,900 tokens of this project's own
     `AGENTS.md` in both arms' contexts because nothing looked here.
+
+    Match the key only when it carries something. Newer Codex rollouts write `"agents_md":{}`
+    into the session config on every run, clean or not, so a bare substring test reported all 226
+    trials of the three LOC-BENCH studies as carrying a document they did not carry. A detector
+    that fires on every clean run is worse than none: it is the flag nobody can act on.
     """
     if not session.is_file():
         return False
     for line in session.read_text(encoding="utf-8", errors="replace").splitlines():
-        if "AGENTS.md instructions for" in line or '"agents_md"' in line:
+        if "AGENTS.md instructions for" in line or CARRIED_AGENTS_MD.search(line):
             return True
     return False
 

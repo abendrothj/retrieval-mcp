@@ -122,6 +122,21 @@ class ProjectDocumentTests(unittest.TestCase):
                 {"type": "world_state", "payload": {"state": {"agents_md": {"text": "rules"}}}}])
             self.assertTrue(session_instructions(session))
 
+    def test_the_empty_agents_md_key_every_rollout_writes_is_not_a_document(self):
+        """A detector that fires on every clean run is the flag nobody can act on.
+
+        Recent Codex rollouts write `"agents_md":{}` into the session config whether or not a
+        document was loaded. A bare substring test on the key reported all 226 trials of the
+        three LOC-BENCH studies as contaminated, including the arms whose corpora are clean.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            session = self.session(tmp, [
+                {"type": "session_meta", "payload": {"config": {"agents_md": {}}}},
+                {"type": "response_item", "payload": {"type": "message", "role": "user",
+                                                      "content": [{"type": "input_text",
+                                                                   "text": "Answer it."}]}}])
+            self.assertFalse(session_instructions(session))
+
     def test_a_trial_whose_context_is_only_the_question_is_clean(self):
         with tempfile.TemporaryDirectory() as tmp:
             session = self.session(tmp, [
