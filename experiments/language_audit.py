@@ -103,6 +103,21 @@ def definition_line(corpus, relative, name):
     return None
 
 
+def is_plain_call(row):
+    """Whether a `find_callers` row is a call site.
+
+    The payload omits `kind` when it is the default - `src/index/mod.rs` says so in as many
+    words, and the diet that introduced it is in `runs/linux-diet-20260921`. This audit went on
+    testing `kind == "call"` afterwards, so every plain call row was silently dropped and the
+    audit reported `caller_recall: 0.0` against a working index for *every* language: Java on
+    gson showed 0 server rows against the oracle's 342, and Python on Django 0 against 61, while
+    a direct probe returned 100 rows with 150 incoming callers and correct attribution. An absent
+    kind therefore means a plain call, which is what the server's own `is_plain_call` means by it.
+    """
+    kind = row.get("kind")
+    return kind is None or kind == "call"
+
+
 def server_rows(client, name, defining):
     """`find_callers` call rows and `find_symbol` definitions for one name.
 
@@ -121,7 +136,7 @@ def server_rows(client, name, defining):
         payload = callers.get("structuredContent") or {}
         results = payload.get("results", [])
         rows |= {f"{row['path']}::{row['caller']}" for row in results
-                 if row.get("kind") == "call" and row.get("caller") and row["path"] != defining}
+                 if is_plain_call(row) and row.get("caller") and row["path"] != defining}
         if not payload.get("has_more") or payload.get("next_offset") is None:
             break
         offset = payload["next_offset"]
