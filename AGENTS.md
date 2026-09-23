@@ -218,20 +218,27 @@ Open threads:
   resolves a description itself (`runs/composed-callers-20260922`, right 3 of 8 against an agent
   two-hop that is near ceiling). The model's two hops are error-correcting; removing the check
   removes the correction. Precision at rank 1 is the thing to attack.
-- **Deliberation was closed as a diagnostic and `runs/cli-transport-20260924` reopened it.**
-  `runs/deliberation-20260922` found flat pages correlating with deliberation across questions
-  (21.8% against 12.5% top-1 score gap) and not within them (+0.08 requests, 10 of 21 - a coin
-  flip), and concluded that a shell agent does not think less, it thinks by running another
-  command the client truncates cheaply, so requests-that-call-nothing measures where thinking is
-  stored as much as whether it is needed. That reasoning still stands and it is why the column
-  was demoted. What reopens it is a comparison it could not make: two arms reaching **the same
-  index from the same build** with the same operations - 2.60 MCP calls against 2.67 CLI
-  invocations - and **3.50 against 0.83 requests that call nothing**, a 4.2x gap that is the
-  whole 163,148-against-57,424 token difference between them. Where thinking is stored is now
-  the largest measured term in this comparison, not a diagnostic beside it. Three mechanisms are
-  candidates and none is tested: the client truncates shell output on the way in and forwards
-  MCP results whole; a tool result may invite a deliberation turn where a command's stdout does
-  not; and the CLI arm carries an announcement the protocol gives the MCP arm free.
+- **Deliberation stays closed. `runs/cli-transport-20260924` first looked like it reopened the
+  thread, and that reading was a counting defect.** `calls.jsonl` is gate-side and sees only
+  what reaches the retrieval server; `command_execution` sees only shell. On codex-cli 0.155.1
+  every arm drives one tool, `exec`, and writes code in it, so both counters missed most of what
+  the MCP arm did - it looked like 2.60 calls against the CLI arm's 2.67 with 3.50 requests
+  calling nothing, when counted from the rollout it is **5.10 `exec` calls a trial of which 2.93
+  are tool discovery**. Those requests were the model searching for its own tools with
+  `ALL_TOOLS.filter(...)`, and in **30 of 30 trials the MCP arm's first action is discovery**.
+  Retrieval work is equal on both sides, 2.17 operations against 2.27. The deliberation
+  hypothesis was also tested directly and failed: payload size does not buy a thinking turn -
+  within each arm the larger half of results is followed by no more requests than the smaller
+  half, and matched on size the MCP arm deliberates least. **Count from the rollout, not from
+  the gate log**, and audit before interpreting: this interpretation was published before the
+  audit finished and had to be withdrawn the same day.
+- **On this client MCP tools are not in the prompt, and that is paid for in round trips.**
+  `runs/cli-transport-20260924/prefix.json`: attaching the four tools costs **0** prompt tokens,
+  measured with four tools provably attached, because the schemas sit behind a tool-search
+  interface rather than in the prefix. The CLI arm's generated announcement costs **1,203 tokens
+  a request** and buys exactly what the MCP arm must go and find - 2.93 discovery round trips a
+  trial. That is not a handicap to subtract from the CLI arm; on this client it is the cheaper
+  side of the trade by a wide margin, 57,424 input tokens a trial against 163,148.
 - **Deliberation did not respond to better evidence on the page.** `runs/linux-relations-20260922`
   stated which candidate calls which - 10 of 21 pages, no byte cost, offline-proven - and under a
   model it missed every registered criterion: idle requests 1.95 to 2.03, quality 59 to 56 of 63,

@@ -2250,17 +2250,38 @@ Requests fell anyway, 3.27 against 6.10, **46% below** the bar's 25%. The dichot
 those were the same thing. Published as a miss of the design, which makes everything below a
 hypothesis this run generated rather than a result it confirmed.
 
-**What separated the arms was deliberation.** The two retrieval arms issue the same operations
-over the same index from the same build — 2.60 MCP calls against 2.67 CLI invocations — and
-differ 4.2× in requests that call nothing. Payload cannot explain it, because the rows are the
-same rows; call count cannot, because the counts match. That reopens
-[the deliberation thread](#is-the-deliberation-ours-or-the-tasks), which closed on the finding
-that requests-that-call-nothing measures where thinking is stored as much as whether it is
-needed. Here it is the entire gap between two arms that differ only in how identical rows
-arrive. Three mechanisms are candidates and none is tested: the client truncates shell output on
-the way in and forwards MCP results whole; a tool result may invite a deliberation turn where a
-command's stdout does not; and the CLI arm's prompt carries an announcement the protocol gives
-the MCP arm for free.
+**What separated the arms was tool discovery, and the first answer written here was wrong.**
+This study's first reading said the gap was deliberation: `calls.jsonl` showed 2.60 MCP calls a
+trial against 2.67 CLI invocations, so the arms looked like they were doing the same work, and
+the 6.10-against-3.27 request gap looked like 3.50 requests that called nothing. Both counters
+were blind. On codex-cli 0.155.1 every arm drives one tool, `exec`, and writes code in it;
+`calls.jsonl` is gate-side and sees only what reaches the retrieval server, while
+`command_execution` sees only shell. Counted from the rollout instead:
+
+| arm | `exec` calls a trial | of which tool discovery | retrieval operations | requests |
+|---|---:|---:|---:|---:|
+| native-control | 3.17 | — | — | 4.17 |
+| retrieval-cli | 2.27 | **0** | 2.27 | 3.27 |
+| retrieval-mcp | 5.10 | **2.93** | 2.17 | 6.10 |
+
+Those requests were not idle. They were the model searching for its own tools:
+`ALL_TOOLS.filter(x => /retriev|call|symbol|definition|codebase|project/i.test(...))`, then
+`/dependenc|blast|hop|callee|caller/`, then a guessed list of names. **In 30 of 30 trials the
+MCP arm's first action is tool discovery**, at a median position of the first or second call,
+and it spends 2.93 of them before retrieving anything. The retrieval work itself is the same on
+both sides — 2.17 operations against 2.27 — so the arms really do the same retrieval, and
+everything else is the MCP arm finding out what it has.
+
+**That also reinterprets the prefix measurement rather than contradicting it.** Attaching the
+four tools genuinely costs 0 prompt tokens on this client, and the reason is that the schemas
+are not in the prompt at all: they sit behind a tool-search interface and are paid for later, in
+round trips. So the CLI arm's 1,203 tokens a request is not a handicap to be subtracted — it is
+the purchase price of not having to search, and on this client that trade is overwhelmingly
+worth making. Three deliberation mechanisms had been listed as candidates for the gap; the first
+of them, that a whole-forwarded payload buys a thinking turn, is now tested and dead. Within
+each arm the larger half of tool results is followed by no more requests than the smaller half
+(−0.26, +0.18, −0.08), and matched on result size between 2 and 8 KB the MCP arm deliberates
+*least* of the three at 1.16 requests a result. Payload size does not buy deliberation here.
 
 **The announcement is measured, not assumed.** A command is announced by nothing, so the arm
 needs a prompt fragment, and that fragment is the most dangerous object in the study given what
