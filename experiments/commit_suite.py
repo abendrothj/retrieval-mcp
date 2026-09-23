@@ -97,14 +97,25 @@ def git(repo, *arguments):
     return done.stdout
 
 
-def commits_after(repo, revision, limit):
-    """Non-merge commits reachable after the snapshot, oldest first.
+def commits_after(repo, revision, limit, newest_first=False):
+    """Non-merge commits in `revision..HEAD`, nearest the pinned snapshot first.
 
-    Oldest first because a commit close to the snapshot touches source that has drifted least, so
-    its gold is likeliest to still exist at the revision the agent searches.
+    Which end is nearest depends on which end the snapshot is, and both are real cases:
+
+      * The corpus is pinned at `revision` and HEAD is a later tip. The commits describe changes
+        the corpus does not have yet, and the oldest is nearest the snapshot - the default.
+      * The corpus is pinned at HEAD and `revision` is an ancestor. The commits describe changes
+        the corpus already contains, which makes the described behaviour actually present in the
+        tree the agent searches, and the newest is nearest.
+
+    Order matters because source drifts away from the snapshot with distance, and a gold that no
+    longer exists there is dropped. Mining from the wrong end spends the budget on the commits
+    likeliest to be refused.
     """
-    out = git(repo, "rev-list", "--no-merges", "--reverse", f"{revision}..HEAD")
+    out = git(repo, "rev-list", "--no-merges", f"{revision}..HEAD")
     found = [line.strip() for line in out.splitlines() if line.strip()]
+    if not newest_first:
+        found.reverse()
     return found[:limit] if limit else found
 
 
@@ -264,12 +275,12 @@ def question_for(commit, message, identities, corpus, prefix, revision):
 
 
 def build(corpus, revision, prefix, limit, scan, max_definitions, min_chars, max_chars,
-          include_tests=False):
+          include_tests=False, newest_first=False):
     questions, refused = [], Counter()
     considered = mixed = 0
     with tempfile.TemporaryDirectory() as raw:
         workspace = Path(raw)
-        for commit in commits_after(corpus, revision, scan):
+        for commit in commits_after(corpus, revision, scan, newest_first):
             if limit and len(questions) >= limit:
                 break
             considered += 1
@@ -365,13 +376,16 @@ def main():
     parser.add_argument("--max-chars", type=int, default=1200)
     parser.add_argument("--include-tests", action="store_true",
                         help="allow test definitions into the gold; off by default")
+    parser.add_argument("--newest-first", action="store_true",
+                        help="the corpus is pinned at HEAD and --revision is an "
+                             "ancestor, so the newest commit is nearest the snapshot")
     parser.add_argument("--output", type=Path, help="the suite")
     parser.add_argument("--report", type=Path, help="the covariate and refusal report")
     args = parser.parse_args()
     corpus = args.corpus.resolve(strict=True)
     questions, refused, considered, mixed = build(
         corpus, args.revision, args.prefix, args.limit, args.scan, args.max_definitions,
-        args.min_chars, args.max_chars, args.include_tests)
+        args.min_chars, args.max_chars, args.include_tests, args.newest_first)
     result = report(questions, refused, considered, mixed, corpus, args.revision)
     if args.output:
         if args.output.exists():

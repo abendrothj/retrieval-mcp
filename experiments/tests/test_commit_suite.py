@@ -136,6 +136,18 @@ class Mining(unittest.TestCase):
             self.repo, self.pinned, "cm", 0, 0, 4, 120, 1200, include_tests=True)
         self.assertGreater(len(with_tests), len(self.questions))
 
+    def test_the_mining_order_flips_with_which_end_the_snapshot_is(self):
+        """Nearest the pinned revision drifts least, and which end that is depends on the
+        direction: the oldest commit when the corpus predates the range, the newest when the
+        corpus is its HEAD. Mining from the wrong end spends the budget on refusals."""
+        oldest = commit_suite.commits_after(self.repo, self.pinned, 0)
+        newest = commit_suite.commits_after(self.repo, self.pinned, 0, newest_first=True)
+        self.assertEqual(oldest, list(reversed(newest)))
+        self.assertEqual(commit_suite.commits_after(self.repo, self.pinned, 1)[0], oldest[0])
+        self.assertEqual(
+            commit_suite.commits_after(self.repo, self.pinned, 1, newest_first=True)[0],
+            newest[0])
+
     def test_covariates_are_recorded(self):
         covariates = self.questions[0]["covariates"]
         self.assertEqual(covariates["gold_cardinality"], 1)
