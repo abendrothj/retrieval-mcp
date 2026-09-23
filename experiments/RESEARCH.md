@@ -209,6 +209,51 @@ study this project has never run and which `degrade_server.py` is most of the wa
 
 ---
 
+## 5d. Bash's advantage here is composition, measured — and two explanations that died
+
+**Claim.** `ours`. Measured across the archive on 2026-09-23 to size §5b against this project's
+own runs, using `command_execution` items in the Codex event logs.
+
+| | etcd, 311 files | Linux 6.12, 86,602 files |
+|---|---|---|
+| native sub-commands per shell call | **1.93** | **1.95** |
+| native raw output per shell call | 9,258 B | 246,450 B |
+| MCP payload per call | 5,008 B | 3,925 B |
+
+A shell call carries about 1.95 operations at both scales; an MCP call carries one, by
+construction. That gap is the only axis in this comparison where the numbers are unambiguous.
+
+**What it changes.** It kills the confound that most threatened this project's one replicated
+win. If the −42.4% etcd figure had been measured against a lazily-prompted bash agent, the
+chaining rate would have been near 1.0 at small scale and near 2.0 at kernel scale. It is 1.93
+against 1.95 — native composes just as hard in both regimes, so the win was not bought against a
+straw arm. It also confirms payload scale-invariance from the far side: native's raw output grows
+26.6× with corpus size while ours does not move.
+
+**Two explanations of the kernel loss died here, and both are recorded because they were
+plausible.**
+
+*Truncation asymmetry.* Codex truncates shell output on the way in (~0.09) and forwards MCP
+results whole, so the obvious story is that native's advantage grows with its own output. Run it
+forward and it fails: at kernel scale native adds ~22 KB per call after truncation against our
+3.9 KB, so this server should win on context there, and it loses. The asymmetry is real (§6) and
+it is not what decides the kernel.
+
+*Paying for both channels.* The kernel MCP arm never stops using bash — 0.75 shell calls a trial
+at 290,077 B each, larger than native's own. Split naively, the trials that fell back look
+cheaper and better (134,192 input tokens and 16/16 against tool-only's 149,554 and 42/47). The
+split is confounded by question difficulty: across the 13 of 21 questions that showed both
+behaviours, within-question correctness is identical (**+0.000**) and the token delta is +7,642
+with per-question swings from −194,362 to +121,966. Noise, and a clean instance of this
+project's own three-repetition-swing trap.
+
+**What survives** is the composition gap, which ranks it above payload and above the precision
+workarounds as the thing to attack — and makes a CLI surface interesting, because a command in a
+pipe inherits composition, client truncation and the model's priors without inventing any of
+them.
+
+---
+
 ## 6. The "MCP burns 35× the tokens of a CLI" folklore is not measured the way we measure
 
 **Claim.** Widely repeated: MCP carries 35× the token overhead of a CLI; an MCP schema load
@@ -292,6 +337,23 @@ is why the claim rests on its own paired within-run token accounting.
   record, the kernel arc included, measures shell-plus-MCP against shell. `--disable shell_tool`
   removes it — verified: a session asked to run a command executes none and reports having no
   such tool.
+- **An operator document can reach a trial by being *fetched*, not only by being prefixed.** This
+  project's contamination work chased what the client loads into the first user message:
+  `AGENTS.md`, `project_doc_max_bytes=0`, `claudeMdExcludes`, all verified against a request
+  sink. It did not chase what the agent goes and reads on its own. In **all 270 trials of each
+  etcd run, in all three arms**, the agent spent a shell call on
+  `~/.agents/skills/retrieval-mcp/SKILL.md` — 4,253 B naming the four tools under test and
+  calling them "cheaper and more precise than reading files at random, and the first thing to
+  reach for". Exposure was symmetric, usefulness was not, since only one arm has the tools it
+  describes, so the likely direction is to widen the measured gap; the magnitude is not
+  recoverable, because the sessions were ephemeral. The held-out Django study is clean (0 of
+  90, a Claude client with documents excluded) and so is every kernel run from
+  `linux-scanfix-20260920` onward (0 of 126), as is the LOC-BENCH work. So the −42.4% leg of the
+  headline claim carries this term and the −33.5% leg does not. Declared in
+  `publish_numbers.py`. The uncomfortable coincidence is that the confound is aligned with the
+  outcome: the runs this server won big are the contaminated ones, and the runs it lost are
+  clean — which is an alternative reading of the "scale boundary" that has nothing to do with
+  scale, and which only a clean etcd re-run can separate.
 
 ---
 
@@ -309,8 +371,13 @@ bash alone beating typed tools on quality *and* tokens, with typed-tools-plus-ba
 project's own arm shape on Codex — showing no detectable gain**; while a second finds that
 retrieval only starts paying for itself above a precision of roughly 0.5, and this project's
 measured rank-1 precision is 0.38 to 0.48. Those two together are a coherent mechanism for
-every token result in `runs/locbench-pilot-20260923` and `runs/locbench-hard-20260923`, and they
-point the next piece of work at precision rather than at payload, batching or code mode.
+every token result in `runs/locbench-pilot-20260923` and `runs/locbench-hard-20260923`.
+
+Read against §5d that ordering needs one amendment. Precision remains the standing conclusion of
+the *quality* thread, but the one axis measured unambiguously here is composition — 1.95
+operations per shell call against one per MCP call, at both scales — so batching, or a surface
+that inherits composition instead of inventing it, is not the also-ran that sentence implied.
+Payload and code mode stay where they were.
 
 None of that is a verdict. Both are preprints, both differ from this setting in ways recorded
 above, and neither measured this server. But they are the first outside evidence this record has

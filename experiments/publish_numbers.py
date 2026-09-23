@@ -125,7 +125,18 @@ CONDITIONS = {
         "prompt_document_effect": "Not reconstructed: the sessions were ephemeral, so no rollout "
                                   "log sizes the prefix per trial. The document grew from 5.8 KB "
                                   "to 19.5 KB over the record, so its size is an uncontrolled "
-                                  "term in every Codex token figure here.",
+                                  "term in every Codex token figure here. A second operator "
+                                  "document also reached this study, by being fetched rather than "
+                                  "prefixed: all 270 trials of each etcd run, in all three arms, "
+                                  "spent a shell call reading "
+                                  "~/.agents/skills/retrieval-mcp/SKILL.md (4,253 B), a routing "
+                                  "guide that names the four tools under test and calls them "
+                                  "'cheaper and more precise than reading files at random'. "
+                                  "Exposure was symmetric; usefulness was not, since only one arm "
+                                  "has the tools it describes, so the likely direction is to "
+                                  "widen the measured gap. The magnitude is not recoverable from "
+                                  "the archive. The held-out Django study (0 of 90) and every "
+                                  "kernel run from linux-scanfix onward (0 of 126) are clean.",
     },
     "linux-kernel-relations": {
         "client": "codex-cli 0.154.0",
