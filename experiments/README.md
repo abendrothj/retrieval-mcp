@@ -2258,18 +2258,34 @@ were blind. On codex-cli 0.155.1 every arm drives one tool, `exec`, and writes c
 `calls.jsonl` is gate-side and sees only what reaches the retrieval server, while
 `command_execution` sees only shell. Counted from the rollout instead:
 
-| arm | `exec` calls a trial | of which tool discovery | retrieval operations | requests |
-|---|---:|---:|---:|---:|
-| native-control | 3.17 | — | — | 4.17 |
-| retrieval-cli | 2.27 | **0** | 2.27 | 3.27 |
-| retrieval-mcp | 5.10 | **2.93** | 2.17 | 6.10 |
+Three terms, applied identically to every arm, because "retrieval" was doing three jobs in the
+first draft of this section. An **`exec` call** is one invocation of the client's single tool,
+and it is the round-trip unit. A **discovery call** is an `exec` whose code queries `ALL_TOOLS`:
+the model searching the tool *catalogue*. A **repository call** is an `exec` that touches the
+*corpus* — `rg` and `sed` for the control, `retrieval <subcommand>` for the CLI arm,
+`tools.mcp__retrieval__*` for the MCP arm. **Operations** are the corpus-touching operations
+inside those calls, which is what says whether an arm batches.
+
+| arm | `exec` a trial | = discovery | + repository | operations | operations per repository call |
+|---|---:|---:|---:|---:|---:|
+| native-control | 3.17 | **0.00** | **3.17** | 6.43 | **2.03** |
+| retrieval-cli | 2.27 | 0.00 | 2.27 | 2.57 | 1.13 |
+| retrieval-mcp | 5.10 | **2.93** | **2.17** | 2.20 | 1.02 |
+
+Two things that table says and the earlier draft hid. The MCP arm makes the **fewest** repository
+calls of the three and the **most** `exec` calls: the 2.17-against-2.27 equality is between the
+two retrieval arms, and the control's 3.17 was never in that comparison. And the control still
+composes where neither retrieval arm does — 2.03 operations per repository call against 1.13 and
+1.02, in line with the 1.93 to 2.11 chaining measured across the archive. That is the honest
+reason bar 1 missed: putting the operations in a shell did not make the model chain them.
 
 Those requests were not idle. They were the model searching for its own tools:
 `ALL_TOOLS.filter(x => /retriev|call|symbol|definition|codebase|project/i.test(...))`, then
 `/dependenc|blast|hop|callee|caller/`, then a guessed list of names. **In 30 of 30 trials the
 MCP arm's first action is tool discovery**, at a median position of the first or second call,
 and it spends 2.93 of them before retrieving anything. The retrieval work itself is the same on
-both sides — 2.17 operations against 2.27 — so the arms really do the same retrieval, and
+both retrieval arms — 2.17 repository calls against 2.27 — so those two really do the same
+corpus work, and
 everything else is the MCP arm finding out what it has.
 
 **That also reinterprets the prefix measurement rather than contradicting it.** Attaching the
@@ -2283,12 +2299,13 @@ each arm the larger half of tool results is followed by no more requests than th
 (−0.26, +0.18, −0.08), and matched on result size between 2 and 8 KB the MCP arm deliberates
 *least* of the three at 1.16 requests a result. Payload size does not buy deliberation here.
 
-**Sizing the discovery tax, offline, on the same run.** A discovery call returns **22,675 bytes**
-against a retrieval call's 15,077, so searching the catalogue costs more per call than reading
-the repository does, and **67.1% of every byte the MCP arm gets back from a tool is catalogue
-rather than code**. It is an entry fee rather than a slope: 19 of 30 trials make exactly three
-discovery calls, and all 30 begin with one. That near-constancy is also the honest limit on the
-evidence — within the arm, retrieval operations predict a trial's token count better than
+**Sizing the discovery tax, offline, on the same run.** In the MCP arm a discovery call returns
+**22,675 bytes** against a repository call's 15,077, so searching the catalogue costs more per
+call than reading the corpus does. Per trial that is 66,513 bytes of catalogue against 32,667 of
+code: **67.1% of every byte the MCP arm gets back from a tool is catalogue rather than code**,
+where both other arms sit at 0%. It is an entry fee rather than a slope: 19 of 30 trials make
+exactly three discovery calls, and all 30 begin with one. That near-constancy is also the honest
+limit on the evidence — within the arm, repository calls predict a trial's token count better than
 discovery calls do, r **+0.873** against **+0.514**, because something that barely varies cannot
 explain variance. Discovery moves the level, and only the between-arm contrast sees it: 2.93
 calls a trial against the CLI arm's zero. The searches are also not all well aimed. Three of

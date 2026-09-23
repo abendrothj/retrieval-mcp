@@ -226,7 +226,7 @@ Open threads:
   calling nothing, when counted from the rollout it is **5.10 `exec` calls a trial of which 2.93
   are tool discovery**. Those requests were the model searching for its own tools with
   `ALL_TOOLS.filter(...)`, and in **30 of 30 trials the MCP arm's first action is discovery**.
-  Retrieval work is equal on both sides, 2.17 operations against 2.27. The deliberation
+  Corpus work is equal across the two retrieval arms, 2.17 repository calls against 2.27 - the control makes more of them, 3.17, and is not part of that equality. The deliberation
   hypothesis was also tested directly and failed: payload size does not buy a thinking turn -
   within each arm the larger half of results is followed by no more requests than the smaller
   half, and matched on size the MCP arm deliberates least. **Count from the rollout, not from
