@@ -19,6 +19,14 @@ what keeps the published numbers true.
 5. **One variable per arm.** Systems files are asserted to differ only in `id` and `server`; a
    bundled change cannot be attributed and has to be re-run isolated.
 6. **Model spend is gated.** `--allow-model-usage` costs real money. Ask first, record the cost.
+7. **Author the instrument outside the loop.** A question set written by an agent session in this
+   repository is written with this file and the operator's `~/AGENTS.md` — a routing guide for
+   these four tools — already in its context. Golds survive that (the oracles are ripgrep and
+   ctags), but which questions exist and how they are worded do not. Authoring sessions get the
+   trial's own isolation: `--setting-sources "" --settings '{"autoMemoryEnabled": false,
+   "claudeMdExcludes": ["/**"]}'` for Claude, `-c project_doc_max_bytes=0` for Codex, and no
+   knowledge of which arm is expected to win. Every suite in `experiments/suites/` predates this
+   rule.
 
 ## Traps that have already cost a day each
 
@@ -68,6 +76,21 @@ what keeps the published numbers true.
   the evidence that the rows were correct, and the ledger keeps the other two. In this project the
   first class has produced thirty entries, the second one, and the third five.
 
+- **The trials run inside this repository, so the client handed the agent this file.** Corpus
+  copies live under `runs/`, inside the git tree, and Codex loads the nearest `AGENTS.md` up to
+  the repository root into its first user message — the claim, the arms, the expected direction,
+  and for one kernel question the answer. `--ignore-user-config` does not cover it and the
+  shell-command detector cannot see it. Every Codex study in the record carries 1.5-4.9k tokens of
+  it in *both* arms; the Claude held-out study does not, because that launch already passed
+  `claudeMdExcludes`. The launch now passes `-c project_doc_max_bytes=0` (73,338 request bytes
+  against 53,384, measured against a local sink) and `session_instructions()` flags a rollout that
+  carries one anyway. Writing here is writing into the next Codex run's prompt until that run is
+  re-measured under the flag. The operator's `~/AGENTS.md` is a different document and a worse
+  one — it routes these four tools by name — but it never reached a published trial: Codex stops
+  at the git root and every archived Claude launch passes `claudeMdExcludes`, both verified
+  against a request sink. The OpenCode wrapper was passing the real `HOME` through and now does
+  not.
+
 ## The instruments (offline unless noted)
 
 | Script | What it answers |
@@ -101,10 +124,14 @@ Released `v0.1.6`: the routing filter, the Go qualified-call fix, optional `--ro
 `CHANGELOG.md`. The default surface is four tools — `search_exact`, `read_source`, `find_callers`,
 `search_concept` — with the lexical ranker; the other three stay un-defaulted on replicated evidence.
 
-The claim the evidence supports is **quality ties, input tokens 34–51% cheaper, on corpora of a
+The claim the evidence supports is **quality ties, input tokens 33–42% cheaper, on corpora of a
 few hundred files**: the held-out Django suite (30 mixed-shape questions, 29/29/28, −33.5% against
 native) and an etcd client corpus (30 mixed-shape questions, three repetitions, 270 trials, 87/89/89,
-−44.6% against native and −29.2% against zvec-grep). Quality has never separated in either
+−42.4% against native and −26.8% against zvec-grep). Those two etcd figures were −44.6% and −29.2%
+until 2026-09-22, when the second token column turned out to add cache reads to a total that
+already contained them; one definition survives and it is the one the kernel studies always used.
+Every Codex figure here was also measured with this file in the agent's context (see the trap
+above), which no archived byte can net out. Quality has never separated in either
 direction across 468 scored trials at that scale; the token gap has never failed to replicate
 there. Two studies missed their registered quality criterion by a single answer and both are
 published as misses. The handshake instructions are also settled: two candidate sentences were

@@ -196,16 +196,13 @@ class PublishedNumberTests(unittest.TestCase):
         "studies": {"heldout": {"arms": {
             "native-control": {"correct": 28, "input_tokens": 1149139, "calls": 146,
                                "context_token_turns": 175220, "calls_to_first_evidence": 1.793,
-                               "answered_without_evidence": 0,
-                               "input_tokens_with_cache_reads": 2173618},
+                               "answered_without_evidence": 0},
             "zvec-grep": {"correct": 29, "input_tokens": 1000501, "calls": 78,
                           "context_token_turns": 227059, "calls_to_first_evidence": 1.345,
-                          "answered_without_evidence": 0,
-                          "input_tokens_with_cache_reads": 1831191},
+                          "answered_without_evidence": 0},
             "retrieval-mcp": {"correct": 29, "input_tokens": 763744, "calls": 77,
                               "context_token_turns": 149877, "calls_to_first_evidence": 1.172,
-                              "answered_without_evidence": 0,
-                              "input_tokens_with_cache_reads": 1387245}}}},
+                              "answered_without_evidence": 0}}}},
     }
     TABLE = ("| | native `Read`/`Grep`/`Glob` | zvec-grep 0.2.2 | **retrieval-mcp** |\n"
              "|---|---:|---:|---:|\n"

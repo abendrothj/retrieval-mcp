@@ -8,7 +8,7 @@ import tempfile
 import textwrap
 import unittest
 
-from codex_wrapper import parse_events
+from codex_wrapper import parse_events, session_instructions
 
 
 def command_event(command):
@@ -85,6 +85,40 @@ class CodexParserTests(unittest.TestCase):
         self.assertEqual(outcome["unexpected_tools"], ["other_mcp_server"])
 
 
+class ProjectDocumentTests(unittest.TestCase):
+    """The corpus copies live under `runs/`, inside this repository's own git tree."""
+
+    def session(self, tmp, lines):
+        path = Path(tmp) / "codex-session.jsonl"
+        path.write_text("\n".join(json.dumps(line) for line in lines), encoding="utf-8")
+        return path
+
+    def test_an_injected_project_document_is_seen_in_the_rollout(self):
+        """Five kernel studies carried this project's AGENTS.md in both arms and nothing looked."""
+        with tempfile.TemporaryDirectory() as tmp:
+            session = self.session(tmp, [
+                {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [
+                    {"type": "input_text",
+                     "text": "# AGENTS.md instructions for /corpus\n\n<INSTRUCTIONS>\nrules\n"}]}},
+            ])
+            self.assertTrue(session_instructions(session))
+
+    def test_the_world_state_form_counts_too(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session = self.session(tmp, [
+                {"type": "world_state", "payload": {"state": {"agents_md": {"text": "rules"}}}}])
+            self.assertTrue(session_instructions(session))
+
+    def test_a_trial_whose_context_is_only_the_question_is_clean(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session = self.session(tmp, [
+                {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [
+                    {"type": "input_text", "text": "Answer the repository question."}]}},
+                {"type": "response_item", "payload": {"type": "token_count"}}])
+            self.assertFalse(session_instructions(session))
+            self.assertFalse(session_instructions(Path(tmp) / "absent.jsonl"))
+
+
 class CodexIsolationTests(unittest.TestCase):
     def run_wrapper(self, tmp, extra_env=None):
         """Drive the wrapper against a fake `codex` that asserts its own environment."""
@@ -109,6 +143,13 @@ class CodexIsolationTests(unittest.TestCase):
             expected = os.environ.get("EXPECT_CODEX_HOME", home)
             assert os.environ["CODEX_HOME"] == expected, (os.environ["CODEX_HOME"], expected)
             assert "--ignore-user-config" in sys.argv
+            assert "project_doc_max_bytes=0" in sys.argv, sys.argv
+            rollout = os.environ.get("FAKE_ROLLOUT")
+            if rollout:
+                sessions = os.path.join(os.environ["CODEX_HOME"], "sessions", "2026")
+                os.makedirs(sessions, exist_ok=True)
+                with open(os.path.join(sessions, "rollout.jsonl"), "w") as handle:
+                    handle.write(rollout + "\\n")
             print(json.dumps({"type": "item.completed",
                               "item": {"type": "agent_message", "text": '{"answer": "ok"}'}}))
             print(json.dumps({"type": "turn.completed",
@@ -124,12 +165,29 @@ class CodexIsolationTests(unittest.TestCase):
         result = json.loads(process.stdout.splitlines()[-1])
         self.assertFalse(result["is_error"])
         self.assertEqual(result["result"], '{"answer": "ok"}')
-        return root, run_dir
+        return root, run_dir, process.stdout
 
     def test_the_session_runs_with_its_own_home_so_machine_skills_are_invisible(self):
         """HOME, not just CODEX_HOME: `--ignore-user-config` never covered ~/.agents/skills."""
         with tempfile.TemporaryDirectory() as tmp:
             self.run_wrapper(tmp)
+
+    def test_a_project_document_that_arrives_anyway_is_reported_as_contamination(self):
+        """The launch flag is the fix; this is the alarm for the next client that ignores it."""
+        injected = json.dumps({"type": "world_state", "payload": {
+            "state": {"agents_md": {"text": "# Working notes for agents"}}}})
+        with tempfile.TemporaryDirectory() as tmp:
+            _, run_dir, stdout = self.run_wrapper(tmp, {"FAKE_ROLLOUT": injected})
+            flagged = [json.loads(line) for line in stdout.splitlines()
+                       if '"tool_use"' in line]
+            self.assertEqual([call["message"]["content"][0]["name"] for call in flagged],
+                             ["project_doc"])
+            self.assertTrue((run_dir / "codex-session.jsonl").is_file())
+
+    def test_a_trial_with_no_injected_document_reports_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, _, stdout = self.run_wrapper(tmp)
+            self.assertNotIn("tool_use", stdout)
 
     def test_a_shared_credential_home_is_seeded_once_and_then_left_alone(self):
         """A subscription refresh token is single-use, so 126 copies of it cannot all be valid.
@@ -143,7 +201,7 @@ class CodexIsolationTests(unittest.TestCase):
             shared.mkdir()
             source = Path(tmp) / "auth.json"
             source.write_text(json.dumps({"tokens": {"refresh_token": "first"}}), encoding="utf-8")
-            root, run_dir = self.run_wrapper(tmp, {
+            root, run_dir, _ = self.run_wrapper(tmp, {
                 "CODEX_CREDENTIAL_HOME": str(shared), "CODEX_AUTH_SOURCE": str(source),
                 "EXPECT_CODEX_HOME": str(shared)})
             self.assertEqual(json.loads((shared / "auth.json").read_text())["tokens"],

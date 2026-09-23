@@ -88,11 +88,185 @@ STUDIES = {
                 "in a payload. Published as the boundary of the claim.",
     },
 }
-# Both definitions this project has used for "input tokens". The narrow one is what the held-out
-# table published; the wide one is what the working notes declare. Drift between them was itself a
-# defect, so the extract carries both and the README is required to name which it prints.
-NARROW = ("input", "cache_creation")
-WIDE = ("input", "cache_read", "cache_creation")
+# One definition, because there is only one true total. Each archived row's `input` is already the
+# whole context the model was sent: Codex reports `input_tokens` inclusive of the cached prefix
+# (verified per request against `requests.json` and `last_token_usage`, where
+# `cached_input_tokens` is a subset), and `end_to_end.steps_from` folds Claude's three separately
+# billed fields into the same field. Adding `cache_read` on top counts the cached prefix twice;
+# the etcd study was published at -44.6% that way and is -42.4% measured once.
+CONTEXT = ("input",)
+# What each study is a measurement *of*. A percentage on its own is not a result: the estimand is
+# client x corpus x suite x question class, and every reversal in this record was a condition
+# being dropped rather than a number being wrong - the claim reversed at kernel scale, and native
+# drifted 8.6% between two runs of an identical configuration. Each field is declared here and
+# cross-checked against the run directory by `conditions()`, which refuses to publish a
+# declaration the archive contradicts; `check_docs.py` refuses a study that omits one. Declared
+# and unflattering publishes. Undeclared does not.
+#
+# `suite_authored` records law 7, and it reads "in-loop" everywhere: every suite in
+# `experiments/suites/` was written by an agent session inside this repository, holding these
+# working notes and a routing guide for the four tools under test. It is declared rather than
+# derived because no run directory records who wrote the questions.
+CONDITIONS = {
+    "heldout": {
+        "client": "claude 2.1.261",
+        "corpus": "Django, 276 files",
+        "question_class": "mixed shapes, sealed before the run",
+        "suite_authored": "in-loop",
+        "prompt_documents": "excluded",
+        "prompt_document_effect": None,
+    },
+    "etcd-mixed-rerun": {
+        "client": "codex-cli 0.154.0",
+        "corpus": "etcd client, 311 files",
+        "question_class": "mixed shapes",
+        "suite_authored": "in-loop",
+        "prompt_documents": "present in both arms",
+        "prompt_document_effect": "Not reconstructed: the sessions were ephemeral, so no rollout "
+                                  "log sizes the prefix per trial. The document grew from 5.8 KB "
+                                  "to 19.5 KB over the record, so its size is an uncontrolled "
+                                  "term in every Codex token figure here.",
+    },
+    "linux-kernel-relations": {
+        "client": "codex-cli 0.154.0",
+        "corpus": "Linux 6.12, 86,602 files",
+        "question_class": "mixed shapes, kernel scale",
+        "suite_authored": "in-loop",
+        "prompt_documents": "present in both arms",
+        "prompt_document_effect": "Reconstructed from the rollout logs: 20,467 tokens of 232,392 "
+                                  "for this server and 19,533 of 246,327 for native. Removing it "
+                                  "moves the published -5.4% to about -4.6%.",
+    },
+    "linux-kernel-diet": {
+        "client": "codex-cli 0.154.0",
+        "corpus": "Linux 6.12, 86,602 files",
+        "question_class": "mixed shapes, kernel scale",
+        "suite_authored": "in-loop",
+        "prompt_documents": "present in both arms",
+        "prompt_document_effect": "Reconstructed from the rollout logs: 19,686 tokens of 247,623 "
+                                  "for this server and 18,200 of 246,841 for native. Removing it "
+                                  "moves the published +1.0% to about +1.6%.",
+    },
+    "linux-kernel-complete": {
+        "client": "codex-cli 0.154.0",
+        "corpus": "Linux 6.12, 86,602 files",
+        "question_class": "mixed shapes, kernel scale",
+        "suite_authored": "in-loop",
+        "prompt_documents": "present in both arms",
+        "prompt_document_effect": "Not reconstructed: the sessions were ephemeral. The 8.6% "
+                                  "native drift this study reports against an identical "
+                                  "configuration sits inside the same uncontrolled term.",
+    },
+    "linux-kernel-scanfix": {
+        "client": "codex-cli 0.154.0",
+        "corpus": "Linux 6.12, 86,602 files",
+        "question_class": "mixed shapes, kernel scale",
+        "suite_authored": "in-loop",
+        "prompt_documents": "present in both arms",
+        "prompt_document_effect": "Not reconstructed: the sessions were ephemeral. From "
+                                  "2026-09-20 the document also names the symbol one caller "
+                                  "question describes, which is one answer of 63.",
+    },
+    "linux-kernel": {
+        "client": "codex-cli 0.154.0",
+        "corpus": "Linux 6.12, 86,602 files",
+        "question_class": "mixed shapes, kernel scale",
+        "suite_authored": "in-loop",
+        "prompt_documents": "present in both arms",
+        "prompt_document_effect": "Not reconstructed: the sessions were ephemeral.",
+    },
+}
+# Trial records under these are not the study: a rehearsal, a chunk discarded for a defect found
+# mid-run, or one that died on an expired credential. `runs/linux-agent-20260919` keeps all three
+# beside its 126 scored trials. The list is a guess about directory names, so `conditions()`
+# checks the launches it survives against the trial count the report itself publishes.
+EXCLUDED_TRIALS = ("dry-run", "discarded", "partial")
+# 0.5 ** 5 = 0.031. Four one-directional discordant questions cannot reach one-sided significance
+# at any suite size, so a smaller gap is "not separated" rather than "equivalent".
+SIGN_TEST_FLOOR = 5
+
+
+def trial_launches(run):
+    """Every archived launch of this study, read back rather than remembered."""
+    for record in sorted(run.glob("**/trial-*/run.json")):
+        parts = record.relative_to(run).parts
+        if any(part.startswith(EXCLUDED_TRIALS) for part in parts):
+            continue
+        yield json.loads(record.read_text(encoding="utf-8")).get("agent_command") or []
+
+
+def carries_document(path):
+    """Did this rollout arrive with a project document in its first user message?"""
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        return any("AGENTS.md instructions for" in line for line in handle)
+
+
+def prompt_document_evidence(runs):
+    """Could a project document reach the model in this study, and did one?
+
+    Two readings, because they fail differently. The launch says whether the client was told to
+    exclude one - `claudeMdExcludes` for Claude, `project_doc_max_bytes=0` for Codex. The rollout
+    log says what was actually sent, and only a non-ephemeral session keeps one, which in this
+    record is the last two kernel studies. The rollout wins where it exists: the document arrives
+    as text in the first user message, so no flag and no tool-call detector can stand in for it.
+    """
+    launches = [" ".join(command) for run in runs for command in trial_launches(run)]
+    suppressed = sum(1 for command in launches
+                     if "claudeMdExcludes" in command or "project_doc_max_bytes=0" in command)
+    rollouts = [path for run in runs for path in sorted(run.glob("**/codex-session.jsonl"))]
+    carrying = sum(1 for path in rollouts if carries_document(path))
+    if carrying or (launches and suppressed < len(launches)):
+        derived = "present in both arms"
+    elif launches:
+        derived = "excluded"
+    else:
+        derived = "no archived launch"
+    return {"derived": derived, "launches": len(launches),
+            "launches_suppressing_the_document": suppressed, "rollouts_read": len(rollouts),
+            "rollouts_carrying_a_document": carrying}
+
+
+def quality_separation(arms):
+    """Can this suite tell the arms apart on quality at all?
+
+    The control saturates - 89 of 90 on etcd, 62 and 63 of 63 at kernel scale - so "quality ties"
+    is a failure to separate and not evidence of equivalence, and it has been registered as a
+    primary outcome anyway. A paired sign test needs `SIGN_TEST_FLOOR` discordant questions all in
+    one direction before it can reach p < 0.05, whatever n is. Only the net difference survives
+    into this extract and the net is a lower bound on discordance, so `separable` is the
+    optimistic reading: false here means the suite could not have shown a difference.
+    """
+    control, treatment = arms.get("native-control"), arms.get("retrieval-mcp")
+    if not control or not treatment:
+        return None
+    net = control["correct"] - treatment["correct"]
+    return {"control_correct": control["correct"], "control_trials": control["trials"],
+            "control_headroom": control["trials"] - control["correct"],
+            "net_resolved_difference": net,
+            "discordant_needed_for_one_sided_05": SIGN_TEST_FLOOR,
+            "separable": abs(net) >= SIGN_TEST_FLOOR,
+            "reading": "separated" if abs(net) >= SIGN_TEST_FLOOR else
+                       "not separated: an absence of power, not equivalence"}
+
+
+def conditions(repo, name, spec, arms):
+    """The conditions this study's figures are true under, declared and then checked."""
+    declared = CONDITIONS.get(name)
+    if declared is None:
+        raise SystemExit(f"{name} publishes figures with no conditions declared; add them to "
+                         f"CONDITIONS before any of its numbers can be quoted")
+    evidence = prompt_document_evidence(sorted({(repo / report).parent
+                                                for report in spec["reports"]}))
+    if evidence["derived"] not in (declared["prompt_documents"], "no archived launch"):
+        raise SystemExit(f"{name} declares prompt documents {declared['prompt_documents']!r} and "
+                         f"its own archive says {evidence['derived']!r}: {evidence}")
+    scored = sum(arm["trials"] for arm in arms.values())
+    if evidence["launches"] and evidence["launches"] != scored:
+        raise SystemExit(f"{name} scored {scored} trials and {evidence['launches']} archived "
+                         f"launches were read; the evidence covers a different set of trials "
+                         f"than the figures do")
+    return {**declared, "prompt_document_evidence": evidence,
+            "quality_separation": quality_separation(arms)}
 
 
 def tokens(row, fields):
@@ -106,8 +280,7 @@ def aggregate(rows):
     return {
         "trials": len(rows),
         "correct": sum(1 for row in rows if row["resolved_correct"]),
-        "input_tokens": sum(tokens(row, NARROW) for row in rows),
-        "input_tokens_with_cache_reads": sum(tokens(row, WIDE) for row in rows),
+        "input_tokens": sum(tokens(row, CONTEXT) for row in rows),
         "calls": sum(row.get("calls") or 0 for row in rows),
         "context_token_turns": sum(row.get("context_token_turns") or 0 for row in rows),
         "calls_to_first_evidence": round(sum(hits) / len(hits), 3) if hits else None,
@@ -115,7 +288,7 @@ def aggregate(rows):
     }
 
 
-def study(repo, spec):
+def study(repo, name, spec):
     arms, reports = {}, []
     for relative in spec["reports"]:
         path = repo / relative
@@ -126,23 +299,33 @@ def study(repo, spec):
             if row["status"] != "completed":
                 raise ValueError(f"{relative} holds an unfinished trial; score it or exclude it")
             arms.setdefault(row["system"], []).append(row)
+    totals = {arm: aggregate(rows) for arm, rows in sorted(arms.items())}
     return {"model": spec["model"], "questions": spec["questions"],
             "repetitions": spec["repetitions"], "note": spec["note"], "sources": reports,
-            "arms": {arm: aggregate(rows) for arm, rows in sorted(arms.items())}}
+            "conditions": conditions(repo, name, spec, totals), "arms": totals}
 
 
 def build(repo):
     return {"version": "published-results-v1",
-            "definitions": {"input_tokens": " + ".join(NARROW),
-                            "input_tokens_with_cache_reads": " + ".join(WIDE)},
+            "definitions": {"input_tokens": "whole context sent per request, cached prefix "
+                                            "counted once",
+                            "conditions": "what each study is a measurement of - client, corpus, "
+                                          "question class, who authored the suite, and what "
+                                          "reached the prompt besides the question. Declared, "
+                                          "then checked against the run directory."},
             # Figures the result section publishes that are not comparisons between arms of a run.
             # They are declared here with their provenance so `check_docs.py` can tell "measured
             # somewhere else" from "invented", and an undeclared percentage fails the build.
             "declared_percentages": {
                 "-13.3": "0.1.6 routing filter: handshake instructions 2,724 -> 2,361 characters, "
                          "measured from src/tools/mod.rs. Prompt-prefix bytes, not a run result.",
+                "-36.2": "Withdrawn 2026-09-22. The held-out study's second token column added "
+                         "cache reads to a total that already contained them; the measured "
+                         "figure is -33.5%. Named in the README so the correction is legible.",
+                "-44.6": "Withdrawn 2026-09-22. The etcd study was published at this figure from "
+                         "the same double count; the measured figure is -42.4%.",
             },
-            "studies": {name: study(repo, spec) for name, spec in STUDIES.items()}}
+            "studies": {name: study(repo, name, spec) for name, spec in STUDIES.items()}}
 
 
 def main():

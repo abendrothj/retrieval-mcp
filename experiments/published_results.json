@@ -1,11 +1,13 @@
 {
   "version": "published-results-v1",
   "definitions": {
-    "input_tokens": "input + cache_creation",
-    "input_tokens_with_cache_reads": "input + cache_read + cache_creation"
+    "input_tokens": "whole context sent per request, cached prefix counted once",
+    "conditions": "what each study is a measurement of - client, corpus, question class, who authored the suite, and what reached the prompt besides the question. Declared, then checked against the run directory."
   },
   "declared_percentages": {
-    "-13.3": "0.1.6 routing filter: handshake instructions 2,724 -> 2,361 characters, measured from src/tools/mod.rs. Prompt-prefix bytes, not a run result."
+    "-13.3": "0.1.6 routing filter: handshake instructions 2,724 -> 2,361 characters, measured from src/tools/mod.rs. Prompt-prefix bytes, not a run result.",
+    "-36.2": "Withdrawn 2026-09-22. The held-out study's second token column added cache reads to a total that already contained them; the measured figure is -33.5%. Named in the README so the correction is legible.",
+    "-44.6": "Withdrawn 2026-09-22. The etcd study was published at this figure from the same double count; the measured figure is -42.4%."
   },
   "studies": {
     "heldout": {
@@ -19,12 +21,35 @@
           "sha256": "4ac240e4ded52ee4cd1e29dbf55973b28b4343b393fe3ff1d92466997c2b629e"
         }
       ],
+      "conditions": {
+        "client": "claude 2.1.261",
+        "corpus": "Django, 276 files",
+        "question_class": "mixed shapes, sealed before the run",
+        "suite_authored": "in-loop",
+        "prompt_documents": "excluded",
+        "prompt_document_effect": null,
+        "prompt_document_evidence": {
+          "derived": "excluded",
+          "launches": 90,
+          "launches_suppressing_the_document": 90,
+          "rollouts_read": 0,
+          "rollouts_carrying_a_document": 0
+        },
+        "quality_separation": {
+          "control_correct": 28,
+          "control_trials": 30,
+          "control_headroom": 2,
+          "net_resolved_difference": -1,
+          "discordant_needed_for_one_sided_05": 5,
+          "separable": false,
+          "reading": "not separated: an absence of power, not equivalence"
+        }
+      },
       "arms": {
         "native-control": {
           "trials": 30,
           "correct": 28,
           "input_tokens": 1149139,
-          "input_tokens_with_cache_reads": 2173618,
           "calls": 146,
           "context_token_turns": 175220,
           "calls_to_first_evidence": 1.793,
@@ -34,7 +59,6 @@
           "trials": 30,
           "correct": 29,
           "input_tokens": 763744,
-          "input_tokens_with_cache_reads": 1387245,
           "calls": 77,
           "context_token_turns": 149877,
           "calls_to_first_evidence": 1.172,
@@ -44,7 +68,6 @@
           "trials": 30,
           "correct": 29,
           "input_tokens": 1000501,
-          "input_tokens_with_cache_reads": 1831191,
           "calls": 78,
           "context_token_turns": 227059,
           "calls_to_first_evidence": 1.345,
@@ -71,12 +94,35 @@
           "sha256": "e26406d021083b0b9cbc5a7e4d5a3024dd1ce58979bb955193e47d53a50d1b38"
         }
       ],
+      "conditions": {
+        "client": "codex-cli 0.154.0",
+        "corpus": "etcd client, 311 files",
+        "question_class": "mixed shapes",
+        "suite_authored": "in-loop",
+        "prompt_documents": "present in both arms",
+        "prompt_document_effect": "Not reconstructed: the sessions were ephemeral, so no rollout log sizes the prefix per trial. The document grew from 5.8 KB to 19.5 KB over the record, so its size is an uncontrolled term in every Codex token figure here.",
+        "prompt_document_evidence": {
+          "derived": "present in both arms",
+          "launches": 270,
+          "launches_suppressing_the_document": 0,
+          "rollouts_read": 0,
+          "rollouts_carrying_a_document": 0
+        },
+        "quality_separation": {
+          "control_correct": 89,
+          "control_trials": 90,
+          "control_headroom": 1,
+          "net_resolved_difference": 2,
+          "discordant_needed_for_one_sided_05": 5,
+          "separable": false,
+          "reading": "not separated: an absence of power, not equivalence"
+        }
+      },
       "arms": {
         "native-control": {
           "trials": 90,
           "correct": 89,
           "input_tokens": 17414256,
-          "input_tokens_with_cache_reads": 32082032,
           "calls": 409,
           "context_token_turns": 2510438,
           "calls_to_first_evidence": 2.144,
@@ -86,7 +132,6 @@
           "trials": 90,
           "correct": 87,
           "input_tokens": 10024987,
-          "input_tokens_with_cache_reads": 17787931,
           "calls": 320,
           "context_token_turns": 2032802,
           "calls_to_first_evidence": 2.122,
@@ -96,7 +141,6 @@
           "trials": 90,
           "correct": 89,
           "input_tokens": 13690023,
-          "input_tokens_with_cache_reads": 25116839,
           "calls": 455,
           "context_token_turns": 2681882,
           "calls_to_first_evidence": 2.756,
@@ -115,12 +159,35 @@
           "sha256": "ebe9b19ee0389728e37f3b328e3e3866104a1c48b0735ea7962fc053181e0f41"
         }
       ],
+      "conditions": {
+        "client": "codex-cli 0.154.0",
+        "corpus": "Linux 6.12, 86,602 files",
+        "question_class": "mixed shapes, kernel scale",
+        "suite_authored": "in-loop",
+        "prompt_documents": "present in both arms",
+        "prompt_document_effect": "Reconstructed from the rollout logs: 20,467 tokens of 232,392 for this server and 19,533 of 246,327 for native. Removing it moves the published -5.4% to about -4.6%.",
+        "prompt_document_evidence": {
+          "derived": "present in both arms",
+          "launches": 126,
+          "launches_suppressing_the_document": 0,
+          "rollouts_read": 126,
+          "rollouts_carrying_a_document": 126
+        },
+        "quality_separation": {
+          "control_correct": 62,
+          "control_trials": 63,
+          "control_headroom": 1,
+          "net_resolved_difference": 6,
+          "discordant_needed_for_one_sided_05": 5,
+          "separable": true,
+          "reading": "separated"
+        }
+      },
       "arms": {
         "native-control": {
           "trials": 63,
           "correct": 62,
           "input_tokens": 8634495,
-          "input_tokens_with_cache_reads": 15462271,
           "calls": 230,
           "context_token_turns": 42758065,
           "calls_to_first_evidence": 1.698,
@@ -130,7 +197,6 @@
           "trials": 63,
           "correct": 56,
           "input_tokens": 8170214,
-          "input_tokens_with_cache_reads": 14595046,
           "calls": 116,
           "context_token_turns": 3468805,
           "calls_to_first_evidence": 1.143,
@@ -149,12 +215,35 @@
           "sha256": "189a19c3427f9ac672dd2ef69e2385fac7477f8dff7a331dc29286548906538b"
         }
       ],
+      "conditions": {
+        "client": "codex-cli 0.154.0",
+        "corpus": "Linux 6.12, 86,602 files",
+        "question_class": "mixed shapes, kernel scale",
+        "suite_authored": "in-loop",
+        "prompt_documents": "present in both arms",
+        "prompt_document_effect": "Reconstructed from the rollout logs: 19,686 tokens of 247,623 for this server and 18,200 of 246,841 for native. Removing it moves the published +1.0% to about +1.6%.",
+        "prompt_document_evidence": {
+          "derived": "present in both arms",
+          "launches": 126,
+          "launches_suppressing_the_document": 0,
+          "rollouts_read": 126,
+          "rollouts_carrying_a_document": 126
+        },
+        "quality_separation": {
+          "control_correct": 63,
+          "control_trials": 63,
+          "control_headroom": 0,
+          "net_resolved_difference": 4,
+          "discordant_needed_for_one_sided_05": 5,
+          "separable": false,
+          "reading": "not separated: an absence of power, not equivalence"
+        }
+      },
       "arms": {
         "native-control": {
           "trials": 63,
           "correct": 63,
           "input_tokens": 8613114,
-          "input_tokens_with_cache_reads": 15490810,
           "calls": 231,
           "context_token_turns": 41867204,
           "calls_to_first_evidence": 1.667,
@@ -164,7 +253,6 @@
           "trials": 63,
           "correct": 59,
           "input_tokens": 8698354,
-          "input_tokens_with_cache_reads": 15552498,
           "calls": 132,
           "context_token_turns": 8501459,
           "calls_to_first_evidence": 1.111,
@@ -183,12 +271,35 @@
           "sha256": "f20e288bebc12dc56a8dd428c22d481464566b6a8c72c140591c15611938b661"
         }
       ],
+      "conditions": {
+        "client": "codex-cli 0.154.0",
+        "corpus": "Linux 6.12, 86,602 files",
+        "question_class": "mixed shapes, kernel scale",
+        "suite_authored": "in-loop",
+        "prompt_documents": "present in both arms",
+        "prompt_document_effect": "Not reconstructed: the sessions were ephemeral. The 8.6% native drift this study reports against an identical configuration sits inside the same uncontrolled term.",
+        "prompt_document_evidence": {
+          "derived": "present in both arms",
+          "launches": 126,
+          "launches_suppressing_the_document": 0,
+          "rollouts_read": 0,
+          "rollouts_carrying_a_document": 0
+        },
+        "quality_separation": {
+          "control_correct": 61,
+          "control_trials": 63,
+          "control_headroom": 2,
+          "net_resolved_difference": 3,
+          "discordant_needed_for_one_sided_05": 5,
+          "separable": false,
+          "reading": "not separated: an absence of power, not equivalence"
+        }
+      },
       "arms": {
         "native-control": {
           "trials": 63,
           "correct": 61,
           "input_tokens": 7749070,
-          "input_tokens_with_cache_reads": 13785294,
           "calls": 229,
           "context_token_turns": 36761589,
           "calls_to_first_evidence": 1.597,
@@ -198,7 +309,6 @@
           "trials": 63,
           "correct": 58,
           "input_tokens": 8533226,
-          "input_tokens_with_cache_reads": 15147242,
           "calls": 156,
           "context_token_turns": 11152536,
           "calls_to_first_evidence": 1.254,
@@ -217,12 +327,35 @@
           "sha256": "d79ce71a0a7ce8bbbf48edf6b19c0420b710a2dc2abef33a19f1c316d0220582"
         }
       ],
+      "conditions": {
+        "client": "codex-cli 0.154.0",
+        "corpus": "Linux 6.12, 86,602 files",
+        "question_class": "mixed shapes, kernel scale",
+        "suite_authored": "in-loop",
+        "prompt_documents": "present in both arms",
+        "prompt_document_effect": "Not reconstructed: the sessions were ephemeral. From 2026-09-20 the document also names the symbol one caller question describes, which is one answer of 63.",
+        "prompt_document_evidence": {
+          "derived": "present in both arms",
+          "launches": 126,
+          "launches_suppressing_the_document": 0,
+          "rollouts_read": 0,
+          "rollouts_carrying_a_document": 0
+        },
+        "quality_separation": {
+          "control_correct": 61,
+          "control_trials": 63,
+          "control_headroom": 2,
+          "net_resolved_difference": 3,
+          "discordant_needed_for_one_sided_05": 5,
+          "separable": false,
+          "reading": "not separated: an absence of power, not equivalence"
+        }
+      },
       "arms": {
         "native-control": {
           "trials": 63,
           "correct": 61,
           "input_tokens": 8476336,
-          "input_tokens_with_cache_reads": 15031728,
           "calls": 234,
           "context_token_turns": 52231827,
           "calls_to_first_evidence": 1.762,
@@ -232,7 +365,6 @@
           "trials": 63,
           "correct": 58,
           "input_tokens": 9176136,
-          "input_tokens_with_cache_reads": 16697160,
           "calls": 200,
           "context_token_turns": 13398178,
           "calls_to_first_evidence": 1.377,
@@ -251,12 +383,35 @@
           "sha256": "8630569ebacdfecad1fa9876a3c7faac0ce27992fa435e7d11cf07c7d471c43d"
         }
       ],
+      "conditions": {
+        "client": "codex-cli 0.154.0",
+        "corpus": "Linux 6.12, 86,602 files",
+        "question_class": "mixed shapes, kernel scale",
+        "suite_authored": "in-loop",
+        "prompt_documents": "present in both arms",
+        "prompt_document_effect": "Not reconstructed: the sessions were ephemeral.",
+        "prompt_document_evidence": {
+          "derived": "present in both arms",
+          "launches": 126,
+          "launches_suppressing_the_document": 0,
+          "rollouts_read": 0,
+          "rollouts_carrying_a_document": 0
+        },
+        "quality_separation": {
+          "control_correct": 62,
+          "control_trials": 63,
+          "control_headroom": 1,
+          "net_resolved_difference": 6,
+          "discordant_needed_for_one_sided_05": 5,
+          "separable": true,
+          "reading": "separated"
+        }
+      },
       "arms": {
         "native-control": {
           "trials": 63,
           "correct": 62,
           "input_tokens": 8741711,
-          "input_tokens_with_cache_reads": 15741007,
           "calls": 243,
           "context_token_turns": 52765729,
           "calls_to_first_evidence": 1.689,
@@ -266,7 +421,6 @@
           "trials": 63,
           "correct": 56,
           "input_tokens": 10171408,
-          "input_tokens_with_cache_reads": 18436368,
           "calls": 203,
           "context_token_turns": 1646950,
           "calls_to_first_evidence": 1.724,

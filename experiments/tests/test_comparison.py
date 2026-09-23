@@ -291,6 +291,47 @@ class ComparisonTests(unittest.TestCase):
                 comparison_runner.validate_prepared(
                     workspace, systems_path, Path(sys.executable), ["fixture"])
 
+    def test_a_wrapper_arm_pins_the_binary_it_wraps(self):
+        """The degraded control pins `degrade_server.py` as its `server` and runs the real binary
+        as an argument, so `server_sha256` covers the proxy and not the thing under test. A run
+        that cannot say which binary produced its payloads is not a measurement."""
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            source = base / "source"; source.mkdir()
+            (source / "evidence.txt").write_text("fixture evidence\n")
+            wrapped = base / "retrieval-mcp"
+            wrapped.write_bytes(b"#!/bin/sh\nexit 0\n")
+            systems_path = base / "systems.json"
+            systems_path.write_text(json.dumps({"version": "comparison-systems-v2", "systems": [
+                {"id": "native-control", "mcp_enabled": False, "upstreams": [], "environment": {},
+                 "prompt_policy": "", "prepare_commands": [], "check_commands": [],
+                 "version_command": None},
+                {"id": "degraded", "mcp_enabled": True, "upstreams": [{
+                    "id": "one",
+                    "command": ["{server}", "--server", str(wrapped.resolve()), "--shuffle", "--",
+                                "--fake-server", "native_search", "{listen}"],
+                    "environment": {}, "visible_tools": ["native_search"],
+                    "expected_upstream_tools": ["native_search", "native_search_admin"]}],
+                 "environment": {}, "prompt_policy": "", "prepare_commands": [],
+                 "check_commands": [], "version_command": None},
+            ]}))
+            workspace = base / "workspace"
+            prepared = comparison_runner.prepare(SimpleNamespace(
+                source_root=source, workspace=workspace, systems=systems_path,
+                server=Path(sys.executable), semantic_command=["fixture"], prepare_timeout=30))
+            record = {entry["id"]: entry for entry in prepared["systems"]}["degraded"]
+            digests = record["upstreams"][0]["command_digests"]
+            self.assertEqual(digests[str(wrapped.resolve())], comparison_runner.digest(wrapped))
+            self.assertIn(str(Path(sys.executable).resolve()), digests)
+            self.assertEqual(comparison_runner.validate_prepared(
+                workspace, systems_path, Path(sys.executable), ["fixture"])["version"],
+                "comparison-prepared-v2")
+            # Swapping the wrapped binary alone leaves server_sha256 intact and must still fail.
+            wrapped.write_bytes(b"#!/bin/sh\nexit 1\n")
+            with self.assertRaisesRegex(ValueError, "changed after preparation"):
+                comparison_runner.validate_prepared(
+                    workspace, systems_path, Path(sys.executable), ["fixture"])
+
     def test_a_pinned_server_path_may_be_relative_to_the_repository(self):
         system = {"id": "pinned", "server": "experiments/comparison_runner.py"}
         self.assertEqual(comparison_runner.system_server(system, Path(sys.executable)), EXPERIMENTS / "comparison_runner.py")
