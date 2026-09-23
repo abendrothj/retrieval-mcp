@@ -171,6 +171,14 @@ def main():
         shutil.copy2(credential, home / "auth.json")
     session_home = run_dir / "codex-home"
     session_home.mkdir(parents=True, exist_ok=True)
+    # Deliberate contamination, for the one study that has to measure it. Per-trial HOME is what
+    # closed the fetched-document leak, so the only way to price that leak is to put a document
+    # back on purpose, in one arm, declared. Anything copied here is recorded in the trial
+    # directory, unlike the operator's home directory, which is the whole difference between a
+    # controlled condition and the uncontrolled term that reached 2,109 archived trials.
+    seed = os.environ.get("CODEX_SEED_HOME")
+    if seed:
+        shutil.copytree(seed, session_home, dirs_exist_ok=True)
 
     # Per-request accounting, for both arms alike. Codex reports usage once per turn on stdout,
     # which cannot say whether a session was expensive because it took many model requests or

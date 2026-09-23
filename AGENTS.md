@@ -248,6 +248,19 @@ Open threads:
   Discovery also replicates across launches, 2.93 a trial over 30 and 3.0 over 10. So an MCP
   server here cannot configure its way out of the tax; the only remaining lever is
   `unified_exec`, which removes the tool altogether and is the no-shell arm that scored 10 of 25.
+- **The fetched document was worth about 38% of the MCP arm's tokens, and the mechanism is that
+  it made discovery unnecessary.** `runs/leak-price-20260924` recovered the operator skill file
+  from the archive - the archived trials ran `sed` on it and Codex captured the output, so the
+  bytes are the bytes they read, 4,253 of them - and put it back in one arm's trial-local HOME.
+  Against a clean arm on the same ten questions: discovery calls **3.10 to 1.10**, requests 6.20
+  to 5.00, input tokens **166,988 to 104,200**, quality unchanged at 9 of 10 both ways. 10 of 10
+  seeded trials read it; 0 of 10 clean trials did. It names all four tools, so an agent that has
+  read it does not need to search for them, and repository work barely moves while catalogue
+  searching collapses. Seeded, today's arm lands within 7% of the archived 111,389 - so the
+  document accounts for most of the MCP side of the −42.4%-to-+96.3% swing. The control side is
+  untouched by that run and stays unexplained, and the published figure stays withdrawn rather
+  than corrected, because this prices the document on 0.155.1 with a v0.1.6 server rather than
+  reconstructing the archived configuration.
 - **Deliberation did not respond to better evidence on the page.** `runs/linux-relations-20260922`
   stated which candidate calls which - 10 of 21 pages, no byte cost, offline-proven - and under a
   model it missed every registered criterion: idle requests 1.95 to 2.03, quality 59 to 56 of 63,

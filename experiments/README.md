@@ -2344,6 +2344,40 @@ altogether, and that condition is already measured and bad — `runs/locbench-no
 scored 10 of 25 against its shell-bearing twin's 19. On this client an MCP server pays the
 discovery tax and cannot configure its way out.
 
+**But a document can pay it, and that is what the leak was buying.** Five things differ between
+the published etcd study and the clean re-run; three are immovable or already excluded — 0.154.0
+is not obtainable, the archived binary does not rebuild, the prompt policy is byte-identical —
+and one is the operator skill file every archived trial fetched. `runs/leak-price-20260924`
+recovered it from the archive rather than rewriting it: those trials ran `sed -n '1,240p'` on it
+and Codex captured the output, so the bytes are the bytes they read, 4,253 of them. One arm gets
+it copied into its trial-local HOME; the other does not; nothing else differs.
+
+| | read the document | discovery calls | requests | input tokens | resolved |
+|---|---:|---:|---:|---:|---:|
+| mcp-clean | 0 of 10 | 3.10 | 6.20 | 166,988 | 9/10 |
+| mcp-seeded-document | **10 of 10** | **1.10** | 5.00 | **104,200** | 9/10 |
+
+The registered bar was one fewer discovery call a trial; the measurement is two. Requests fall
+19.4%, input tokens **37.6%**, and quality does not move — which is what the document's contents
+predict, since it carries routing advice and no knowledge of etcd. The mechanism is the one
+registered in advance: **it names all four tools, so an agent that has read it does not need to
+find them.** Repository work barely moves, 2.10 other `exec` calls against 2.90, while catalogue
+searching collapses. Reading it costs a round trip and about 1,100 tokens, and the arm still
+comes out far ahead: it pays for one read and stops paying for two searches.
+
+Seeded, today's arm lands at 104,200 against the archived arm's **111,389 — within 7%**. So on
+the MCP side of the comparison the document accounts for most of the distance between the
+published −42.4% and the clean +96.3%. The control side does not: archived native spent 193,492
+against today's 83,106, and no native arm was seeded here. The published figure therefore stays
+withdrawn rather than corrected to a new number — this prices the document on codex-cli 0.155.1
+with a v0.1.6 server, which is not the configuration that produced it.
+
+The uncomfortable reading is the short one. An operator document telling the agent its tools
+existed and were good was worth about 38% of that arm's token cost, and 2,109 archived trials
+across 15 run directories carried it. This project's contamination work chased what a client
+prefixes into a prompt; what mattered was what the agent went and fetched, and the effect was
+not marginal.
+
 **The announcement is measured, not assumed.** A command is announced by nothing, so the arm
 needs a prompt fragment, and that fragment is the most dangerous object in the study given what
 `~/.agents/skills/retrieval-mcp/SKILL.md` did to 2,109 archived trials. It is therefore
