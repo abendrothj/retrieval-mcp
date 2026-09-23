@@ -103,6 +103,8 @@ what keeps the published numbers true.
 | `comparison_runner.py` | `prepare` (no model) then `run` (model, gated). A per-system `server` field pins a binary per arm and records its sha256. |
 | `end_to_end.py` | Scores an archived run: quality, tokens, calls, calls-to-first-evidence, `context_token_turns`, safety columns, per bucket. |
 | `regrade.py` | Applies a repaired grader to an archived run symmetrically and records what moved. |
+| `cli_announcement.py` | What the CLI transport arm's prompt fragment says, generated from the binaries - the CLI's own `--help`, the server's own handshake instructions and tool descriptions, tool names rewritten as subcommands - so no one authors the text that tells an arm its tools exist. Prices it against what the protocol hands the MCP arm. |
+| `prompt_prefix.py` | **Costs model calls.** What a condition pays before its first tool call, one trivial prompt, consecutive runs per condition, never interleaved - because alternating two configurations measures the cache and not the prefix. Refuses a block that has not converged, and proves an MCP condition actually attached before reporting what it cost. |
 | `check_docs.py` | Doc, test-count and link consistency, plus the README shape contract: `README_SECTIONS` in order, the install line budget, no duplicated fenced block, one registration block, a contents list naming every section, a quickstart sample compared field by field against a live call, and every figure in the result section compared against `published_results.json`. Run before every docs commit. |
 | `publish_numbers.py` | Derives `experiments/published_results.json` from the archived reports, so CI can check a published number without seeing `runs/`. Re-run it whenever a published study is added or re-graded; a percentage that is not a run comparison must be declared in it. |
 
@@ -133,7 +135,21 @@ already contained them; one definition survives and it is the one the kernel stu
 Every Codex figure here was also measured with this file in the agent's context (see the trap
 above), which no archived byte can net out. Quality has never separated in either
 direction across 468 scored trials at that scale; the token gap has never failed to replicate
-there. Two studies missed their registered quality criterion by a single answer and both are
+there.
+
+**The etcd leg of that claim no longer replicates, and the Django leg is now the only clean
+one.** `runs/cli-transport-20260924` re-ran the same corpus (fingerprint `ffe2bf07`, 311 files)
+and the same suite (sha `3f2f5cf6`) with each trial in its own HOME, and measured the four-tool
+surface at **+96.3% input tokens against native** where the published figure is −42.4%. The
+control fell from 193,492 tokens a trial to 83,106 and the MCP arm rose from 111,389 to 163,148.
+Two things differ between the runs and not one - the fetched routing document is gone *and* the
+client moved 0.154.0 to 0.155.1 - and a 57% fall in the control is far outside the 8.6%
+same-configuration drift already on record, so **this does not price the leak and is published
+as uninterpretable rather than as its cost**. What it does establish is within-run and same-day
+on the published claim's own instrument: on this corpus, on this client, the MCP surface is
+nearly twice a shell agent's cost. The −33.5% held-out Django figure is unaffected - a Claude
+client, documents excluded, 0 of 90 trials touching any of this - and is now the only leg of the
+headline that no audit has moved. Two studies missed their registered quality criterion by a single answer and both are
 published as misses. The handshake instructions are also settled: two candidate sentences were
 measured over 351 trials in `runs/instructions-ab-rerun-20260916` and both came in at +0 against a
 registered +3 bar, so the prompt side of this server has nothing left that measurement supports
@@ -202,13 +218,20 @@ Open threads:
   resolves a description itself (`runs/composed-callers-20260922`, right 3 of 8 against an agent
   two-hop that is near ceiling). The model's two hops are error-correcting; removing the check
   removes the correction. Precision at rank 1 is the thing to attack.
-- **Deliberation is the task's, not the response's, and that thread is closed.**
-  `runs/deliberation-20260922`: flat pages correlate with deliberation across questions (21.8%
-  against 12.5% top-1 score gap) and not within them (+0.08 requests, 10 of 21 - a coin flip),
-  and the suite's sharpest pages belong to its worst question. A shell agent does not think less,
-  it thinks by running another command that the client truncates cheaply, so
-  requests-that-call-nothing measures where thinking is stored as much as whether it is needed.
-  It should not have been a registered primary; it stays a diagnostic.
+- **Deliberation was closed as a diagnostic and `runs/cli-transport-20260924` reopened it.**
+  `runs/deliberation-20260922` found flat pages correlating with deliberation across questions
+  (21.8% against 12.5% top-1 score gap) and not within them (+0.08 requests, 10 of 21 - a coin
+  flip), and concluded that a shell agent does not think less, it thinks by running another
+  command the client truncates cheaply, so requests-that-call-nothing measures where thinking is
+  stored as much as whether it is needed. That reasoning still stands and it is why the column
+  was demoted. What reopens it is a comparison it could not make: two arms reaching **the same
+  index from the same build** with the same operations - 2.60 MCP calls against 2.67 CLI
+  invocations - and **3.50 against 0.83 requests that call nothing**, a 4.2x gap that is the
+  whole 163,148-against-57,424 token difference between them. Where thinking is stored is now
+  the largest measured term in this comparison, not a diagnostic beside it. Three mechanisms are
+  candidates and none is tested: the client truncates shell output on the way in and forwards
+  MCP results whole; a tool result may invite a deliberation turn where a command's stdout does
+  not; and the CLI arm carries an announcement the protocol gives the MCP arm free.
 - **Deliberation did not respond to better evidence on the page.** `runs/linux-relations-20260922`
   stated which candidate calls which - 10 of 21 pages, no byte cost, offline-proven - and under a
   model it missed every registered criterion: idle requests 1.95 to 2.03, quality 59 to 56 of 63,

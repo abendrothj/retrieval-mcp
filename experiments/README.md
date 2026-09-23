@@ -2224,6 +2224,81 @@ credited to a same-named definition next door — is fixed and in the changelog.
 it is the same one that found seven evaluator defects: ask whether the bug you just fixed in the
 grader also exists in the code under test.
 
+### The same four operations as a command, and the deliberation thread reopening
+
+`runs/cli-transport-20260924`, 90 trials, one repetition, on the etcd client corpus and the
+thirty-question suite behind the published −42.4% — the same corpus fingerprint `ffe2bf07` over
+311 files, and the same suite sha `3f2f5cf6`, so the comparison is against that study's own
+instrument rather than a new one beside it.
+
+Three arms, all with a shell: the control, the four-tool MCP surface, and the same four
+operations reached as subcommands of one binary built from the same source, `retrieval search |
+read | callers | concept`. One variable, the channel.
+
+| arm | resolved | input tokens | requests | calls | requests that called nothing |
+|---|---:|---:|---:|---:|---:|
+| native-control | 29/30 | 83,106 | 4.17 | 3.13 | 1.03 |
+| retrieval-cli | 28/30 | **57,424** | **3.27** | 2.67 | **0.83** |
+| retrieval-mcp | 30/30 | 163,148 | 6.10 | 2.60 | **3.50** |
+
+**The registration had two branches and the outcome was neither.** It said composition would
+carry the win — a CLI invocation chaining more than 1.30 operations, because a pipe can and an
+MCP call cannot — or else requests would sit within 10% of the MCP arm's and the round trips
+would be the model's reasoning rather than the channel's. Composition did **not** happen: 1.16
+operations per CLI-bearing shell call, the agent almost always running one `retrieval` per call.
+Requests fell anyway, 3.27 against 6.10, **46% below** the bar's 25%. The dichotomy assumed
+those were the same thing. Published as a miss of the design, which makes everything below a
+hypothesis this run generated rather than a result it confirmed.
+
+**What separated the arms was deliberation.** The two retrieval arms issue the same operations
+over the same index from the same build — 2.60 MCP calls against 2.67 CLI invocations — and
+differ 4.2× in requests that call nothing. Payload cannot explain it, because the rows are the
+same rows; call count cannot, because the counts match. That reopens
+[the deliberation thread](#is-the-deliberation-ours-or-the-tasks), which closed on the finding
+that requests-that-call-nothing measures where thinking is stored as much as whether it is
+needed. Here it is the entire gap between two arms that differ only in how identical rows
+arrive. Three mechanisms are candidates and none is tested: the client truncates shell output on
+the way in and forwards MCP results whole; a tool result may invite a deliberation turn where a
+command's stdout does not; and the CLI arm's prompt carries an announcement the protocol gives
+the MCP arm for free.
+
+**The announcement is measured, not assumed.** A command is announced by nothing, so the arm
+needs a prompt fragment, and that fragment is the most dangerous object in the study given what
+`~/.agents/skills/retrieval-mcp/SKILL.md` did to 2,109 archived trials. It is therefore
+generated from the binaries rather than written — `experiments/cli_announcement.py` takes the
+CLI's own `--help`, the server's own handshake instructions and its own tool descriptions, and
+rewrites tool names as the subcommands that run the same code — and priced on the client:
+`runs/cli-transport-20260924/prefix.json`, four consecutive runs a condition, never interleaved.
+Native and MCP both settle at 11,848 tokens with four tools provably attached, so **the protocol
+announcement costs nothing**; the CLI arm settles at 13,051, so **its announcement costs 1,203
+tokens on every request**. The character proxy had said the opposite, 5,958 against 7,958: MCP's
+instructions, descriptions and input schemas are not model-facing tokens on this client, and
+prompt text is. Tokens above are reported gross; net of the handicap the CLI arm is −35.6%
+against native rather than −30.9%.
+
+**Quality is not separable and no claim is made.** 29, 28 and 30 of 30 spans two answers at one
+repetition, and this project has already watched a two-repetition result reverse on the third.
+Both CLI losses were audited: one was also lost by the control, and the other answered
+`client/v3/auth.go::NewAuth` for a gold of `client/v3/cluster.go::NewCluster`, a parallel
+constructor in a sibling file — a plausible wrong answer, not a broken one.
+
+**The baseline repair failed, and it is published as uninterpretable rather than as a price.**
+The point of reusing that corpus and suite was to re-measure the −42.4% clean and so learn what
+the fetched routing document had been worth. The clean figure is **+96.3%**: the control fell
+from 193,492 tokens a trial to 83,106 and the MCP arm rose from 111,389 to 163,148. But two
+things differ between the runs, not one — the document is gone *and* the client moved from
+codex-cli 0.154.0 to 0.155.1 — and a 57% fall in the control is far outside the 8.6%
+same-configuration drift already on record. Something structural changed and this design cannot
+say how much of it was the leak. What survives is a within-run, same-day statement on the
+instrument the published claim was built from: **the four-tool MCP surface costs 96.3% more
+input tokens than a shell agent there.**
+
+The audit ran before any of this was interpreted, because the size of the number demanded it:
+zero format errors, zero MCP failures, zero budget exhaustion, zero contamination flags, zero
+`--help` hops, the CLI binary's reachability proved by a check command before the first trial,
+and the control's chaining unchanged across client versions at 2.11 sub-commands a shell call
+against the archived 2.03, counted identically.
+
 ## Answering a repository you cannot index
 
 The kernel probe left one fact that no ranking change could address: a whole-repository snapshot
