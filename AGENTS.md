@@ -261,6 +261,18 @@ Open threads:
   untouched by that run and stays unexplained, and the published figure stays withdrawn rather
   than corrected, because this prices the document on 0.155.1 with a v0.1.6 server rather than
   reconstructing the archived configuration.
+- **And the client version is not the culprit; the document is the whole of it.** codex-cli
+  0.154.0 was twice called unobtainable here. It is published at `rust-v0.154.0` and runs
+  through this harness unmodified. `runs/client-version-20260924` puts both clients on the same
+  ten questions, same corpus, same server binary, no document: **native 80,320 on 0.154.0
+  against 78,671 on 0.155.1, +2.1%**, with identical repository calls and requests. The
+  registered bar for blaming the client was +40%. It is worth about 12% and only to the MCP
+  arm, 137,348 against 155,689, through less catalogue searching - and **discovery is not new**:
+  0.154.0 does it too, 2.20 calls a trial in 7 of 10 trials, which was declared unknowable
+  twice and took one run to settle. The number that matters: clean on the archived study's own
+  client the MCP surface costs **+71.0%** against native, where the published figure says
+  −42.4%. The published result does not survive on its own client once the document is
+  removed.
 - **Deliberation did not respond to better evidence on the page.** `runs/linux-relations-20260922`
   stated which candidate calls which - 10 of 21 pages, no byte cost, offline-proven - and under a
   model it missed every registered criterion: idle requests 1.95 to 2.03, quality 59 to 56 of 63,

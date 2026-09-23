@@ -1,0 +1,111 @@
+{
+ "version": "comparison-systems-v2",
+ "systems": [
+  {
+   "mcp_enabled": false,
+   "upstreams": [],
+   "environment": {},
+   "prompt_policy": "",
+   "prepare_commands": [],
+   "check_commands": [],
+   "version_command": [
+    "codex",
+    "--version"
+   ],
+   "id": "native-0155"
+  },
+  {
+   "mcp_enabled": false,
+   "upstreams": [],
+   "environment": {},
+   "prompt_policy": "",
+   "prepare_commands": [],
+   "check_commands": [],
+   "version_command": [
+    "codex",
+    "--version"
+   ],
+   "id": "native-0154",
+   "agent_environment": {
+    "PATH": "/Users/ja/.claude/jobs/f3de7b43/tmp/codex154/bin:/Users/ja/.local/share/mise/installs/azure-cli/latest/bin:/Users/ja/.local/share/mise/installs/python/3.13/bin:/Users/ja/.local/share/mise/shims:/opt/homebrew/opt/postgresql@15/bin:/Users/ja/bin:/Users/ja/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/usr/local/share/dotnet:~/.dotnet/tools:/usr/local/go/bin:/opt/homebrew/bin:/opt/homebrew/opt/postgresql@15/bin:/Users/ja/bin:/Users/ja/.local/bin:/opt/homebrew/sbin:/Users/ja/.cargo/bin:/Users/ja/.orbstack/bin:/Users/ja/.orbstack/bin:/opt/homebrew/opt/fzf/bin:/Users/ja/.claude/plugins/cache/claude-plugins-official/rust-analyzer-lsp/1.0.0/bin:/Users/ja/.claude/plugins/cache/karpathy-skills/andrej-karpathy-skills/1.0.0/bin:/Users/ja/.claude/plugins/cache/claude-plugins-official/clangd-lsp/1.0.0/bin"
+   }
+  },
+  {
+   "mcp_enabled": true,
+   "upstreams": [
+    {
+     "id": "retrieval",
+     "command": [
+      "{server}",
+      "--root",
+      "{root}",
+      "--semantic-command",
+      "{semantic_command_json}",
+      "--timeout-seconds",
+      "120"
+     ],
+     "environment": {},
+     "visible_tools": [
+      "search_exact",
+      "read_source",
+      "find_callers",
+      "search_concept"
+     ],
+     "expected_upstream_tools": [
+      "search_exact",
+      "read_source",
+      "find_callers",
+      "search_concept"
+     ]
+    }
+   ],
+   "environment": {},
+   "prompt_policy": "Stopping rule. Every row this server returns is a verified source fact: it names a real definition with its file, and `counts`, `has_more` and the relation labels state how complete the listing is. When the rows you already hold contain every fact the question asks for, answer from them. Do not read a definition's source to confirm a row that already named it, do not repeat a lookup you have already made, and do not reconfirm one tool's rows with another tool. Retrieve again only when a required fact is missing, ambiguous, contradicted, or truncated - `has_more` true, or a count larger than the rows shown. If multiple visible symbols plausibly satisfy a requested fact, disambiguate between those candidates before answering. Do not expand merely to reconfirm a single unambiguous candidate. When you do read source, read the narrowest range that carries the missing fact.",
+   "prepare_commands": [],
+   "check_commands": [],
+   "version_command": null,
+   "id": "mcp-0155",
+   "server": "/Users/ja/dev/retrieval-study/runs/client-version-20260924/bin/retrieval-mcp"
+  },
+  {
+   "mcp_enabled": true,
+   "upstreams": [
+    {
+     "id": "retrieval",
+     "command": [
+      "{server}",
+      "--root",
+      "{root}",
+      "--semantic-command",
+      "{semantic_command_json}",
+      "--timeout-seconds",
+      "120"
+     ],
+     "environment": {},
+     "visible_tools": [
+      "search_exact",
+      "read_source",
+      "find_callers",
+      "search_concept"
+     ],
+     "expected_upstream_tools": [
+      "search_exact",
+      "read_source",
+      "find_callers",
+      "search_concept"
+     ]
+    }
+   ],
+   "environment": {},
+   "prompt_policy": "Stopping rule. Every row this server returns is a verified source fact: it names a real definition with its file, and `counts`, `has_more` and the relation labels state how complete the listing is. When the rows you already hold contain every fact the question asks for, answer from them. Do not read a definition's source to confirm a row that already named it, do not repeat a lookup you have already made, and do not reconfirm one tool's rows with another tool. Retrieve again only when a required fact is missing, ambiguous, contradicted, or truncated - `has_more` true, or a count larger than the rows shown. If multiple visible symbols plausibly satisfy a requested fact, disambiguate between those candidates before answering. Do not expand merely to reconfirm a single unambiguous candidate. When you do read source, read the narrowest range that carries the missing fact.",
+   "prepare_commands": [],
+   "check_commands": [],
+   "version_command": null,
+   "id": "mcp-0154",
+   "server": "/Users/ja/dev/retrieval-study/runs/client-version-20260924/bin/retrieval-mcp",
+   "agent_environment": {
+    "PATH": "/Users/ja/.claude/jobs/f3de7b43/tmp/codex154/bin:/Users/ja/.local/share/mise/installs/azure-cli/latest/bin:/Users/ja/.local/share/mise/installs/python/3.13/bin:/Users/ja/.local/share/mise/shims:/opt/homebrew/opt/postgresql@15/bin:/Users/ja/bin:/Users/ja/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/usr/local/share/dotnet:~/.dotnet/tools:/usr/local/go/bin:/opt/homebrew/bin:/opt/homebrew/opt/postgresql@15/bin:/Users/ja/bin:/Users/ja/.local/bin:/opt/homebrew/sbin:/Users/ja/.cargo/bin:/Users/ja/.orbstack/bin:/Users/ja/.orbstack/bin:/opt/homebrew/opt/fzf/bin:/Users/ja/.claude/plugins/cache/claude-plugins-official/rust-analyzer-lsp/1.0.0/bin:/Users/ja/.claude/plugins/cache/karpathy-skills/andrej-karpathy-skills/1.0.0/bin:/Users/ja/.claude/plugins/cache/claude-plugins-official/clangd-lsp/1.0.0/bin"
+   }
+  }
+ ]
+}
