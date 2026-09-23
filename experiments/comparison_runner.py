@@ -28,7 +28,7 @@ SYSTEM_FIELDS = {
 # A system may pin its own server binary so two versions of one server can be compared in one run.
 # An arm may pin its own server binary so two versions can be compared in one run, and it may
 # declare itself the oracle: the upper bound that says what the questions allow at all.
-OPTIONAL_SYSTEM_FIELDS = {"server", "oracle"}
+OPTIONAL_SYSTEM_FIELDS = {"server", "oracle", "agent_environment"}
 UPSTREAM_FIELDS = {"id", "command", "environment", "visible_tools", "expected_upstream_tools"}
 # The oracle seed names the files the answer lives in and never the symbols, because handing over
 # the symbol is handing over the answer. What is left is the within-file problem, which is where
@@ -88,7 +88,12 @@ def link_tree(source, destination, ignore):
     is governed by the directory bit, not the file's. This is still strictly tighter than the
     copies it replaces, which were writable throughout.
     """
-    shutil.copytree(source, destination, copy_function=os.link, ignore=ignore)
+    # `symlinks=True`, or the copy is not the corpus. django's epub theme symlinks four
+    # icons into the main theme; dereferencing them turns four links into four files, and
+    # `source_fingerprint` counts the copy as 6,826 entries against the source's 6,823 because
+    # ripgrep never enumerated the links on either side. The fingerprint guard caught it, which
+    # is what it is for.
+    shutil.copytree(source, destination, copy_function=os.link, ignore=ignore, symlinks=True)
     for path in destination.rglob("*"):
         if path.is_file() and not path.is_symlink():
             try:
@@ -615,6 +620,11 @@ def run(args):
             with (attempt / "transcript.jsonl").open("x") as stdout, \
                     (attempt / "client-stderr.log").open("x") as stderr:
                 agent_env = os.environ.copy()
+                # An arm may need the *client* configured differently, not just the server.
+                # `--agent-command` is one string for the whole run, so without this there is no
+                # way to give one arm a shell and deny it to another, and on Codex an MCP arm
+                # keeps its shell and the comparison is shell-plus-MCP against shell.
+                agent_env.update(expand(system.get("agent_environment") or {}, mapping))
                 variant = getattr(args, "variant", None)
                 if variant:
                     agent_env["COMPARISON_OPENCODE_VARIANT"] = variant

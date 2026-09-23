@@ -178,6 +178,13 @@ def main():
     command = ["codex", "exec", "--json", "--ignore-user-config", "--skip-git-repo-check",
                "--sandbox", "read-only", "--cd", os.getcwd(), "--model", model,
                "-c", "project_doc_max_bytes=0"]
+    # An MCP arm on this client keeps its shell unless it is taken away, so every Codex
+    # comparison in this record measures shell-plus-MCP against shell rather than MCP against
+    # shell. `shell_tool` is a stable feature flag and disabling it removes the tool: a session
+    # asked to run a command executes none and reports having no such tool. It is not free - the
+    # prompt prefix changes - so the arm that uses it has its prefix measured and recorded.
+    if os.environ.get("CODEX_DISABLE_SHELL") == "1":
+        command += ["--disable", "shell_tool"]
     if retrieval and retrieval.get("command"):
         command += ["-c", f"mcp_servers.retrieval.command={json.dumps(retrieval['command'])}",
                     "-c", "mcp_servers.retrieval.args=" + json.dumps(retrieval.get("args", []))]

@@ -79,6 +79,43 @@ class OracleArm(unittest.TestCase):
             self.plan(None)
 
 
+class AgentEnvironment(unittest.TestCase):
+    """An arm may need the client configured differently, not just the server.
+
+    `--agent-command` is one string for the whole run, so without a per-arm hook there is no way
+    to give one arm a shell and deny it to another - and on Codex that is the difference between
+    measuring MCP against shell and measuring shell-plus-MCP against shell.
+    """
+
+    def systems(self, extra):
+        base = {"id": "arm", "mcp_enabled": False, "upstreams": [], "environment": {},
+                "prompt_policy": "", "prepare_commands": [], "check_commands": [],
+                "version_command": None}
+        base.update(extra)
+        other = dict(base, id="other")
+        other.pop("agent_environment", None)
+        # load_systems requires a comparison, not a single arm.
+        return {"version": "comparison-systems-v2", "systems": [base, other]}
+
+    def load(self, document):
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "systems.json"
+            path.write_text(json.dumps(document), encoding="utf-8")
+            return comparison_runner.load_systems(path)
+
+    def test_the_field_is_accepted(self):
+        loaded = self.load(self.systems({"agent_environment": {"CODEX_DISABLE_SHELL": "1"}}))
+        self.assertEqual(loaded["systems"][0]["agent_environment"],
+                         {"CODEX_DISABLE_SHELL": "1"})
+
+    def test_an_arm_without_it_still_loads(self):
+        self.assertNotIn("agent_environment", self.load(self.systems({}))["systems"][0])
+
+    def test_an_unknown_field_is_still_refused(self):
+        with self.assertRaises(ValueError):
+            self.load(self.systems({"agent_enviroment": {"X": "1"}}))
+
+
 class QuestionCorpora(unittest.TestCase):
     def write(self, directory, tasks):
         path = Path(directory) / "suite.json"
