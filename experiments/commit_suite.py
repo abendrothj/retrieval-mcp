@@ -228,7 +228,7 @@ def names_target(message, identities):
     return any(word_pieces(identity.split("::")[-1]) & words for identity in identities)
 
 
-def leaks(message, identities):
+def leaks(message, identities, defined_names=None):
     """Whether the message hands over the answer, by symbol or by the file that holds it.
 
     `validate_suite.py` refuses a leaked target identifier, so the leaf check is mandatory. The
@@ -236,13 +236,22 @@ def leaks(message, identities):
     depending on internal `Streams` class" names the gold's own file, which leaves only "which
     method", and several arms answered it with zero retrieval calls. A question any arm can
     answer without retrieving measures nothing about retrieval and makes every arm look alike.
+
+    A file stem only counts when the corpus actually defines a symbol of that name. In Java the
+    stem is the class - "RuntimeTypeAdapterFactory" hands over the location - but in Python a
+    stem is usually a generic module word, and treating `parser.py` as a leak refused every
+    sqlglot issue that used the word "parser". `defined_names` is the grader's definition index
+    when the caller has one; without it the stem is trusted as distinctive, which is the older
+    behaviour and the right default for the one-file-per-class languages.
     """
     for identity in identities:
         path, _, _ = identity.partition("::")
-        leaf = identity.split("::")[-1]
+        tokens = [identity.split("::")[-1]]
         stem = Path(path).stem
-        for token in (leaf, stem):
-            if re.search(rf"(?<!\w){re.escape(token)}(?!\w)", message):
+        if defined_names is None or stem in defined_names:
+            tokens.append(stem)
+        for token in tokens:
+            if token and re.search(rf"(?<!\w){re.escape(token)}(?!\w)", message):
                 return True
     return False
 
