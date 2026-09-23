@@ -320,6 +320,61 @@ numbers rather than the comfortable half.
 ## Verification
 
 Every arXiv identifier in this file was checked against the arXiv API on 2026-09-23: all
-fourteen resolve, and the titles match what is cited here. Non-arXiv sources are graded
-`vendor` or `blog` in place and should be treated as weaker than the preprints, which are
-themselves weaker than the one peer-reviewed entry.
+sixteen resolve, and the titles and author lists below were fetched from that API rather than
+recalled. Non-arXiv sources are graded `vendor` or `blog` in place and should be treated as
+weaker than the preprints, which are themselves weaker than the peer-reviewed entry.
+
+One correction the check produced: LocAgent's 94.16% / 87.59% / 77.37% figures are measured on
+**SWE-Bench-Lite**, not on LOC-BENCH. LOC-BENCH is the benchmark that paper introduces, and no
+published per-arm number on it is cited here.
+
+## References
+
+### Preprints and papers
+
+- Reem Aleithan et al. (2024). *SWE-Bench+: Enhanced Coding Benchmark for LLMs*. arXiv:2410.06992. https://arxiv.org/abs/2410.06992
+- Zhaoling Chen et al. (2025). *LocAgent: Graph-Guided LLM Agents for Code Localization*. arXiv:2503.09089. https://arxiv.org/abs/2503.09089
+- Shuyang Cao et al. (2025). *Evaluating the Retrieval Robustness of Large Language Models*. arXiv:2505.21870. https://arxiv.org/abs/2505.21870
+- Xiang Fei, Xiawu Zheng, Hao Feng (2025). *MCP-Zero: Active Tool Discovery for Autonomous LLM Agents*. arXiv:2506.01056. https://arxiv.org/abs/2506.01056
+- Fei Lei et al. (2025). *MCPVerse: An Expansive, Real-World Benchmark for Agentic Tool Use*. arXiv:2508.16260. https://arxiv.org/abs/2508.16260
+- Zhenting Wang et al. (2025). *MCP-Bench: Benchmarking Tool-Using LLM Agents with Complex Real-World Tasks via MCP Servers*. arXiv:2508.20453. https://arxiv.org/abs/2508.20453
+- Wenhao Wang et al. (2025). *MCP-Flow: Facilitating LLM Agents to Master Real-World, Diverse and Scaling MCP Tools*. arXiv:2510.24284. https://arxiv.org/abs/2510.24284
+- Oorja Majgaonkar et al. (2025). *Understanding Code Agent Behaviour: An Empirical Study of Success and Failure Trajectories*. arXiv:2511.00197. https://arxiv.org/abs/2511.00197
+- Zixiang Liu et al. (2025). *MCPAgentBench: A Real-world Task Benchmark for Evaluating LLM Agent MCP Tool Use*. arXiv:2512.24565. https://arxiv.org/abs/2512.24565
+- Benjamin Rombaut (2026). *Inside the Scaffold: A Source-Code Taxonomy of Coding Agent Architectures*. arXiv:2604.03515. https://arxiv.org/abs/2604.03515
+- Xuying Ning et al. (2026). *Code as Agent Harness*. arXiv:2605.18747. https://arxiv.org/abs/2605.18747
+- Fuwei Zhang et al. (2026). *CORE-Bench: A Comprehensive Benchmark for Code Retrieval in the Era of Agentic Coding*. arXiv:2606.11864. https://arxiv.org/abs/2606.11864
+- Bowen Qin, Yi Xie (2026). *Agent Retrieval Bench: Evaluating Repository Context Retrieval for Coding Agents*. arXiv:2607.24882. https://arxiv.org/abs/2607.24882
+- Wuya Chen et al. (2026). *CodeGrep: An RL-Trained Retrieval Agent for LLM Coding Agents*. arXiv:2608.05886. https://arxiv.org/abs/2608.05886
+- Hazel Mak et al. (2026). *Is Bash All You Need? An Empirical Study of Tool Interfaces for Enterprise Digital Worker Agents*. arXiv:2609.11999. https://arxiv.org/abs/2609.11999
+- Harish Gaggar (2026). *Protocol-Preserving Context Trimming for Agentic Workflows: Benefits, Failure Regimes, and Budget Guardrails*. arXiv:2609.16461. https://arxiv.org/abs/2609.16461
+
+### Datasets and artifacts
+
+- LOC-BENCH V1. `czlll/Loc-Bench_V1`. https://huggingface.co/datasets/czlll/Loc-Bench_V1
+  — 560 localisation instances, `edit_functions` as `path:Class.method`, filtered by its authors
+  to function-level edits. The suite this project now compiles from.
+- LocAgent, ACL 2025 version. https://aclanthology.org/2025.acl-long.426.pdf
+
+### Vendor and independent writing
+
+Weaker evidence, cited where it is the only source or where the claim is about a product's own
+behaviour.
+
+- Anthropic Engineering. *Code execution with MCP: building more efficient agents*.
+  https://www.anthropic.com/engineering/code-execution-with-mcp — the 98.7% figure and the six
+  mechanisms in section 5.
+- swebench-localization. https://github.com/hammas159/swebench-localization — the 51.3% /
+  48.3% / 38.0% file-mention analysis in section 2. Method stated and reproducible; not reviewed.
+- Checkly. *MCP vs CLI: are CLIs really more token-efficient?*
+  https://www.checklyhq.com/blog/mcp-vs-cli-token-efficiency/ — and MindStudio,
+  https://www.mindstudio.ai/blog/reduce-token-usage-ai-agents-mcp-optimization — the 35x and
+  275x claims disputed in section 6.
+- Maxim. *How to reduce MCP tool-call token costs 50%+ with code mode*.
+  https://www.getmaxim.ai/articles/how-to-reduce-mcp-tool-call-token-costs-50-with-code-mode/
+- Arize. *Context management in agent harnesses*.
+  https://arize.com/blog/context-management-in-agent-harnesses/ — and Redis,
+  https://redis.io/blog/context-compaction/ — the truncation / compaction / summarisation ladder
+  in section 7.
+- mcp-batchit. https://github.com/ryanjoachim/mcp-batchit — batching several tool calls into one
+  request.
