@@ -1,0 +1,577 @@
+[
+ {
+  "id": "yt-dlp__yt-dlp-11751",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "[youtube] player `3bb1f723`: Signature extraction failed: Some formats may be missing\n### DO NOT REMOVE OR SKIP THE ISSUE TEMPLATE\r\n\r\n- [X] I understand that I will be **blocked** if I *intentionally* remove or skip any mandatory\\* field\r\n\r\n### Checklist\r\n\r\n- [X] I'm reporting that yt-dlp is broken on a **supported** site\r\n- [X] I've verified that I have **updated yt-dlp to nightly or master** ([update instructions](https://github.com/yt-dlp/yt-dlp#update-channels))\r\n- [X] I've checked that all provided URLs are playable in a browser with the same IP and same login details\r\n- [X] I've checked that all URLs and arguments with special characters are [properly quoted or escaped](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#video-url-contains-an-ampersand--and-im-getting-some-strange-output-1-2839-or-v-is-not-recognized-as-an-internal-or-external-command)\r\n- [X] I've searched [known issues](https://github.com/yt-dlp/yt-dlp/issues/3766) and the [bugtracker](https://github.com/yt-dlp/yt-dlp/issues?q=) for similar issues **including closed ones**. DO NOT post duplicates\r\n- [X] I've read the [guidelines for opening an issue](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#opening-an-issue)\r\n- [X] I've read about [sharing account credentials](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#are-you-willing-to-share-account-details-if-needed) and I'm willing to share it if required\r\n\r\n### Region\r\n\r\nUSA\r\n\r\n### Provide a description that is worded well enough to be understood\r\n\r\nim using the nightly build with a system config file. that is it.\r\n\r\nthe config file contents are: \r\n```\r\n$ cat /etc/yt-dlp.conf\r\n\r\n--cookies /home/ubuntu/PycharmProjects/cookiesRefresher/cookies.txt\r\n```\r\n\r\nthe cookie file is refreshed every 24 hours and uses a dummy google account.\r\n\r\nthis setup used to work less than a week ago but now is broken. i havent changed anything. \r\ntoday google asked me to verify this acoount. i verfied with a phone number and i was able to play videos on the same machine on a firefox browser.\r\n\r\nyt-dlp version and debug info:\r\n```\r\n$  yt-dlp -vU\r\n[debug] Command-line config: ['-vU']\r\n[debug] System config \"/etc/yt-dlp.conf\": ['--cookies', '/home/ubuntu/PycharmProjects/cookiesRefresher/cookies.txt']\r\n[debug] Encodings: locale UTF-8, fs utf-8, pref UTF-8, out utf-8, error utf-8, screen utf-8\r\n[debug] yt-dlp version nightly@2024.12.04.232942 from yt-dlp/yt-dlp-nightly-builds [fca3eb5f8]\r\n[debug] Python 3.12.3 (CPython aarch64 64bit) - Linux-6.8.0-1016-oracle-aarch64-with-glibc2.39 (OpenSSL 3.0.13 30 Jan 2024, glibc 2.39)\r\n[debug] exe versions: ffmpeg 6.1.1 (setts), ffprobe 6.1.1\r\n[debug] Optional libraries: Cryptodome-3.21.0, brotli-1.1.0, certifi-2024.08.30, mutagen-1.47.0, requests-2.32.3, sqlite3-3.45.1, urllib3-2.2.3, websockets-14.1\r\n[debug] Proxy map: {}\r\n[debug] Request Handlers: urllib, requests, websockets\r\n[debug] Loaded 1837 extractors\r\n[debug] Fetching release info: https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest\r\nLatest version: nightly@2024.12.04.232942 from yt-dlp/yt-dlp-nightly-builds\r\nyt-dlp is up to date (nightly@2024.12.04.232942 from yt-dlp/yt-dlp-nightly-builds)\r\n```\r\n\r\nwhen attempting to download a video:\r\n\r\n```\r\nyt-dlp https://www.youtube.com/watch?v=yaie5Uia4k8 -vU\r\n[debug] Command-line config: ['https://www.youtube.com/watch?v=yaie5Uia4k8', '-vU']\r\n[debug] System config \"/etc/yt-dlp.conf\": ['--cookies', '/home/ubuntu/PycharmProjects/cookiesRefresher/cookies.txt']\r\n[debug] Encodings: locale UTF-8, fs utf-8, pref UTF-8, out utf-8, error utf-8, screen utf-8\r\n[debug] yt-dlp version nightly@2024.12.04.232942 from yt-dlp/yt-dlp-nightly-builds [fca3eb5f8]\r\n[debug] Python 3.12.3 (CPython aarch64 64bit) - Linux-6.8.0-1016-oracle-aarch64-with-glibc2.39 (OpenSSL 3.0.13 30 Jan 2024, glibc 2.39)\r\n[debug] exe versions: ffmpeg 6.1.1 (setts), ffprobe 6.1.1\r\n[debug] Optional libraries: Cryptodome-3.21.0, brotli-1.1.0, certifi-2024.08.30, mutagen-1.47.0, requests-2.32.3, sqlite3-3.45.1, urllib3-2.2.3, websockets-14.1\r\n[debug] Proxy map: {}\r\n[debug] Request Handlers: urllib, requests, websockets\r\n[debug] Loaded 1837 extractors\r\n[debug] Fetching release info: https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest\r\nLatest version: nightly@2024.12.04.232942 from yt-dlp/yt-dlp-nightly-builds\r\nyt-dlp is up to date (nightly@2024.12.04.232942 from yt-dlp/yt-dlp-nightly-builds)\r\n[youtube] Extracting URL: https://www.youtube.com/watch?v=yaie5Uia4k8\r\n[youtube] yaie5Uia4k8: Downloading webpage\r\n[debug] [youtube] Extracted SAPISID cookie\r\n[youtube] yaie5Uia4k8: Downloading web creator player API JSON\r\n[youtube] yaie5Uia4k8: Downloading mweb player API JSON\r\n[debug] [youtube] Extracting signature function js_3bb1f723_106\r\n[youtube] yaie5Uia4k8: Downloading player 3bb1f723\r\nWARNING: [youtube] yaie5Uia4k8: Signature extraction failed: Some formats may be missing\r\n[debug] [youtube] Could not find JS function \"decodeURIComponent\"; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\r\n[debug] [youtube] Extracting signature function js_3bb1f723_110\r\nWARNING: Only images are available for download. use --list-formats to see them\r\n[debug] Sort order given by extractor: quality, res, fps, hdr:12, source, vcodec, channels, acodec, lang, proto\r\n[debug] Formats sorted by: hasvid, ie_pref, quality, res, fps, hdr:12(7), source, vcodec, channels, acodec, lang, proto, size, br, asr, vext, aext, hasaud, id\r\n[debug] Default format spec: bestvideo*+bestaudio/best\r\nERROR: [youtube] yaie5Uia4k8: Requested format is not available. Use --list-formats for a list of available formats\r\nTraceback (most recent call last):\r\n  File \"/home/ubuntu/.local/pipx/venvs/yt-dlp/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 1624, in wrapper\r\n    return func(self, *args, **kwargs)\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/home/ubuntu/.local/pipx/venvs/yt-dlp/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 1780, in __extract_info\r\n    return self.process_ie_result(ie_result, download, extra_info)\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/home/ubuntu/.local/pipx/venvs/yt-dlp/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 1839, in process_ie_result\r\n    ie_result = self.process_video_result(ie_result, download=download)\r\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/home/ubuntu/.local/pipx/venvs/yt-dlp/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 2973, in process_video_result\r\n    raise ExtractorError(\r\nyt_dlp.utils.ExtractorError: [youtube] yaie5Uia4k8: Requested format is not available. Use --list-formats for a list of available formats\r\n\r\n```\r\n\r\n\r\nattempting to download the same video while ignoring the config fie:\r\n\r\n```\r\n$ yt-dlp https://www.youtube.com/watch?v=e8i32DH5rhQ --ignore-config -vU\r\n[debug] Command-line config: ['https://www.youtube.com/watch?v=e8i32DH5rhQ', '--ignore-config', '-vU']\r\n[debug] Encodings: locale UTF-8, fs utf-8, pref UTF-8, out utf-8, error utf-8, screen utf-8\r\n[debug] yt-dlp version nightly@2024.12.04.232942 from yt-dlp/yt-dlp-nightly-builds [fca3eb5f8]\r\n[debug] Python 3.12.3 (CPython aarch64 64bit) - Linux-6.8.0-1016-oracle-aarch64-with-glibc2.39 (OpenSSL 3.0.13 30 Jan 2024, glibc 2.39)\r\n[debug] exe versions: ffmpeg 6.1.1 (setts), ffprobe 6.1.1\r\n[debug] Optional libraries: Cryptodome-3.21.0, brotli-1.1.0, certifi-2024.08.30, mutagen-1.47.0, requests-2.32.3, sqlite3-3.45.1, urllib3-2.2.3, websockets-14.1\r\n[debug] Proxy map: {}\r\n[debug] Request Handlers: urllib, requests, websockets\r\n[debug] Loaded 1837 extractors\r\n[debug] Fetching release info: https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest\r\nLatest version: nightly@2024.12.04.232942 from yt-dlp/yt-dlp-nightly-builds\r\nyt-dlp is up to date (nightly@2024.12.04.232942 from yt-dlp/yt-dlp-nightly-builds)\r\n[youtube] Extracting URL: https://www.youtube.com/watch?v=e8i32DH5rhQ\r\n[youtube] e8i32DH5rhQ: Downloading webpage\r\n[youtube] e8i32DH5rhQ: Downloading ios player API JSON\r\n[youtube] e8i32DH5rhQ: Downloading mweb player API JSON\r\nERROR: [youtube] e8i32DH5rhQ: Sign in to confirm you\u2019re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies. Also see  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies  for tips on effectively exporting YouTube cookies\r\n  File \"/home/ubuntu/.local/pipx/venvs/yt-dlp/lib/python3.12/site-packages/yt_dlp/extractor/common.py\", line 742, in extract\r\n    ie_result = self._real_extract(url)\r\n                ^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/home/ubuntu/.local/pipx/venvs/yt-dlp/lib/python3.12/site-packages/yt_dlp/extractor/youtube.py\", line 4478, in _real_extract\r\n    self.raise_no_formats(reason, expected=True)\r\n  File \"/home/ubuntu/.local/pipx/venvs/yt-dlp/lib/python3.12/site-packages/yt_dlp/extractor/common.py\", line 1276, in raise_no_formats\r\n    raise ExtractorError(msg, expected=expected, video_id=video_id)\r\n\r\n```\r\n\r\n### Provide verbose output that clearly demonstrates the problem\r\n\r\n- [X] Run **your** yt-dlp command with **-vU** flag added (`yt-dlp -vU <your command line>`)\r\n- [ ] If using API, add `'verbose': True` to `YoutubeDL` params instead\r\n- [X] Copy the WHOLE output (starting with `[debug] Command-line config`) and insert it below\r\n\r\n### Complete Verbose Output\r\n\r\n```shell\r\nyt-dlp https://www.youtube.com/watch?v=yaie5Uia4k8 -vU\r\n[debug] Command-line config: ['https://www.youtube.com/watch?v=yaie5Uia4k8', '-vU']\r\n[debug] System config \"/etc/yt-dlp.conf\": ['--cookies', '/home/ubuntu/PycharmProjects/cookiesRefresher/cookies.txt']\r\n[debug] Encodings: locale UTF-8, fs utf-8, pref UTF-8, out utf-8, error utf-8, screen utf-8\r\n[debug] yt-dlp version nightly@2024.12.04.232942 from yt-dlp/yt-dlp-nightly-builds [fca3eb5f8]\r\n[debug] Python 3.12.3 (CPython aarch64 64bit) - Linux-6.8.0-1016-oracle-aarch64-with-glibc2.39 (OpenSSL 3.0.13 30 Jan 2024, glibc 2.39)\r\n[debug] exe versions: ffmpeg 6.1.1 (setts), ffprobe 6.1.1\r\n[debug] Optional libraries: Cryptodome-3.21.0, brotli-1.1.0, certifi-2024.08.30, mutagen-1.47.0, requests-2.32.3, sqlite3-3.45.1, urllib3-2.2.3, websockets-14.1\r\n[debug] Proxy map: {}\r\n[debug] Request Handlers: urllib, requests, websockets\r\n[debug] Loaded 1837 extractors\r\n[debug] Fetching release info: https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest\r\nLatest version: nightly@2024.12.04.232942 from yt-dlp/yt-dlp-nightly-builds\r\nyt-dlp is up to date (nightly@2024.12.04.232942 from yt-dlp/yt-dlp-nightly-builds)\r\n[youtube] Extracting URL: https://www.youtube.com/watch?v=yaie5Uia4k8\r\n[youtube] yaie5Uia4k8: Downloading webpage\r\n[debug] [youtube] Extracted SAPISID cookie\r\n[youtube] yaie5Uia4k8: Downloading web creator player API JSON\r\n[youtube] yaie5Uia4k8: Downloading mweb player API JSON\r\n[debug] [youtube] Extracting signature function js_3bb1f723_110\r\n[youtube] yaie5Uia4k8: Downloading player 3bb1f723\r\nWARNING: [youtube] yaie5Uia4k8: Signature extraction failed: Some formats may be missing\r\n[debug] [youtube] Could not find JS function \"decodeURIComponent\"; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\r\n[debug] [youtube] Extracting signature function js_3bb1f723_106\r\nWARNING: Only images are available for download. use --list-formats to see them\r\n[debug] Sort order given by extractor: quality, res, fps, hdr:12, source, vcodec, channels, acodec, lang, proto\r\n[debug] Formats sorted by: hasvid, ie_pref, quality, res, fps, hdr:12(7), source, vcodec, channels, acodec, lang, proto, size, br, asr, vext, aext, hasaud, id\r\n[debug] Default format spec: bestvideo*+bestaudio/best\r\nERROR: [youtube] yaie5Uia4k8: Requested format is not available. Use --list-formats for a list of available formats\r\nTraceback (most recent call last):\r\n  File \"/home/ubuntu/.local/pipx/venvs/yt-dlp/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 1624, in wrapper\r\n    return func(self, *args, **kwargs)\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/home/ubuntu/.local/pipx/venvs/yt-dlp/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 1780, in __extract_info\r\n    return self.process_ie_result(ie_result, download, extra_info)\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/home/ubuntu/.local/pipx/venvs/yt-dlp/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 1839, in process_ie_result\r\n    ie_result = self.process_video_result(ie_result, download=download)\r\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/home/ubuntu/.local/pipx/venvs/yt-dlp/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 2973, in process_video_result\r\n    raise ExtractorError(\r\nyt_dlp.utils.ExtractorError: [youtube] yaie5Uia4k8: Requested format is not available. Use --list-formats for a list of available formats\r\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "yt_dlp/extractor/youtube.py::YoutubeIE::_parse_sig_js"
+  },
+  "rejected_alternates": [
+   "yt_dlp/extractor/youtube.py::_split_innertube_client",
+   "yt_dlp/extractor/youtube.py::short_client_name",
+   "yt_dlp/extractor/youtube.py::build_innertube_clients"
+  ],
+  "evidence": [
+   {
+    "path": "yt_dlp/extractor/youtube.py",
+    "contains": "def _parse_sig_js(self, jscode):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11751 (yt-dlp/yt-dlp @ fca3eb5f8), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11751",
+  "covariates": {
+   "repo": "yt-dlp/yt-dlp",
+   "base_commit": "fca3eb5f8be08d5fab2e18b45b7281a12e566725",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": false,
+   "statement_chars": 13170,
+   "corpus_fingerprint": {
+    "sha256": "4f5cfebf4f254b3e861d9de2813665e4148aabff3e7dc08a3e1e2cd66850da12",
+    "files": 1233
+   }
+  }
+ },
+ {
+  "id": "yt-dlp__yt-dlp-11438",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "Bug in Native AES code causes chrome cookie extraction to fail\n### DO NOT REMOVE OR SKIP THE ISSUE TEMPLATE\n\n- [X] I understand that I will be **blocked** if I *intentionally* remove or skip any mandatory\\* field\n\n### Checklist\n\n- [X] I'm reporting a bug unrelated to a specific site\n- [X] I've verified that I have **updated yt-dlp to nightly or master** ([update instructions](https://github.com/yt-dlp/yt-dlp#update-channels))\n- [X] I've checked that all provided URLs are playable in a browser with the same IP and same login details\n- [X] I've checked that all URLs and arguments with special characters are [properly quoted or escaped](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#video-url-contains-an-ampersand--and-im-getting-some-strange-output-1-2839-or-v-is-not-recognized-as-an-internal-or-external-command)\n- [X] I've searched [known issues](https://github.com/yt-dlp/yt-dlp/issues/3766) and the [bugtracker](https://github.com/yt-dlp/yt-dlp/issues?q=) for similar issues **including closed ones**. DO NOT post duplicates\n- [X] I've read the [guidelines for opening an issue](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#opening-an-issue)\n\n### Provide a description that is worded well enough to be understood\n\nThe Native AES code has a bug causing chromium cookie decryption to fail. This affects yt-dlp installs without pycryptodomex, like the py2exe builds.\n\n### Provide verbose output that clearly demonstrates the problem\n\n- [X] Run **your** yt-dlp command with **-vU** flag added (`yt-dlp -vU <your command line>`)\n- [ ] If using API, add `'verbose': True` to `YoutubeDL` params instead\n- [X] Copy the WHOLE output (starting with `[debug] Command-line config`) and insert it below\n\n### Complete Verbose Output\n\n```shell\n[debug] Command-line config: ['-v', '--cookies-from-browser', 'chromium']\r\n[debug] Encodings: locale cp1252, fs utf-8, pref cp1252, out utf-8, error utf-8, screen utf-8\r\n[debug] yt-dlp version nightly@2024.06.11.232712 from yt-dlp/yt-dlp-nightly-builds [add96eb9f] (pip)\r\n[debug] Python 3.12.3 (CPython AMD64 64bit) - Windows-11-10.0.22631-SP0 (OpenSSL 3.0.13 30 Jan 2024)\r\n[debug] exe versions: ffmpeg 7.0.1-full_build-www.gyan.dev (setts), ffprobe 7.0.1-full_build-www.gyan.dev, phantomjs 2.5.0, rtmpdump 2.4\r\n[debug] Optional libraries: sqlite3-3.45.1\r\n[debug] Proxy map: {}\r\nExtracting cookies from chromium\r\n[debug] Extracting cookies from: \"C:\\Users\\User\\AppData\\Local\\Chromium\\User Data\\Default\\Network\\Cookies\"\r\n[debug] Found local state file at \"C:\\Users\\User\\AppData\\Local\\Chromium\\User Data\\Local State\"\r\n[Cookies] Loading cookie      0/  3702WARNING: failed to decrypt cookie (AES-GCM) because the MAC check failed. Possibly the key is wrong?\r\nExtracted 3077 cookies from chromium (380 could not be decrypted)\r\n[debug] cookie version breakdown: {'v10': 3592, 'other': 0, 'unencrypted': 110}\r\n[debug] Request Handlers: urllib\r\n[debug] Loaded 1820 extractors\r\n\r\nUsage: __main__.py [OPTIONS] URL [URL...]\r\n\r\n__main__.py: error: You must provide at least one URL.\r\nType yt-dlp --help to see a list of all options.\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "yt_dlp/aes.py::aes_gcm_decrypt_and_verify"
+  },
+  "rejected_alternates": [
+   "yt_dlp/aes.py::aes_cbc_decrypt_bytes",
+   "yt_dlp/aes.py::aes_gcm_decrypt_and_verify_bytes",
+   "yt_dlp/aes.py::aes_cbc_encrypt_bytes"
+  ],
+  "evidence": [
+   {
+    "path": "yt_dlp/aes.py",
+    "contains": "def aes_gcm_decrypt_and_verify(data, key, tag, nonce):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11438 (yt-dlp/yt-dlp @ a6783a3b9), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11438",
+  "covariates": {
+   "repo": "yt-dlp/yt-dlp",
+   "base_commit": "a6783a3b9905e547f6c1d4df9d7c7999feda8afa",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 3078,
+   "corpus_fingerprint": {
+    "sha256": "62e53d8839183c1b2437e9480936d9dd905150c509d14323d981bf8c61caf8e5",
+    "files": 1231
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-4480",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "Wrong result for transpiling `OVER (ORDER BY .. )` from `trino` to `bigquery` \n**Fully reproducible code snippet**\r\nIt can be reproduced by the following code:\r\n```python\r\nimport sqlglot\r\n\r\nsql = \"\"\"\r\nWITH t1 as (\r\n  select 1 f1, 2 f2 union all select 2 f1, 4 f2 union all select 3 f1, 6 f2\r\n)\r\nselect sum(f1) over (order by f2) from t1;\r\n\"\"\"\r\nresult = sqlglot.transpile(sql, read=\"trino\", write=\"bigquery\")[0]\r\nprint(result)\r\n# the output is\r\n# WITH t1 AS (SELECT 1 AS f1, 2 AS f2 UNION ALL SELECT 2 AS f1, 4 AS f2 UNION ALL SELECT 3 AS f1, 6 AS f2)\r\n# SELECT SUM(f1) OVER (ORDER BY f2 NULLS LAST) FROM t1\r\n```\r\nThis SQL isn't valid for BigQuery. It will get the error message from BigQuery:\r\n```\r\nNULLS LAST not supported with ascending sort order in RANGE clauses of analytic functions.\r\n```\r\nIt seems that `NULLS LAST` shouldn't be added in the `OVER` clause.\r\n\r\nIf I don't assign the `read` dialect, it works well.\r\n```python\r\nimport sqlglot\r\n\r\nsql = \"\"\"\r\nWITH t1 as (\r\n  select 1 f1, 2 f2 union all select 2 f1, 4 f2 union all select 3 f1, 6 f2\r\n)\r\nselect sum(f1) over (order by f2) from t1;\r\n\"\"\"\r\nresult = sqlglot.transpile(sql, read=None, write=\"bigquery\")[0]\r\nprint(result)\r\n# WITH t1 AS (SELECT 1 AS f1, 2 AS f2 UNION ALL SELECT 2 AS f1, 4 AS f2 UNION ALL SELECT 3 AS f1, 6 AS f2)\r\n# SELECT SUM(f1) OVER (ORDER BY f2) FROM t1\r\n```\r\n\r\n**Official Documentation**\r\n[Window function syntax](https://cloud.google.com/bigquery/docs/reference/standard-sql/window-function-calls#syntax)\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/generator.py::Generator::ordered_sql"
+  },
+  "rejected_alternates": [
+   "sqlglot/generator.py::unsupported_args",
+   "sqlglot/generator.py::decorator",
+   "sqlglot/generator.py::_func"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/generator.py",
+    "contains": "def ordered_sql(self, expression: exp.Ordered) -> str:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-4480 (tobymao/sqlglot @ 41c6d24c9), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-4480",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "41c6d24c99e130b3c8e35e348a25a59e9e3d5553",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 1488,
+   "corpus_fingerprint": {
+    "sha256": "9dc58e50840dad2369dc7637cebf7c5b344e2a1154438a3f2ee1f3302734df21",
+    "files": 306
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-4415",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "User defined function recognized as column (Snowflake dialect)\nThis query:\r\n`select COL1,COL2 from some_table,TABLE(SOME_DB.SOME_SCHEMA.TABLE_FUNC(value1, value2) over (PARTITION BY value1))`\r\n`p = sqlglot.parse_one(query, dialect=sqlglot.Dialects.SNOWFLAKE)`\r\ncreates this ast:\r\n`Select(\r\n  expressions=[\r\n    Column(\r\n      this=Identifier(this=COL1, quoted=False)),\r\n    Column(\r\n      this=Identifier(this=COL2, quoted=False))],\r\n  from=From(\r\n    this=Table(\r\n      this=Identifier(this=some_table, quoted=False))),\r\n  joins=[\r\n    Join(\r\n      this=Table(\r\n        this=Anonymous(\r\n          this=TABLE,\r\n          expressions=[\r\n            Column(\r\n              this=Window(\r\n                this=Anonymous(\r\n                  this=TABLE_FUNC,\r\n                  expressions=[\r\n                    Column(\r\n                      this=Identifier(this=value1, quoted=False)),\r\n                    Column(\r\n                      this=Identifier(this=value2, quoted=False))]),\r\n                partition_by=[\r\n                  Column(\r\n                    this=Identifier(this=value1, quoted=False))],\r\n                over=OVER),\r\n              table=Identifier(this=SOME_SCHEMA, quoted=False),\r\n              db=Identifier(this=SOME_DB, quoted=False))])))])`\r\n\r\nInside the anonymous TABLE (which is also a function that returns values as a table you can select on) we can see the expressions contain only one expression which should be another function but is recognized as a Column.\r\n\r\nVerified this still happens on 25.31.4.\r\ndialect: Snowflake\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/parser.py::Parser::_parse_column_ops"
+  },
+  "rejected_alternates": [
+   "sqlglot/parser.py::build_var_map",
+   "sqlglot/parser.py::build_like",
+   "sqlglot/parser.py::binary_range_parser"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/parser.py",
+    "contains": "def _parse_column_ops(self, this: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-4415 (tobymao/sqlglot @ 122ef5f41), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-4415",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "122ef5f41c4e29347026a81e6f6460ccf8e910ed",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 1554,
+   "corpus_fingerprint": {
+    "sha256": "7a9f63363fceaf3f2387646f52b98cab30ad24b68061aa8f1b233ee48986e89c",
+    "files": 306
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-4390",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "Simple query, wrong tables list\nVery simple query, wrong tables list! it considers `activity_id` as a table!\r\n\r\n```python\r\nsql='ALTER TABLE ride DROP COLUMN activity_id'\r\nlist(sqlglot.parse_one(sql, read='mysql').find_all(sqlglot.exp.Table))\r\n# list(sqlglot.parse_one(sql, read='mysql').find_all(sqlglot.exp.Table))\r\n#  0 = {Table} Table(\\n  this=Identifier(this=ride, quoted=False))\r\n#  1 = {Table} Table(\\n  this=Identifier(this=activity_id, quoted=False))\r\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/parser.py::Parser::_parse_drop"
+  },
+  "rejected_alternates": [
+   "sqlglot/parser.py::build_var_map",
+   "sqlglot/parser.py::build_like",
+   "sqlglot/parser.py::binary_range_parser"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/parser.py",
+    "contains": "def _parse_drop(self, exists: bool = False) -> exp.Drop | exp.Command:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-4390 (tobymao/sqlglot @ e7b67e0c2), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-4390",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "e7b67e0c280179188ce1bca650735978b758dca1",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 463,
+   "corpus_fingerprint": {
+    "sha256": "25b47af8d4d50d3153d71bcd87233fc53c5cf6c80fd588944d2a913071b5a070",
+    "files": 306
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-4366",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "BUG(duckdb): Compiling STRUCTs throws away field name info, which is sometimes needed\n**Fully reproducible code snippet**\r\n```python\r\nimport sqlglot\r\nprint(sqlglot.__version__)\r\n# 25.28.1.dev12\r\n\r\ninp = \"\"\"SELECT CAST({'i':1, 's':'foo'} AS STRUCT(\"s\" TEXT, \"i\" INT));\"\"\"\r\ne = sqlglot.parse_one(inp, \"duckdb\")\r\nactual = e.sql(\"duckdb\")\r\nprint(actual)\r\n# SELECT CAST(ROW(1, 'foo') AS STRUCT(\"s\" TEXT, \"i\" INT));\r\n```\r\n\r\nIf you run `actual` on https://shell.duckdb.org/, you get \"Conversion Error: Could not convert string 'foo' to INT32\".\r\nThis is because the names of the fields is important, and the simple `(ROW(1, 'foo')` that is currently given as output isn't adequate for this usage.\r\n\r\nI would expect that `actual == inp`. I think this should work even if the struct values are columns instead of literals, eg `{'i':my_int_col, 's':my_str_col}` should roundtrip exactly.\r\n\r\nI originally found this in [this ibis issue](https://github.com/ibis-project/ibis/issues/10417), but I think this should be fixed at the sqlglot level. Curious if you will agree.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/dialects/duckdb.py::_struct_sql"
+  },
+  "rejected_alternates": [
+   "sqlglot/dialects/duckdb.py::_date_delta_sql",
+   "sqlglot/dialects/duckdb.py::_date_sql",
+   "sqlglot/dialects/duckdb.py::_timediff_sql"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/dialects/duckdb.py",
+    "contains": "def _struct_sql(self: DuckDB.Generator, expression: exp.Struct) -> str:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-4366 (tobymao/sqlglot @ 79c675a49), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-4366",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "79c675a49fb44a6a7a97ea0de79822d8571724be",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 1058,
+   "corpus_fingerprint": {
+    "sha256": "4c93a5e7622acc63244603d4764c407b33bb3c5c135a53019c31c243c01855fb",
+    "files": 306
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-3901",
+  "category": "Performance Issue",
+  "set": "holdout",
+  "question": "Parsing APPLY doubles execution time per APPLY statement\nSQLGlot versions: tested with 25.9.0 and 25.8.1\r\n\r\nDialect: \"tsql\" \r\nDescription: When parsing SQL using an APPLY statement, each successive APPLY seems to double parsing time.\r\n\r\nI was parsing a (really badly written) SQL query and noticed my code sort of just stopped. I realized that the query had an excessive number of APPLY statements (a really ridiculous number). I broke it down and wrote a dummy query where I slowly started adding apply statements one by one and noticed the query times doubled every time I added an APPLY statement.\r\n\r\nSome quick numbers slowly adding 0..15 APPLY statements to the query:\r\n\r\n- Testing with 0 APPLY statements\r\n- test_apply executed in 0.001636 seconds\r\n- Testing with 1 APPLY statements\r\n- test_apply executed in 0.002330 seconds\r\n- Testing with 2 APPLY statements\r\n- test_apply executed in 0.004563 seconds\r\n- Testing with 3 APPLY statements\r\n- test_apply executed in 0.009903 seconds\r\n- Testing with 4 APPLY statements\r\n- test_apply executed in 0.019378 seconds\r\n- Testing with 5 APPLY statements\r\n- test_apply executed in 0.035283 seconds\r\n- Testing with 6 APPLY statements\r\n- test_apply executed in 0.065637 seconds\r\n- Testing with 7 APPLY statements\r\n- test_apply executed in 0.128544 seconds\r\n- Testing with 8 APPLY statements\r\n- test_apply executed in 0.258765 seconds\r\n- Testing with 9 APPLY statements\r\n- test_apply executed in 0.499099 seconds\r\n- Testing with 10 APPLY statements\r\n- test_apply executed in 1.008456 seconds\r\n- Testing with 11 APPLY statements\r\n- test_apply executed in 2.009916 seconds\r\n- Testing with 12 APPLY statements\r\n- test_apply executed in 3.927725 seconds\r\n- Testing with 13 APPLY statements\r\n- test_apply executed in 7.998525 seconds\r\n- Testing with 14 APPLY statements\r\n- test_apply executed in 16.154987 seconds\r\n- Testing with 15 APPLY statements\r\n- test_apply executed in 31.792223 seconds\r\n\r\n\r\nEach time I add one more APPLY, it takes 2x longer than the prior run.\r\n\r\nI'm attaching my sample \"apply generator\" that just spins out N APPLY blocks and does some very basic timing.\r\n\r\n\r\n```\r\nfrom sqlglot import parse_one\r\nimport time\r\n\r\nnum_apply = 15\r\n\r\ndef generate_apply(apply_n=0):\r\n\r\n    apply_template = \"\"\"\r\n        OUTER APPLY (\r\n            SELECT TOP 1\r\n                *\r\n            FROM my_other_catalog.my_other_schema.my_other_table_{i} b\r\n            WHERE\r\n                b.id = a.id\r\n        ORDER BY\r\n            b.a_date desc\r\n        ) b{i}\r\n    \"\"\"\r\n    apply = \"\"\r\n    for i in range(apply_n):\r\n        apply = apply + eval(f'f\"\"\"{apply_template}\"\"\"')\r\n\r\n    query_template = f\"\"\"\r\n    SELECT\r\n        *\r\n    FROM\r\n        my_catalog.my_schema.my_table a\r\n    {apply}\r\n    \"\"\"\r\n\r\n    return query_template\r\n\r\ndef timing_decorator(func):\r\n    def wrapper(*args, **kwargs):\r\n        start_time = time.time()\r\n        result = func(*args, **kwargs)\r\n        end_time = time.time()\r\n        print(f\"{func.__name__} executed in {end_time - start_time:.6f} seconds\")\r\n        return result\r\n    return wrapper\r\n\r\n@timing_decorator\r\ndef test_apply(sql):\r\n    x = parse_one(sql=sql, dialect=\"tsql\")\r\n\r\nfor i in range(num_apply+1):\r\n    sql = generate_apply(apply_n=i)\r\n    print(f\"Testing with {i} APPLY statements\")\r\n    #print(sql)\r\n    test_apply(sql=sql)\r\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/parser.py::Parser::_parse_join"
+  },
+  "rejected_alternates": [
+   "sqlglot/parser.py::build_var_map",
+   "sqlglot/parser.py::build_like",
+   "sqlglot/parser.py::binary_range_parser"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/parser.py",
+    "contains": "def _parse_join("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-3901 (tobymao/sqlglot @ e0cd7e202), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-3901",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "e0cd7e20298f84dc245676ecded6f174cf1c9c3e",
+   "gold_cardinality": 1,
+   "locbench_category": "Performance Issue",
+   "names_target": true,
+   "statement_chars": 3319,
+   "corpus_fingerprint": {
+    "sha256": "980ef262012b161279c24474133702d59a8455e7bb75449ae1e927a4bdbbe015",
+    "files": 303
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-3436",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "Allow comma-separated values for `CREATE SEQUENCE` properties (Snowflake)\nAllow comma-separated values for `CREATE SEQUENCE` properties in Snowflake queries.\r\n\r\nThis query can be parsed successfully (results is an instance of `exp.Create`):\r\n```\r\n    query = \"CREATE SEQUENCE seq1 WITH START=1 INCREMENT=1 ORDER\"\r\n    result = parse_one(query, dialect=\"snowflake\")\r\n    print(type(result))\r\n\r\n    --> <class 'sqlglot.expressions.Create'>\r\n```\r\n\r\n... whereas the following query cannot be fully parsed and is returned as a generic `exp.Command` as fallback:\r\n```\r\n    query = \"CREATE SEQUENCE seq1 WITH START=1, INCREMENT=1 ORDER\"\r\n    result = parse_one(query, dialect=\"snowflake\")\r\n    print(type(result))\r\n\r\n    --> <class 'sqlglot.expressions.Command'>\r\n```\r\n\r\n(note - the only subtle difference is the comma `,` between the `START` and `INCREMENT` properties)\r\n\r\nNote that the second query syntax may not be covered in the Snowflake docs, but it is indeed a valid syntax that can be executed against Snowflake (and some Snowflake client apps/SDKs are generating queries that are using this syntax, unfortunately).\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/parser.py::Parser::_parse_sequence_properties"
+  },
+  "rejected_alternates": [
+   "sqlglot/parser.py::build_var_map",
+   "sqlglot/parser.py::build_like",
+   "sqlglot/parser.py::binary_range_parser"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/parser.py",
+    "contains": "def _parse_sequence_properties(self) -> t.Optional[exp.SequenceProperties]:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-3436 (tobymao/sqlglot @ 30f9d30d8), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-3436",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "30f9d30d8ab3727a43b1e6f363f28631cbfa7f92",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": true,
+   "statement_chars": 1117,
+   "corpus_fingerprint": {
+    "sha256": "11dfeaf09fe34d5b1793410f70507d30e98007b7c164f3631727cf8e074345ee",
+    "files": 326
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-3417",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "SET TAG identifier containing dots is parsed as Command\nWould love for an identifier containing dots to be parsed as a `SetItem` ie: like an identifier without dots. \r\n\r\nWithout dots, is parsed as SetItem:\r\n```\r\n\u276f sqlglot.parse_one(\"ALTER TABLE table1 SET TAG foo='baz'\", read=\"snowflake\")\r\nAlterTable(\r\n  this=Table(\r\n    this=Identifier(this=table1, quoted=False)),\r\n  actions=[\r\n    Set(\r\n      expressions=[\r\n        SetItem(\r\n          this=EQ(\r\n            this=Identifier(this=foo, quoted=False),\r\n            expression=Literal(this=baz, is_string=True)))],\r\n      unset=False,\r\n      tag=True)])\r\n```\r\n\r\nvs with dots:\r\n \r\n```\r\n\u276f sqlglot.parse_one(\"ALTER TABLE table1 SET TAG foo.bar='baz'\", read=\"snowflake\")\r\nAlterTable(\r\n  this=Table(\r\n    this=Identifier(this=table1, quoted=False)),\r\n  actions=[\r\n    Command(this=TAG, expression=foo.bar='baz')])\r\n```\r\n\r\nIn sqlglot 15 this was parsed as SetTag:\r\n```\r\n\u276f python -c 'import sqlglot; print(repr(sqlglot.parse_one(\"ALTER TABLE table1 SET TAG foo.bar=''baz''\", read=\"snowflake\")));'\r\n(ALTERTABLE this: \r\n  (TABLE this: \r\n    (IDENTIFIER this: table1, quoted: False)), actions: \r\n  (SETTAG expressions: \r\n    (EQ this: \r\n      (COLUMN this: \r\n        (IDENTIFIER this: bar, quoted: False), table: \r\n        (IDENTIFIER this: foo, quoted: False)), expression: \r\n      (LITERAL this: baz, is_string: True)), unset: False))\r\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/parser.py::Parser::_parse_set_item_assignment"
+  },
+  "rejected_alternates": [
+   "sqlglot/parser.py::build_var_map",
+   "sqlglot/parser.py::build_like",
+   "sqlglot/parser.py::binary_range_parser"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/parser.py",
+    "contains": "def _parse_set_item_assignment("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-3417 (tobymao/sqlglot @ e1b6483d5), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-3417",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "e1b6483d5e26d556f6a3dd82c6d35f475c189c2b",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": true,
+   "statement_chars": 1382,
+   "corpus_fingerprint": {
+    "sha256": "d1377f7f67462eb9c48b0addf2a79b9c8bc89c592ba970d1be20fe0fd875b879",
+    "files": 326
+   }
+  }
+ },
+ {
+  "id": "tobymao__sqlglot-3167",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "feat(snowflake): Adding support for DATE, TO_DATE, TRY_TO_DATE functions\nFixes #3152 \r\n\r\nAdd support for the mentioned functions by:\r\n\r\n- Converting all of them to `exp.TsOrDsToDate` expressions if the format is present _or_ to date casts otherwise\r\n- Adding a new argument `safe` in `exp.TsOrDsToDate` to preserve the roundtrip of `TRY_TO_DATE`, which has a different error handling behavior compared to `TO_DATE / DATE` \r\n\r\nFor the transpilation issue #3152, no change was needed in DuckDB as it already transpiles the aforementioned expression to `strptime` (note that it produces a `TIMESTAMP`, thus the cast to `DATE`):\r\n\r\n```\r\n>>> import sqlglot\r\n>>> sqlglot.transpile(\"SELECT try_to_date('01-01-1999', 'MM-DD-YYYY')\", read=\"snowflake\", write=\"duckdb\")\r\nSELECT CAST(STRPTIME('01-01-1999', '%m-%d-%Y') AS DATE)\r\n```\r\n\r\nDocs\r\n-----------\r\n\r\n1. [Snowflake TRY_TO_DATE](https://docs.snowflake.com/en/sql-reference/functions/try_to_date)\r\n2. [Snowflake DATE / TO_DATE](https://docs.snowflake.com/en/sql-reference/functions/to_date)\r\n3. [DuckDB strptime](https://duckdb.org/docs/sql/functions/dateformat.html#strptime-examples)\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "sqlglot/dialects/snowflake.py::_build_datetime"
+  },
+  "rejected_alternates": [
+   "sqlglot/dialects/snowflake.py::_builder",
+   "sqlglot/dialects/snowflake.py::_build_object_construct",
+   "sqlglot/dialects/snowflake.py::_build_datediff"
+  ],
+  "evidence": [
+   {
+    "path": "sqlglot/dialects/snowflake.py",
+    "contains": "def _build_datetime("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-3167 (tobymao/sqlglot @ df4ce17f2), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-3167",
+  "covariates": {
+   "repo": "tobymao/sqlglot",
+   "base_commit": "df4ce17f24bbb16a64172e351f4e27ac74de668a",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": false,
+   "statement_chars": 1127,
+   "corpus_fingerprint": {
+    "sha256": "a71e160465d10cd5e1ca764f8143406cd3dc23c9a5e833c7868ea33a06bb737b",
+    "files": 323
+   }
+  }
+ },
+ {
+  "id": "yt-dlp__yt-dlp-11821",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "[youtube] Age-restricted videos now always require sign-in\n### DO NOT REMOVE OR SKIP THE ISSUE TEMPLATE\r\n\r\n- [X] I understand that I will be **blocked** if I *intentionally* remove or skip any mandatory\\* field\r\n\r\n### Checklist\r\n\r\n- [X] I'm reporting that yt-dlp is broken on a **supported** site\r\n- [X] I've verified that I have **updated yt-dlp to nightly or master** ([update instructions](https://github.com/yt-dlp/yt-dlp#update-channels))\r\n- [X] I've checked that all provided URLs are playable in a browser with the same IP and same login details\r\n- [X] I've checked that all URLs and arguments with special characters are [properly quoted or escaped](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#video-url-contains-an-ampersand--and-im-getting-some-strange-output-1-2839-or-v-is-not-recognized-as-an-internal-or-external-command)\r\n- [X] I've searched [known issues](https://github.com/yt-dlp/yt-dlp/issues/3766) and the [bugtracker](https://github.com/yt-dlp/yt-dlp/issues?q=) for similar issues **including closed ones**. DO NOT post duplicates\r\n- [X] I've read the [guidelines for opening an issue](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#opening-an-issue)\r\n- [ ] I've read about [sharing account credentials](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#are-you-willing-to-share-account-details-if-needed) and I'm willing to share it if required\r\n\r\n### Region\r\n\r\n_No response_\r\n\r\n### Provide a description that is worded well enough to be understood\r\n\r\nI'm unable to download any age restricted videos without signing in. Wasn't a problem till a week ago.\r\nI'm on the latest nightly and it fails with or without the AGP plugin.\r\n\r\n\r\n\r\n### Provide verbose output that clearly demonstrates the problem\r\n\r\n- [X] Run **your** yt-dlp command with **-vU** flag added (`yt-dlp -vU <your command line>`)\r\n- [ ] If using API, add `'verbose': True` to `YoutubeDL` params instead\r\n- [X] Copy the WHOLE output (starting with `[debug] Command-line config`) and insert it below\r\n\r\n### Complete Verbose Output\r\n\r\n```shell\r\nC:\\Users\\Casey>yt-dlp https://www.youtube.com/watch?v=7Do70nztRNE -vU\r\n[debug] Command-line config: ['https://www.youtube.com/watch?v=7Do70nztRNE', '-vU']\r\n[debug] Encodings: locale cp1252, fs utf-8, pref cp1252, out utf-8, error utf-8, screen utf-8\r\n[debug] yt-dlp version nightly@2024.10.19.232833 from yt-dlp/yt-dlp-nightly-builds [679c68240] (pip)\r\n[debug] Python 3.11.2 (CPython AMD64 64bit) - Windows-10-10.0.19044-SP0 (OpenSSL 1.1.1s  1 Nov 2022)\r\n[debug] exe versions: ffmpeg 2023-07-06-git-f00222e81f-essentials_build-www.gyan.dev (setts), ffprobe 2023-07-06-git-f00222e81f-essentials_build-www.gyan.dev\r\n[debug] Optional libraries: Cryptodome-3.19.0, brotli-1.1.0, certifi-2022.12.07, curl_cffi-0.5.10, mutagen-1.47.0, requests-2.32.3, sqlite3-3.39.4, urllib3-1.26.18, websockets-13.1\r\n[debug] Proxy map: {}\r\n[debug] Request Handlers: urllib, requests, websockets, curl_cffi\r\n[debug] Extractor Plugins: AGB (YoutubeIE)\r\n[debug] Plugin directories: ['C:\\\\Users\\\\Casey\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\Lib\\\\site-packages\\\\yt_dlp_plugins']\r\n[debug] Loaded 1838 extractors\r\n[debug] Fetching release info: https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest\r\nLatest version: nightly@2024.10.19.232833 from yt-dlp/yt-dlp-nightly-builds\r\nyt-dlp is up to date (nightly@2024.10.19.232833 from yt-dlp/yt-dlp-nightly-builds)\r\n[youtube+AGB] Extracting URL: https://www.youtube.com/watch?v=7Do70nztRNE\r\n[youtube+AGB] 7Do70nztRNE: Downloading webpage\r\n[youtube+AGB] 7Do70nztRNE: Downloading ios player API JSON\r\n[youtube+AGB] 7Do70nztRNE: This video is age-restricted; some formats may be missing without authentication. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies\r\n[youtube+AGB] 7Do70nztRNE: Downloading tv embedded player API JSON\r\n[youtube+AGB] 7Do70nztRNE: Downloading mweb player API JSON\r\n[youtube+AGB] 7Do70nztRNE: Downloading Zerody API JSON\r\nWARNING: [youtube+AGB] Unable to download JSON metadata: HTTP Error 502: Bad Gateway\r\nERROR: [youtube+AGB] 7Do70nztRNE: Sign in to confirm your age. This video may be inappropriate for some users.\r\n  File \"C:\\Users\\Casey\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\yt_dlp\\extractor\\common.py\", line 741, in extract\r\n    ie_result = self._real_extract(url)\r\n                ^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"C:\\Users\\Casey\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\yt_dlp\\extractor\\youtube.py\", line 4468, in _real_extract\r\n    self.raise_no_formats(reason, expected=True)\r\n  File \"C:\\Users\\Casey\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\yt_dlp\\extractor\\common.py\", line 1275, in raise_no_formats\r\n    raise ExtractorError(msg, expected=expected, video_id=video_id)\r\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "yt_dlp/extractor/youtube.py::YoutubeIE::_extract_player_responses"
+  },
+  "rejected_alternates": [
+   "yt_dlp/extractor/youtube.py::_split_innertube_client",
+   "yt_dlp/extractor/youtube.py::short_client_name",
+   "yt_dlp/extractor/youtube.py::build_innertube_clients"
+  ],
+  "evidence": [
+   {
+    "path": "yt_dlp/extractor/youtube.py",
+    "contains": "def _extract_player_responses(self, clients, video_id, webpage, master_ytcfg, smuggled_data):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11821 (yt-dlp/yt-dlp @ 2037a6414), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11821",
+  "covariates": {
+   "repo": "yt-dlp/yt-dlp",
+   "base_commit": "2037a6414f81db8080ca724dca506fde91974c5d",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 4883,
+   "corpus_fingerprint": {
+    "sha256": "545ce266e7939c208a0225f4322c661b63e8c193efb8daedde868697d7a40edd",
+    "files": 1233
+   }
+  }
+ },
+ {
+  "id": "yt-dlp__yt-dlp-11782",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "[Youtube] Playlist search broken\n### DO NOT REMOVE OR SKIP THE ISSUE TEMPLATE\n\n- [X] I understand that I will be **blocked** if I *intentionally* remove or skip any mandatory\\* field\n\n### Checklist\n\n- [X] I'm reporting that yt-dlp is broken on a **supported** site\n- [X] I've verified that I have **updated yt-dlp to nightly or master** ([update instructions](https://github.com/yt-dlp/yt-dlp#update-channels))\n- [X] I've checked that all provided URLs are playable in a browser with the same IP and same login details\n- [X] I've checked that all URLs and arguments with special characters are [properly quoted or escaped](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#video-url-contains-an-ampersand--and-im-getting-some-strange-output-1-2839-or-v-is-not-recognized-as-an-internal-or-external-command)\n- [X] I've searched [known issues](https://github.com/yt-dlp/yt-dlp/issues/3766) and the [bugtracker](https://github.com/yt-dlp/yt-dlp/issues?q=) for similar issues **including closed ones**. DO NOT post duplicates\n- [X] I've read the [guidelines for opening an issue](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#opening-an-issue)\n- [X] I've read about [sharing account credentials](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#are-you-willing-to-share-account-details-if-needed) and I'm willing to share it if required\n\n### Region\n\nGermany\n\n### Provide a description that is worded well enough to be understood\n\nUsing the youtube search functionality with playlist filter enabled does not work anymore.\r\nWorked on previous versions. Should be related to current playlist issues which return 0 results.\r\n\r\nExpected behavior should be getting the json result of the playlists results.\n\n### Provide verbose output that clearly demonstrates the problem\n\n- [X] Run **your** yt-dlp command with **-vU** flag added (`yt-dlp -vU <your command line>`)\n- [X] If using API, add `'verbose': True` to `YoutubeDL` params instead\n- [X] Copy the WHOLE output (starting with `[debug] Command-line config`) and insert it below\n\n### Complete Verbose Output\n\n```shell\n[debug] Command-line config: ['-vvvv', '-4', '--no-warnings', '--no-check-certificate', '--dump-json', '--playlist-start', '1', '--playlist-end', '50', '--flat-playlist', 'https://www.youtube.com/results?search_query=cute+cat&sp=EgIQAw%253D%253D']\r\n[debug] Encodings: locale UTF-8, fs utf-8, pref UTF-8, out utf-8, error utf-8, screen utf-8\r\n[debug] yt-dlp version stable@2024.11.18 from yt-dlp/yt-dlp [7ea278792] (linux_exe)\r\n[debug] Lazy loading extractors is disabled\r\n[debug] Python 3.9.2 (CPython x86_64 64bit) - Linux-4.19.0-24-amd64-x86_64-with-glibc2.31 (OpenSSL 1.1.1w  11 Sep 2023, glibc 2.31)\r\n[debug] exe versions: ffmpeg 4.3.8-0, ffprobe 4.3.8-0\r\n[debug] Optional libraries: Cryptodome-3.9.7, certifi-2020.06.20, requests-2.25.1, secretstorage-3.3.1, sqlite3-3.34.1, urllib3-1.26.5\r\n[debug] Proxy map: {}\r\n[debug] Request Handlers: urllib\r\n[debug] Loaded 1837 extractors\r\n[youtube:search_url] Extracting URL: https://www.youtube.com/results?search_query=cute+cat&sp=EgIQAw%253D%253D\r\n[download] Downloading playlist: cute cat\r\n[youtube:search_url] query \"cute cat\": Downloading web client config\r\n[youtube:search_url] query \"cute cat\" page 1: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 2: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 3: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 4: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 5: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 6: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 7: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 8: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 9: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 10: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 11: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 12: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 13: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 14: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 15: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 16: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 17: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 18: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 19: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 20: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 21: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 22: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 23: Downloading API JSON\r\n[youtube:search_url] query \"cute cat\" page 24: Downloading API JSON\r\n[youtube:search_url] Playlist cute cat: Downloading 0 items\r\n[debug] The information of all playlist entries will be held in memory\r\n[download] Finished downloading playlist: cute cat\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "yt_dlp/extractor/youtube.py::YoutubeTabBaseInfoExtractor::_extract_entries"
+  },
+  "rejected_alternates": [
+   "yt_dlp/extractor/youtube.py::_split_innertube_client",
+   "yt_dlp/extractor/youtube.py::short_client_name",
+   "yt_dlp/extractor/youtube.py::build_innertube_clients"
+  ],
+  "evidence": [
+   {
+    "path": "yt_dlp/extractor/youtube.py",
+    "contains": "def _extract_entries(self, parent_renderer, continuation_list):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11782 (yt-dlp/yt-dlp @ 6fef82402), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11782",
+  "covariates": {
+   "repo": "yt-dlp/yt-dlp",
+   "base_commit": "6fef824025b3c2f0ca8af7ac9fa04b10d09a3591",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 5025,
+   "corpus_fingerprint": {
+    "sha256": "0861b4233c703a457cc6d0184c241fd113addcab2022686e479cbf396ebc04bd",
+    "files": 1233
+   }
+  }
+ },
+ {
+  "id": "yt-dlp__yt-dlp-11734",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "[BiliBili] extract 720p/1080p format without logging in by passing `'try_look': 1` to the api\n### DO NOT REMOVE OR SKIP THE ISSUE TEMPLATE\r\n\r\n- [X] I understand that I will be **blocked** if I *intentionally* remove or skip any mandatory\\* field\r\n\r\n### Checklist\r\n\r\n- [X] I'm requesting a site-specific feature\r\n- [X] I've verified that I have **updated yt-dlp to nightly or master** ([update instructions](https://github.com/yt-dlp/yt-dlp#update-channels))\r\n- [X] I've checked that all provided URLs are playable in a browser with the same IP and same login details\r\n- [X] I've searched [known issues](https://github.com/yt-dlp/yt-dlp/issues/3766) and the [bugtracker](https://github.com/yt-dlp/yt-dlp/issues?q=) for similar issues **including closed ones**. DO NOT post duplicates\r\n- [X] I've read the [guidelines for opening an issue](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#opening-an-issue)\r\n- [ ] I've read about [sharing account credentials](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#are-you-willing-to-share-account-details-if-needed) and I'm willing to share it if required\r\n\r\n### Region\r\n\r\nChina/Out of China\r\n\r\n### Example URLs\r\n\r\nhttps://www.bilibili.com/video/BV1fK4y1t7hj/?spm_id_from=333.337.search-card.all.click&vd_source=...c145ee572cfa536d2947\r\n\r\n### Provide a description that is worded well enough to be understood\r\n\r\nAs mentioned in https://github.com/yt-dlp/yt-dlp/pull/9117#discussion_r1608974583, it is possible to extract 720p/1080p formats(`80`&`64`) without logging in by passing the parameter `'try_look': 1` to the API.\r\n(though premium formats `120`&`116` are still not accessible)\r\n\r\n### Provide verbose output that clearly demonstrates the problem\r\n\r\n- [X] Run **your** yt-dlp command with **-vU** flag added (`yt-dlp -vU <your command line>`)\r\n- [ ] If using API, add `'verbose': True` to `YoutubeDL` params instead\r\n- [X] Copy the WHOLE output (starting with `[debug] Command-line config`) and insert it below\r\n\r\n### Complete Verbose Output\r\n\r\n```shell\r\n[BiliBili] Extracting URL: https://www.bilibili.com/video/BV1fK4y1t7hj/?spm_id_from=333.337.search-card.all.click&vd_source=...c145ee572cfa536d2947\r\n[BiliBili] 1fK4y1t7hj: Downloading webpage\r\n[BiliBili] BV1fK4y1t7hj: Extracting videos in anthology\r\n[BiliBili] BV1fK4y1t7hj: Downloading wbi sign\r\n[BiliBili] BV1fK4y1t7hj: Downloading video formats for cid 196018899 \r\n[BiliBili] Format(s) 4K \u8d85\u6e05, 1080P 60\u5e27, 1080P \u9ad8\u6e05, 720P \u9ad8\u6e05 are missing; you have to login or become a premium member to download them. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies\r\n[BiliBili] 883362563: Extracting chapters\r\n[info] Available formats for BV1fK4y1t7hj:\r\nID     EXT RESOLUTION FPS \u2502  FILESIZE  TBR PROTO \u2502 VCODEC         VBR ACODEC      ABR\r\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\r\n30216  m4a audio only     \u2502 \u2248 1.71MiB  49k https \u2502 audio only         mp4a.40.5   49k\r\n30232  m4a audio only     \u2502 \u2248 4.72MiB 134k https \u2502 audio only         mp4a.40.2  134k\r\n30280  m4a audio only     \u2502 \u224810.10MiB 287k https \u2502 audio only         mp4a.40.2  287k\r\n30016  mp4 640x290     29 \u2502 \u224812.24MiB 348k https \u2502 avc1.64001E   348k video only\r\n100022 mp4 792x360     30 \u2502 \u2248 7.11MiB 202k https \u2502 av01.0.04M.08 202k video only\r\n30011  mp4 792x360     30 \u2502 \u224810.98MiB 312k https \u2502 hev1.1.6.L120 312k video only\r\n30032  mp4 854x388     29 \u2502 \u224824.20MiB 688k https \u2502 avc1.64001E   688k video only\r\n100023 mp4 1056x480    30 \u2502 \u224815.72MiB 447k https \u2502 av01.0.04M.08 447k video only\r\n30033  mp4 1056x480    30 \u2502 \u224810.57MiB 300k https \u2502 hev1.1.6.L120 300k video only\r\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "yt_dlp/extractor/bilibili.py::BiliBiliIE::_real_extract"
+  },
+  "rejected_alternates": [
+   "yt_dlp/extractor/bilibili.py::BilibiliBaseIE",
+   "yt_dlp/extractor/bilibili.py::is_logged_in",
+   "yt_dlp/extractor/bilibili.py::_check_missing_formats"
+  ],
+  "evidence": [
+   {
+    "path": "yt_dlp/extractor/bilibili.py",
+    "contains": "def _real_extract(self, url):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11734 (yt-dlp/yt-dlp @ 354cb4026), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11734",
+  "covariates": {
+   "repo": "yt-dlp/yt-dlp",
+   "base_commit": "354cb4026cf2191e1a130ec2a627b95cabfbc60a",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": true,
+   "statement_chars": 3725,
+   "corpus_fingerprint": {
+    "sha256": "0e38097e4efba52b8848c015da975a1cfd2e9190300afa081b5b9ffd55f48c79",
+    "files": 1233
+   }
+  }
+ },
+ {
+  "id": "yt-dlp__yt-dlp-11636",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "Dropbox \"No video formats found!\" Error for password protected videos\n### DO NOT REMOVE OR SKIP THE ISSUE TEMPLATE\n\n- [X] I understand that I will be **blocked** if I *intentionally* remove or skip any mandatory\\* field\n\n### Checklist\n\n- [X] I'm reporting that yt-dlp is broken on a **supported** site\n- [X] I've verified that I have **updated yt-dlp to nightly or master** ([update instructions](https://github.com/yt-dlp/yt-dlp#update-channels))\n- [X] I've checked that all provided URLs are playable in a browser with the same IP and same login details\n- [X] I've checked that all URLs and arguments with special characters are [properly quoted or escaped](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#video-url-contains-an-ampersand--and-im-getting-some-strange-output-1-2839-or-v-is-not-recognized-as-an-internal-or-external-command)\n- [X] I've searched [known issues](https://github.com/yt-dlp/yt-dlp/issues/3766) and the [bugtracker](https://github.com/yt-dlp/yt-dlp/issues?q=) for similar issues **including closed ones**. DO NOT post duplicates\n- [X] I've read the [guidelines for opening an issue](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#opening-an-issue)\n- [X] I've read about [sharing account credentials](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#are-you-willing-to-share-account-details-if-needed) and I'm willing to share it if required\n\n### Region\n\nUnited States\n\n### Provide a description that is worded well enough to be understood\n\nDownloading Dropbox videos with passwords was working fine up to a month ago, but as of late only returns a \"No video format found!\" error using the same command lines that previously worked fine (i.e. `yt-dlp --video-password \"PASSWORD\" \"URL\"`)\n\n### Provide verbose output that clearly demonstrates the problem\n\n- [X] Run **your** yt-dlp command with **-vU** flag added (`yt-dlp -vU <your command line>`)\n- [ ] If using API, add `'verbose': True` to `YoutubeDL` params instead\n- [X] Copy the WHOLE output (starting with `[debug] Command-line config`) and insert it below\n\n### Complete Verbose Output\n\n```shell\n[debug] Command-line config: ['-vU', '--video-password', 'PRIVATE', 'https://www.dropbox.com/scl/fi/mo9nwwjtwgajfsog9ysdp/BTS-Episodes-Series-11-Reaction.mp4?rlkey=v633fmz95bwn0kqtia777nxrm&st=khvzkp6s&dl=0']\r\n[debug] Encodings: locale cp1252, fs utf-8, pref cp1252, out utf-8, error utf-8, screen utf-8\r\n[debug] yt-dlp version nightly@2024.11.24.232931 from yt-dlp/yt-dlp-nightly-builds [4b5eec0aa] (win_x86_exe)\r\n[debug] Python 3.10.11 (CPython AMD64 32bit) - Windows-10-10.0.19042-SP0 (OpenSSL 1.1.1t  7 Feb 2023)\r\n[debug] exe versions: ffmpeg 2024-04-01-git-7bf85d2d3a-essentials_build-www.gyan.dev (setts), ffprobe 2024-04-01-git-7bf85d2d3a-essentials_build-www.gyan.dev\r\n[debug] Optional libraries: Cryptodome-3.21.0, brotli-1.1.0, certifi-2024.08.30, mutagen-1.47.0, requests-2.32.3, sqlite3-3.40.1, urllib3-2.2.3, websockets-14.1\r\n[debug] Proxy map: {}\r\n[debug] Request Handlers: urllib, requests, websockets\r\n[debug] Loaded 1837 extractors\r\n[debug] Fetching release info: https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest\r\nLatest version: nightly@2024.11.24.232931 from yt-dlp/yt-dlp-nightly-builds\r\nyt-dlp is up to date (nightly@2024.11.24.232931 from yt-dlp/yt-dlp-nightly-builds)\r\n[Dropbox] Extracting URL: https://www.dropbox.com/scl/fi/mo9nwwjtwgajfsog9ysdp/BTS-Episodes-Series-11-Reaction.mp4?rlkey=v633fmz95bwn0kqtia777nxrm&st=khvzkp6s&dl=0\r\n[Dropbox] mo9nwwjtwgajfsog9ysdp: Downloading webpage\r\n[Dropbox] mo9nwwjtwgajfsog9ysdp: Downloading webpage\r\nERROR: [Dropbox] mo9nwwjtwgajfsog9ysdp: No video formats found!; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\r\nTraceback (most recent call last):\r\n  File \"yt_dlp\\YoutubeDL.py\", line 1624, in wrapper\r\n  File \"yt_dlp\\YoutubeDL.py\", line 1780, in __extract_info\r\n  File \"yt_dlp\\YoutubeDL.py\", line 1839, in process_ie_result\r\n  File \"yt_dlp\\YoutubeDL.py\", line 2846, in process_video_result\r\n  File \"yt_dlp\\YoutubeDL.py\", line 1121, in raise_no_formats\r\nyt_dlp.utils.ExtractorError: [Dropbox] mo9nwwjtwgajfsog9ysdp: No video formats found!; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "yt_dlp/extractor/dropbox.py::DropboxIE::_real_extract"
+  },
+  "rejected_alternates": [
+   "yt_dlp/extractor/dropbox.py::DropboxIE",
+   "yt_dlp/extractor/dropbox.py::_yield_decoded_parts"
+  ],
+  "evidence": [
+   {
+    "path": "yt_dlp/extractor/dropbox.py",
+    "contains": "def _real_extract(self, url):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11636 (yt-dlp/yt-dlp @ 4b5eec0aa), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11636",
+  "covariates": {
+   "repo": "yt-dlp/yt-dlp",
+   "base_commit": "4b5eec0aaa7c02627f27a386591b735b90e681a8",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 4431,
+   "corpus_fingerprint": {
+    "sha256": "03fd1a68f138ac773c6476f8cb3e5ff923e924b10dd95a8c864858956cf67ff6",
+    "files": 1233
+   }
+  }
+ },
+ {
+  "id": "yt-dlp__yt-dlp-11542",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "spankbang - 403 Forbidden errors\n### DO NOT REMOVE OR SKIP THE ISSUE TEMPLATE\r\n\r\n- [X] I understand that I will be **blocked** if I *intentionally* remove or skip any mandatory\\* field\r\n\r\n### Checklist\r\n\r\n- [X] I'm reporting that a **supported** site is broken\r\n- [X] I've verified that I'm running yt-dlp version **2023.03.04** ([update instructions](https://github.com/yt-dlp/yt-dlp#update)) or later (specify commit)\r\n- [X] I've checked that all provided URLs are playable in a browser with the same IP and same login details\r\n- [X] I've checked that all URLs and arguments with special characters are [properly quoted or escaped](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#video-url-contains-an-ampersand--and-im-getting-some-strange-output-1-2839-or-v-is-not-recognized-as-an-internal-or-external-command)\r\n- [X] I've searched [known issues](https://github.com/yt-dlp/yt-dlp/issues/3766) and the [bugtracker](https://github.com/yt-dlp/yt-dlp/issues?q=) for similar issues **including closed ones**. DO NOT post duplicates\r\n- [X] I've read the [guidelines for opening an issue](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#opening-an-issue)\r\n- [X] I've read about [sharing account credentials](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#are-you-willing-to-share-account-details-if-needed) and I'm willing to share it if required\r\n\r\n### Region\r\n\r\nUSA\r\n\r\n### Provide a description that is worded well enough to be understood\r\n\r\nAll video url's from Spankbang are returning 403 forbidden errors. I have confirmed that they load and play in the browser just fine. Verbose output is provided. My `yt-dlp` version is completely up to date. \r\n\r\n### Provide verbose output that clearly demonstrates the problem\r\n\r\n- [X] Run **your** yt-dlp command with **-vU** flag added (`yt-dlp -vU <your command line>`)\r\n- [ ] If using API, add `'verbose': True` to `YoutubeDL` params instead\r\n- [X] Copy the WHOLE output (starting with `[debug] Command-line config`) and insert it below\r\n\r\n### Complete Verbose Output\r\n\r\n```shell\r\n> yt-dlp -vU https://spankbang.com/6c6z5/video/fan+appreciation+event+english+sub\r\n[debug] Command-line config: ['-vU', 'https://spankbang.com/6c6z5/video/fan+appreciation+event+english+sub']\r\n[debug] Encodings: locale UTF-8, fs utf-8, out utf-8, err utf-8, pref UTF-8\r\n[debug] yt-dlp version 2022.02.04 [c1653e9ef] (zip)\r\n[debug] Python version 3.8.10 (CPython 64bit) - Linux-4.4.0-19041-Microsoft-x86_64-with-glibc2.29\r\n[debug] exe versions: ffmpeg 4.2.4, ffprobe 4.2.4\r\n[debug] Optional libraries: Cryptodome, secretstorage, mutagen, sqlite, websockets\r\n[debug] Proxy map: {}\r\nLatest version: 2023.03.04, Current version: 2022.02.04\r\nCurrent Build Hash a16fe3b3bd474d562c4b8645579b209377b967d58d4edffe6e31dc8de81d7283\r\nUpdating to version 2023.03.04 ...\r\nERROR: Unable to write to /usr/local/bin/yt-dlp; Try running as administrator\r\n[debug] [SpankBang] Extracting URL: https://spankbang.com/6c6z5/video/fan+appreciation+event+english+sub\r\n[SpankBang] 6c6z5: Downloading webpage\r\nERROR: [SpankBang] 6c6z5: Unable to download webpage: HTTP Error 403: Forbidden (caused by <HTTPError 403: 'Forbidden'>); please report this issue on  https://github.com/yt-dlp/yt-dlp , filling out the \"Broken site\" issue template properly. Confirm you are on the latest version using -U (caused by <HTTPError 403: 'Forbidden'>); please report this issue on  https://github.com/yt-dlp/yt-dlp , filling out the \"Broken site\" issue template properly. Confirm you are on the latest version using -U\r\n  File \"/usr/local/bin/yt-dlp/yt_dlp/extractor/common.py\", line 730, in _request_webpage\r\n    return self._downloader.urlopen(url_or_request)\r\n  File \"/usr/local/bin/yt-dlp/yt_dlp/YoutubeDL.py\", line 3558, in urlopen    return self._opener.open(req, timeout=self._socket_timeout)  File \"/usr/lib/python3.8/urllib/request.py\", line 531, in open\r\n    response = meth(req, response)\r\n  File \"/usr/lib/python3.8/urllib/request.py\", line 640, in http_response\r\n    response = self.parent.error(\r\n  File \"/usr/lib/python3.8/urllib/request.py\", line 569, in error\r\n    return self._call_chain(*args)\r\n  File \"/usr/lib/python3.8/urllib/request.py\", line 502, in _call_chain\r\n    result = func(*args)\r\n  File \"/usr/lib/python3.8/urllib/request.py\", line 649, in http_error_default\r\n    raise HTTPError(req.full_url, code, msg, hdrs, fp)\r\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "yt_dlp/extractor/spankbang.py::SpankBangIE::_real_extract"
+  },
+  "rejected_alternates": [
+   "yt_dlp/extractor/spankbang.py::SpankBangIE",
+   "yt_dlp/extractor/spankbang.py::extract_format",
+   "yt_dlp/extractor/spankbang.py::SpankBangPlaylistIE"
+  ],
+  "evidence": [
+   {
+    "path": "yt_dlp/extractor/spankbang.py",
+    "contains": "def _real_extract(self, url):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11542 (yt-dlp/yt-dlp @ f2a4983df), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11542",
+  "covariates": {
+   "repo": "yt-dlp/yt-dlp",
+   "base_commit": "f2a4983df7a64c4e93b56f79dbd16a781bd90206",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": false,
+   "statement_chars": 4360,
+   "corpus_fingerprint": {
+    "sha256": "d1d06dfcf5ce8a0fffe741f54d6de1079bb7ab1fc720909469ed8c7555e33b64",
+    "files": 1233
+   }
+  }
+ },
+ {
+  "id": "yt-dlp__yt-dlp-11513",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "[facebook] ERROR: No video formats found (on >= 2024.11.04)\n### DO NOT REMOVE OR SKIP THE ISSUE TEMPLATE\n\n- [X] I understand that I will be **blocked** if I *intentionally* remove or skip any mandatory\\* field\n\n### Checklist\n\n- [X] I'm reporting that yt-dlp is broken on a **supported** site\n- [X] I've verified that I have **updated yt-dlp to nightly or master** ([update instructions](https://github.com/yt-dlp/yt-dlp#update-channels))\n- [X] I've checked that all provided URLs are playable in a browser with the same IP and same login details\n- [X] I've checked that all URLs and arguments with special characters are [properly quoted or escaped](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#video-url-contains-an-ampersand--and-im-getting-some-strange-output-1-2839-or-v-is-not-recognized-as-an-internal-or-external-command)\n- [X] I've searched [known issues](https://github.com/yt-dlp/yt-dlp/issues/3766) and the [bugtracker](https://github.com/yt-dlp/yt-dlp/issues?q=) for similar issues **including closed ones**. DO NOT post duplicates\n- [X] I've read the [guidelines for opening an issue](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#opening-an-issue)\n- [X] I've read about [sharing account credentials](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#are-you-willing-to-share-account-details-if-needed) and I'm willing to share it if required\n\n### Region\n\nUS\n\n### Provide a description that is worded well enough to be understood\n\nPlease note this is not related to #11337 and is new.  I had the problem reported in that issue, and it went away for about a week or so after updating to the nightly build.  This problem is new in the past week.\r\n\r\nI've duplicated this on Windows and Mac, and it appears as though it's specifically related to private group videos.  I've tested `--cookies-from-browser` for `chrome`, `firefox`, and `safari`, all with the same results.\r\n\r\nIf needed, I can invite any developers to the group for troubleshooting, videos are SFW (youth hockey video).\n\n### Provide verbose output that clearly demonstrates the problem\n\n- [X] Run **your** yt-dlp command with **-vU** flag added (`yt-dlp -vU <your command line>`)\n- [ ] If using API, add `'verbose': True` to `YoutubeDL` params instead\n- [X] Copy the WHOLE output (starting with `[debug] Command-line config`) and insert it below\n\n### Complete Verbose Output\n\n```shell\n[debug] Command-line config: ['--cookies-from-browser', 'safari', 'https://www.facebook.com/1358150084/videos/7350931248365050/', '-vU']\r\n[debug] Encodings: locale UTF-8, fs utf-8, pref UTF-8, out utf-8, error utf-8, screen utf-8\r\n[debug] yt-dlp version nightly@2024.11.09.232836 from yt-dlp/yt-dlp-nightly-builds [f13df591d] (pip)\r\n[debug] Python 3.12.2 (CPython arm64 64bit) - macOS-14.6.1-arm64-arm-64bit (OpenSSL 3.3.2 3 Sep 2024)\r\n[debug] exe versions: ffmpeg 7.1 (setts), ffprobe 7.1, rtmpdump 2.4\r\n[debug] Optional libraries: Cryptodome-3.21.0, brotli-1.1.0, certifi-2024.08.30, mutagen-1.47.0, requests-2.32.3, sqlite3-3.43.2, urllib3-2.2.3, websockets-13.1\r\n[debug] Proxy map: {}\r\n[debug] Trying secondary cookie location\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     2[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     2[debug] skipping 4 bytes (unknown record field 1): b'\\x01\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x01\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     4[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x02\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     3[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     2[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     4[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     3[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     2[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x02\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     2[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     9[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     7[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     2[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     3[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     3[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     2[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     8[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     3[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     3[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     2[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown page header field): b'\\x00\\x00\\x00\\x00'\r\n[Cookies] Loading cookie      0/     1[debug] skipping 4 bytes (unknown record field 1): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 4 bytes (unknown record field 2): b'\\x00\\x00\\x00\\x00'\r\n[debug] skipping 8 bytes (unknown record field 3): b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\r\n[debug] skipping 87 bytes (footer): b'\\x00\\x02\\xe4R\\x07\\x17 \\x05\\x00\\x00\\x00Kbplist00\\xd1\\x01\\x02_\\x10\\x18NSHTTPCookieAcceptPolicy\\x10\\x02\\x08\\x0b&\\x00\\x00\\x00\\x00\\x00\\x00\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x03\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00('\r\nExtracted 82 cookies from safari\r\n[debug] Request Handlers: urllib, requests, websockets\r\n[debug] Loaded 1839 extractors\r\n[debug] Fetching release info: https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest\r\nLatest version: nightly@2024.11.09.232836 from yt-dlp/yt-dlp-nightly-builds\r\nyt-dlp is up to date (nightly@2024.11.09.232836 from yt-dlp/yt-dlp-nightly-builds)\r\n[facebook] Extracting URL: https://www.facebook.com/1358150084/videos/7350931248365050/\r\n[facebook] 7350931248365050: Downloading webpage\r\nERROR: [facebook] 7350931248365050: No video formats found!; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\r\nTraceback (most recent call last):\r\n  File \"/Users/justine/.pyenv/versions/3.12.2/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 1625, in wrapper\r\n    return func(self, *args, **kwargs)\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/Users/justine/.pyenv/versions/3.12.2/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 1781, in __extract_info\r\n    return self.process_ie_result(ie_result, download, extra_info)\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/Users/justine/.pyenv/versions/3.12.2/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 1840, in process_ie_result\r\n    ie_result = self.process_video_result(ie_result, download=download)\r\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/Users/justine/.pyenv/versions/3.12.2/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 2846, in process_video_result\r\n    self.raise_no_formats(info_dict)\r\n  File \"/Users/justine/.pyenv/versions/3.12.2/lib/python3.12/site-packages/yt_dlp/YoutubeDL.py\", line 1122, in raise_no_formats\r\n    raise ExtractorError(msg, video_id=info['id'], ie=info['extractor'],\r\nyt_dlp.utils.ExtractorError: [facebook] 7350931248365050: No video formats found!; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "yt_dlp/extractor/facebook.py::FacebookIE::_extract_from_url"
+  },
+  "rejected_alternates": [
+   "yt_dlp/extractor/facebook.py::FacebookIE",
+   "yt_dlp/extractor/facebook.py::_perform_login",
+   "yt_dlp/extractor/facebook.py::extract_metadata"
+  ],
+  "evidence": [
+   {
+    "path": "yt_dlp/extractor/facebook.py",
+    "contains": "def _extract_from_url(self, url, video_id):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11513 (yt-dlp/yt-dlp @ a9f85670d), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11513",
+  "covariates": {
+   "repo": "yt-dlp/yt-dlp",
+   "base_commit": "a9f85670d03ab993dc589f21a9ffffcad61392d5",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 28539,
+   "corpus_fingerprint": {
+    "sha256": "6ef8c92da690afa439668269990d1871c6b1e300b2a0f519c88e43241c112a05",
+    "files": 1233
+   }
+  }
+ },
+ {
+  "id": "yt-dlp__yt-dlp-11478",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "CloudFlareStream \"No video formats found!\"\n### DO NOT REMOVE OR SKIP THE ISSUE TEMPLATE\r\n\r\n- [X] I understand that I will be **blocked** if I *intentionally* remove or skip any mandatory\\* field\r\n\r\n### Checklist\r\n\r\n- [X] I'm reporting that yt-dlp is broken on a **supported** site\r\n- [X] I've verified that I have **updated yt-dlp to nightly or master** ([update instructions](https://github.com/yt-dlp/yt-dlp#update-channels))\r\n- [X] I've checked that all provided URLs are playable in a browser with the same IP and same login details\r\n- [X] I've checked that all URLs and arguments with special characters are [properly quoted or escaped](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#video-url-contains-an-ampersand--and-im-getting-some-strange-output-1-2839-or-v-is-not-recognized-as-an-internal-or-external-command)\r\n- [X] I've searched [known issues](https://github.com/yt-dlp/yt-dlp/issues/3766) and the [bugtracker](https://github.com/yt-dlp/yt-dlp/issues?q=) for similar issues **including closed ones**. DO NOT post duplicates\r\n- [X] I've read the [guidelines for opening an issue](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#opening-an-issue)\r\n- [X] I've read about [sharing account credentials](https://github.com/yt-dlp/yt-dlp/blob/master/CONTRIBUTING.md#are-you-willing-to-share-account-details-if-needed) and I'm willing to share it if required\r\n\r\n### Region\r\n\r\nSpain\r\n\r\n### Used URL\r\n\r\nhttps://watch.cloudflarestream.com/e8766bfd7771e53b5dc26c76b650d91a/\r\n\r\n### Provide a description that is worded well enough to be understood\r\n\r\nCan't download a public CloudFlareStream video.\r\nI get CERTIFICATE_VERIFY_FAILED warnings and then an error stating \"No video formats found!\"\r\n\r\nExpected result: A video download from the provided link.\r\n\r\n### Provide verbose output that clearly demonstrates the problem\r\n\r\n- [X] Run **your** yt-dlp command with **-vU** flag added (`yt-dlp -vU <your command line>`)\r\n- [ ] If using API, add `'verbose': True` to `YoutubeDL` params instead\r\n- [X] Copy the WHOLE output (starting with `[debug] Command-line config`) and insert it below\r\n\r\n### Complete Verbose Output\r\n\r\n```shell\r\n[debug] Command-line config: ['-vU', 'https://watch.cloudflarestream.com/e8766bfd7771e53b5dc26c76b650d91a/']\r\n[debug] Encodings: locale cp1252, fs utf-8, pref cp1252, out utf-8, error utf-8, screen utf-8\r\n[debug] yt-dlp version stable@2024.11.04 from yt-dlp/yt-dlp [197d0b03b] (win_exe)\r\n[debug] Python 3.10.11 (CPython AMD64 64bit) - Windows-10-10.0.22631-SP0 (OpenSSL 1.1.1t  7 Feb 2023)\r\n[debug] exe versions: ffmpeg 5.1.2-essentials_build-www.gyan.dev (setts), ffprobe 5.1.2-essentials_build-www.gyan.dev\r\n[debug] Optional libraries: Cryptodome-3.21.0, brotli-1.1.0, certifi-2024.08.30, curl_cffi-0.5.10, mutagen-1.47.0, requests-2.32.3, sqlite3-3.40.1, urllib3-2.2.3, websockets-13.1\r\n[debug] Proxy map: {}\r\n[debug] Request Handlers: urllib, requests, websockets, curl_cffi\r\n[debug] Loaded 1838 extractors\r\n[debug] Fetching release info: https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest\r\nLatest version: stable@2024.11.04 from yt-dlp/yt-dlp\r\nyt-dlp is up to date (stable@2024.11.04 from yt-dlp/yt-dlp)\r\n[CloudflareStream] Extracting URL: https://watch.cloudflarestream.com/e8766bfd7771e53b5dc26c76b650d91a/\r\n[CloudflareStream] e8766bfd7771e53b5dc26c76b650d91a: Downloading m3u8 information\r\nWARNING: [CloudflareStream] Failed to download m3u8 information: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self signed certificate in certificate chain (_ssl.c:1007)\r\n[CloudflareStream] e8766bfd7771e53b5dc26c76b650d91a: Downloading MPD manifest\r\nWARNING: [CloudflareStream] Failed to download MPD manifest: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self signed certificate in certificate chain (_ssl.c:1007)\r\nERROR: [CloudflareStream] e8766bfd7771e53b5dc26c76b650d91a: No video formats found!; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\r\nTraceback (most recent call last):\r\n  File \"yt_dlp\\YoutubeDL.py\", line 1625, in wrapper\r\n  File \"yt_dlp\\YoutubeDL.py\", line 1781, in __extract_info\r\n  File \"yt_dlp\\YoutubeDL.py\", line 1840, in process_ie_result\r\n  File \"yt_dlp\\YoutubeDL.py\", line 2846, in process_video_result\r\n  File \"yt_dlp\\YoutubeDL.py\", line 1122, in raise_no_formats\r\nyt_dlp.utils.ExtractorError: [CloudflareStream] e8766bfd7771e53b5dc26c76b650d91a: No video formats found!; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\r\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "yt_dlp/extractor/cloudflarestream.py::CloudflareStreamIE::_real_extract"
+  },
+  "rejected_alternates": [
+   "yt_dlp/extractor/cloudflarestream.py::CloudflareStreamIE"
+  ],
+  "evidence": [
+   {
+    "path": "yt_dlp/extractor/cloudflarestream.py",
+    "contains": "def _real_extract(self, url):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11478 (yt-dlp/yt-dlp @ be3579aaf), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11478",
+  "covariates": {
+   "repo": "yt-dlp/yt-dlp",
+   "base_commit": "be3579aaf0c3b71a0a3195e1955415d5e4d6b3d8",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 4674,
+   "corpus_fingerprint": {
+    "sha256": "1ecc1892d151c95ac9701d66ae2497f92d4db6f98333160f8a44ff268b0d2f88",
+    "files": 1233
+   }
+  }
+ }
+]
