@@ -194,6 +194,19 @@ def build(rows, repos, corpora, limit, single_only):
         if single_only and len(row.get("edit_functions") or []) != 1:
             refused["multi-function gold (excluded by --single-only)"] += 1
             continue
+        # Everything decidable from metadata is decided before the fetch. A snapshot of vllm or
+        # django is hundreds of megabytes, and refusing an instance after paying for its tree
+        # would have cost tens of gigabytes to build a thirty-question suite. The symbol half of
+        # the leak rule needs no corpus; the file-stem half does, and stays below.
+        if row.get("added_functions"):
+            refused["patch adds a function that does not exist at base_commit"] += 1
+            continue
+        leaves = [f.rpartition(":")[2].split(".")[-1] for f in (row["edit_functions"] or [])]
+        statement = (row.get("problem_statement") or "").strip()
+        if any(leaf and re.search(rf"(?<!\w){re.escape(leaf)}(?!\w)", statement)
+               for leaf in leaves):
+            refused["problem statement names a gold function or its file"] += 1
+            continue
         target = corpora / row["instance_id"]
         try:
             corpus = materialise(row["repo"], row["base_commit"], target)
