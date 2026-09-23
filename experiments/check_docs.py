@@ -68,6 +68,13 @@ RESULT_ROWS = {
 }
 # Column order of the result table, which the header row is checked against.
 RESULT_ARMS = ("native-control", "zvec-grep", "retrieval-mcp")
+# What a study has to say about itself before its figures can be quoted. A percentage is a
+# measurement only under a client, a corpus, a question class, a suite with a known author, and a
+# known answer to what else reached the prompt; quality is an outcome only where the suite could
+# have shown a difference. `publish_numbers.py` declares these and checks them against the run
+# directory. Declared and unflattering publishes here - undeclared does not.
+CONDITION_FIELDS = ("client", "corpus", "question_class", "suite_authored", "prompt_documents",
+                    "prompt_document_evidence", "quality_separation")
 FIGURE = re.compile(r'^\*{0,2}([0-9]+(?:\.[0-9]+)?)\s*([Mk])?\*{0,2}$')
 PERCENT = re.compile(r'[-−]([0-9]+(?:\.[0-9]+)?)%')
 # What a reader of README.md meets, in order. Proof before procedure; one troubleshooting surface;
@@ -285,13 +292,26 @@ def figure(cell):
 def published_comparisons(arms):
     """Every ratio a reader could legitimately quote from one study, as a percentage."""
     ratios = set()
-    fields = ("input_tokens", "input_tokens_with_cache_reads", "calls", "context_token_turns")
+    fields = ("input_tokens", "calls", "context_token_turns")
     for field in fields:
         for left in arms.values():
             for right in arms.values():
                 if right.get(field):
                     ratios.add((left[field] / right[field] - 1) * 100)
     return ratios
+
+
+def check_conditions(extract, problems):
+    """No figure without its conditions. This is the gate the contamination finding needed: the
+    project document reached both arms of every Codex study and nothing in the extract said so,
+    so a clean-looking percentage could be quoted out of a contaminated run."""
+    for name, study in sorted(extract["studies"].items()):
+        declared = study.get("conditions") or {}
+        for field in CONDITION_FIELDS:
+            if declared.get(field) in (None, "", {}):
+                problems.append({"document": PUBLISHED, "check": "study conditions",
+                                 "detail": f"{name} publishes figures without declaring "
+                                           f"{field!r}; regenerate with publish_numbers.py"})
 
 
 def check_published(text, extract, problems):
@@ -442,7 +462,9 @@ def main():
     # Published figures are checked against the extract, never against prose memory.
     extract_path = repo / PUBLISHED
     if extract_path.exists():
-        check_published(readme, json.loads(extract_path.read_text(encoding="utf-8")), problems)
+        extract = json.loads(extract_path.read_text(encoding="utf-8"))
+        check_published(readme, extract, problems)
+        check_conditions(extract, problems)
     else:
         problems.append({"document": PUBLISHED, "check": "published numbers",
                          "detail": "missing; regenerate it with publish_numbers.py"})

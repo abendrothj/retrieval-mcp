@@ -93,6 +93,9 @@ class OpenCodeParserTests(unittest.TestCase):
                 assert config["permission"]["retrieval_search_graph"] == "allow"
                 assert "codebase-memory-mcp" not in config["mcp"]
                 assert Path(os.environ["XDG_CONFIG_HOME"]).parent == Path(os.environ["OPENCODE_CONFIG_DIR"]).parent
+                # No operator home: `~/AGENTS.md` here routes the very tools under test.
+                assert os.environ["HOME"].endswith("opencode-session-home"), os.environ["HOME"]
+                assert not (Path(os.environ["HOME"]) / "AGENTS.md").exists()
                 assert sys.argv[sys.argv.index("--model") + 1] == "deepseek/deepseek-v4-flash"
                 assert sys.argv[sys.argv.index("--variant") + 1] == "high"
                 assert sys.argv[-1] == "Return JSON."

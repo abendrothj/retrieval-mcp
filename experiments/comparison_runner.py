@@ -61,6 +61,22 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def command_digests(command):
+    """Every file an upstream command names, hashed - not just the one `server` pins.
+
+    An arm may pin a wrapper as its `server`: the degraded control in `degrade_server.py` runs the
+    real binary as a subprocess and damages its answers on the way back, so `server_sha256` covers
+    the proxy and the binary actually under test is an *argument*. A run that cannot say which
+    binary produced its payloads is not a measurement.
+
+    Only absolute paths are covered. A relative one would resolve against the working directory,
+    which preparation and the run need not share, so a systems file should use `{server}` or an
+    absolute path for anything it wants pinned.
+    """
+    return {argument: digest(Path(argument)) for argument in command
+            if Path(argument).is_absolute() and Path(argument).is_file()}
+
+
 def source_fingerprint(root):
     globs = []
     for name in IGNORED_STATE:
@@ -297,6 +313,7 @@ def prepare(args):
                 "id": upstream["id"],
                 "command_executable": (lambda command: shutil.which(command[0]) or command[0])(
                     expand(upstream["command"], mapping)),
+                "command_digests": command_digests(expand(upstream["command"], mapping)),
                 "visible_tools": upstream["visible_tools"],
                 "expected_upstream_tools": upstream["expected_upstream_tools"],
             } for upstream in system["upstreams"]]
@@ -378,6 +395,12 @@ def validate_prepared(workspace, systems_path, server, semantic_command):
         # Each arm's own binary must still be the one it was prepared against.
         if digest(Path(record["server"])) != record["server_sha256"]:
             raise ValueError(f"server binary changed after preparation for {record['id']}")
+        # And so must anything its command names: a wrapper arm's real binary is an argument.
+        for upstream in record["upstreams"]:
+            for path, pinned in (upstream.get("command_digests") or {}).items():
+                if not Path(path).is_file() or digest(Path(path)) != pinned:
+                    raise ValueError(f"a file named by {record['id']}.{upstream['id']} changed "
+                                     f"after preparation: {path}")
     return manifest
 
 

@@ -58,6 +58,23 @@ def outside_corpus(token, root):
     return os.path.lexists(resolved)
 
 
+def session_instructions(session):
+    """Did the client put a project document into this trial's context after all?
+
+    The flag above stops Codex 0.155 from doing it. A client update can start again, and the
+    failure is silent: the document arrives in the first user message, not through a tool, so the
+    shell-command detector cannot see it. The rollout log records what was sent, so it is read
+    back. Five kernel studies were measured with 3,500-4,900 tokens of this project's own
+    `AGENTS.md` in both arms' contexts because nothing looked here.
+    """
+    if not session.is_file():
+        return False
+    for line in session.read_text(encoding="utf-8", errors="replace").splitlines():
+        if "AGENTS.md instructions for" in line or '"agents_md"' in line:
+            return True
+    return False
+
+
 def parse_events(events, corpus=None):
     """Translate Codex's stream, and refuse to be quiet about evidence from outside the corpus.
 
@@ -149,9 +166,18 @@ def main():
     # because each carried more context - the question three kernel studies could not answer. A
     # non-ephemeral session writes a rollout log with a `token_count` event per request, so the
     # run keeps one and the analysis reads it. Nothing else about the session changes.
+    #
+    # And no project document. `--cd` points at a corpus copy under `runs/`, which is inside this
+    # repository's own git tree, so Codex walked up to the repository root and put this project's
+    # `AGENTS.md` - its claim, its arms, its expected direction, and from 2026-09-20 the symbol one
+    # kernel caller question describes - into the first user message of every trial, both arms
+    # alike. `--ignore-user-config` does not cover it; `project_doc_max_bytes=0` does. Measured
+    # against a request sink on 2026-09-22: 73,338 bytes of request body without the flag, 53,384
+    # with, and the `# AGENTS.md instructions for ...` block is the whole difference.
     before = set(home.glob("sessions/**/*.jsonl"))
     command = ["codex", "exec", "--json", "--ignore-user-config", "--skip-git-repo-check",
-               "--sandbox", "read-only", "--cd", os.getcwd(), "--model", model]
+               "--sandbox", "read-only", "--cd", os.getcwd(), "--model", model,
+               "-c", "project_doc_max_bytes=0"]
     if retrieval and retrieval.get("command"):
         command += ["-c", f"mcp_servers.retrieval.command={json.dumps(retrieval['command'])}",
                     "-c", "mcp_servers.retrieval.args=" + json.dumps(retrieval.get("args", []))]
@@ -190,6 +216,8 @@ def main():
             except ValueError:
                 continue
     outcome = parse_events(events, os.getcwd())
+    if session_instructions(session):
+        outcome["unexpected_tools"] = sorted(set(outcome["unexpected_tools"]) | {"project_doc"})
 
     tools = sorted({"mcp__retrieval__" + tool for tool in retrieval_tools})
     if retrieval:

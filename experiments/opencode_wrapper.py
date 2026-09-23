@@ -172,8 +172,16 @@ def main():
     if variant:
         command += ["--variant", variant]
     command += ["--dir", os.getcwd(), prompt]
+    # HOME as well as the XDG roots. `~/AGENTS.md` on this machine is a routing guide for the four
+    # tools under test - it names `search_concept`, `find_callers` and their stopping rule - and
+    # `~/.agents/skills/retrieval-mcp/` is the document that contaminated three Codex studies. A
+    # trial that can read either is reading this project's own instructions, not its corpus;
+    # `runs/semantic-v2-reps-20260909/trial-0009` listed the real home directory and saw them.
+    session_home = run_dir / "opencode-session-home"
+    session_home.mkdir(parents=True, exist_ok=True)
     env = dict(
         os.environ,
+        HOME=str(session_home),
         OPENCODE_CONFIG_DIR=str(config_dir),
         XDG_CONFIG_HOME=str(run_dir / "xdg-config"),
         XDG_DATA_HOME=str(run_dir / "xdg-data"),

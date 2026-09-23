@@ -1359,22 +1359,34 @@ would settle the two-hop column; nothing about the −41.6% depends on it.
 |---|---:|---:|---:|
 | Resolved correct / 90 | **89** | **89** | 87 |
 | Graded credit | 0.997 | 0.993 | 0.983 |
-| Input tokens | 32.08 M | 25.12 M | **17.79 M** |
+| Input tokens | 17.41 M | 13.69 M | **10.02 M** |
 | Retrieval calls | 409 | 455 | **320** |
 | Persistent context | 2,510 k | 2,682 k | **2,033 k** |
 | Answered without evidence | 1 | 0 | **0** |
 
-Efficiency **passes**: −44.6% input tokens against native and −29.2% against zvec-grep, at −38.2%,
-−45.9% and −48.7% in the three repetitions. Safety **passes**: zero unsupported answers in 90
+Efficiency **passes**: −42.4% input tokens against native and −26.8% against zvec-grep, at −36.0%,
+−44.2% and −46.3% in the three repetitions. Safety **passes**: zero unsupported answers in 90
 trials. Quality **misses by one answer** — 87 against 89, where the criterion was within one — so
 the registered replication criterion, which needs both, is **not met**. That is the second study in
 a row to miss quality by a single answer, and it is published as a miss both times.
+
+**Re-derived 2026-09-22: the cached prefix was counted twice.** This study published −44.6% and
+−29.2% from a column that added `cache_read` to `input`. Both clients already report the whole
+context in `input`: Codex's `input_tokens` contains the cached prefix as a subset — per-request
+`last_token_usage` in any archived rollout shows `cached_input_tokens` below it, and the sum of a
+trial's requests equals the row's `input` exactly — and `end_to_end.steps_from` folds Claude's
+three separately billed fields into the same field before anything reads it. The figures above are
+re-derived from the same three archived reports with the cached prefix counted once, symmetrically
+for all three arms; the sign, the ordering and the pass/miss outcomes are unchanged. The second
+column is gone from `publish_numbers.py` and the withdrawn percentages are declared in
+`published_results.json` so the correction is checkable rather than quiet. The kernel studies were
+never affected: every figure in them was computed from the surviving definition.
 
 **What the repair bought.** Against the previous run on the same corpus, the two-hop stratum went
 7/15 to 13/15 for this server and 10/15 to 14/15 for the native control: the losses there were the
 instrument, and repairing it lifted every arm. Outside that shape, 25 questions and 75 trials per
 arm, the standing is 75/75 native, 75/75 zvec-grep, 74/75 here, with the token gap unchanged at
-−46.0% and −32.7%.
+−44.0% and −30.3%.
 
 **The three remaining losses, all in one repetition.** One named `TestNewOnlyJWT` where the corpus
 defines `TestNewOnlyJWTExclusivity`. One answered a caller question with the helper itself included,
@@ -1401,10 +1413,109 @@ native, 1.03 and 4,234 for zvec-grep — roughly one call and one percent of inp
 every arm alike, so the differences above absorb an offset rather than a tilt. Its *content* is not
 symmetric: it tells the treatment arm how to route questions to the tools it has, and tells the
 other two arms about tools they do not have. Nothing in the archived bytes can separate a strategy
-advantage from none, so the honest statement is that the −44.6% is measured with that document in
+advantage from none, so the honest statement is that the −42.4% is measured with that document in
 both contexts. The fix (own `HOME` per trial, a `read_outside_corpus` flag, a `contaminated` column
 in `end_to_end.py`, tests in `experiments/tests/test_codex_wrapper.py`) landed before the kernel
-study, which is therefore the first clean Codex run in this record.
+study, which closed the *shell* path into the trial. It did not close the prompt path, and the
+next entry is what was behind it.
+
+**The second leak: this document's own working notes, in every Codex trial.** Found 2026-09-22.
+Each arm's corpus copy lives at `runs/<run>/workspace/systems/<arm>/corpus`, which is inside this
+repository's git tree, so Codex walked up to the repository root and put `AGENTS.md` — the claim,
+the arms, the expected direction of the result, the names of the instruments, and from 2026-09-20
+the symbol one kernel caller question describes — into the first user message of the session.
+`--ignore-user-config` does not cover a project document, and the shell detector cannot see one
+because it arrives as text, not as a tool call. Verified two ways: 252 of 252 archived rollout
+logs (`runs/linux-diet-20260921`, `runs/linux-relations-20260922`, 126 trials each, both arms)
+carry a `# AGENTS.md instructions for …` block; and against a local request sink on 2026-09-22 a
+`codex exec` from an empty directory under `runs/` sent 73,338 bytes of request body, 53,384 with
+`-c project_doc_max_bytes=0`, the 19,954-byte difference being exactly that block.
+
+Scope: every Codex study in this record — `runs/etcd-mixed-20260915` and its rerun, the Go and
+coreutils suites, and all five kernel studies. Not the held-out Django study: that arm is Claude
+Code 2.1.261, launched with `--setting-sources ""` and `claudeMdExcludes: ["/**"]`, and AGENTS.md
+support did not reach that client until 2.1.277 on 2026-09-18. The isolation existed on one client
+and was never ported to the other.
+
+**The operator's own `~/AGENTS.md`, checked the same way.** That file is not generic advice: it is
+a routing guide for the four tools under test, naming `search_concept`, `search_exact`,
+`find_callers`, `read_source`, a stopping rule almost word for word the treatment arm's
+`prompt_policy`, and `coverage.budget_truncated`. `~/.claude/CLAUDE.md` is a symlink to it. If it
+had reached a trial it would be the SKILL.md incident again, one level up. It did not, on either
+published client, and both directions are measured rather than argued:
+
+- **Codex stops at the git root.** The request-sink capture from a directory under `runs/` carries
+  exactly one project-document block, the repository's, and no byte of the home file — its
+  opening line does not appear in the 73,338-byte body.
+- **Claude excludes it by launch flag.** Replaying the held-out study's archived `agent_command`
+  against the same sink (Claude Code 2.1.280, since 2.1.261 is gone): 16,493 bytes with the flags
+  and neither document; 175,870 bytes without them, carrying both `~/AGENTS.md` and this
+  repository's. Every archived Claude trial that records its launch — 1,669 of them across 19 run
+  directories — passes `--setting-sources ""`, `autoMemoryEnabled: false` and
+  `claudeMdExcludes: ["/**"]`. None is missing it. The replay is on a later client build than the
+  study's, which is the one thing here that cannot be re-checked exactly.
+- **One archived trial did touch it**, and it was OpenCode: `runs/semantic-v2-reps-20260909`
+  `trial-0009` ran `ls -la` over the real home directory and printed
+  `AGENTS.md -> /Users/ja/AGENTS.md` in its output. It read the listing, not the file, and no
+  published number comes from an OpenCode run — but that wrapper was passing the operator's `HOME`
+  straight through, so `~/.agents/skills/retrieval-mcp/` was reachable from it too. It now gets a
+  per-trial `HOME` like the Codex path, asserted in `test_opencode_wrapper.py`. That fix is
+  proven against a fixture binary, not against the real client, because no published claim
+  depends on it.
+
+**The vector none of this closes: the instrument was authored inside the loop.** The suites were
+written by agent sessions — "each question was authored from source by a separate agent per
+package" for Django, "28 were authored, in four parallel batches" for etcd — and those sessions
+ran in this repository, on this machine, with no isolation flags. Measured, not assumed: a plain
+`claude -p` in a directory under `runs/` sends 175,870 bytes of request body carrying both this
+repository's `AGENTS.md` and `~/AGENTS.md`, against 16,493 with the trial's flags. So the party
+choosing which questions exist, and the words they are phrased in, held a routing guide for the
+four tools under test and a statement of which arm was expected to win.
+
+What that can and cannot do. It cannot forge a gold: every gold identity is enumerated by
+`audit_failures.true_callers` and `quality_pass.definition_lines`, ripgrep and ctags, with no
+index consulted, and `validate_suite.py` refuses a suite whose golds do not reproduce. It can
+choose the sample. Two filters also run inside the loop and both move the sample:
+`lexical_oracle.py` deletes questions a bounded grep crawl solves, and `tool_reachability.py`
+keeps four Django tool-plan suites' questions only where the server surfaces the gold. And the
+wording carries a measurable fingerprint: **16 of 21 kernel questions and 16 of 30 etcd questions
+contain a word from the target symbol's own name** (`tls_handshake_close` described as a TLS
+handshake being closed), which is a handle for any arm that matches text, so the direction of that
+one is not even determined.
+
+No archived byte can settle it, because the bias is in the sample rather than in any trial. What
+would settle it is one suite authored out of the loop — an isolated session, no repository or
+operator documents, no knowledge of the arms, questions derived from an independent artefact such
+as upstream commit messages — verified by the same oracles and run against the same two arms. Law
+7 now requires that for every future suite; every existing suite predates it.
+
+Size and direction. The document grew from 5.8 KB to 19.5 KB over the record, so the injected
+prefix is a different size in every study — it is an uncontrolled variable in the token metric,
+and the 8.6% native drift between two identical configurations in `runs/linux-complete-20260921`
+sits inside that. Reconstructed per trial from `requests.json` and the document's size on the run
+date: 19,686 tokens of 247,623 for this server's arm and 18,200 of 246,841 for native in
+`runs/linux-diet-20260921` (7.9% and 7.4%), 20,467 of 232,392 and 19,533 of 246,327 in
+`runs/linux-relations-20260922`. It is not symmetric per trial, because the arm making more model
+requests pays for the document more times, and native makes more requests. Removing it moves the
+published kernel gaps by roughly one point in the direction that hurts this server: +1.0% becomes
+about +1.6%, −5.4% about −4.6%.
+
+What it can and cannot explain. It cannot explain quality on 19 of the 21 kernel questions,
+whose gold identities the document never names. It can explain
+`lx-callers-tls-closure-alert`: from 2026-09-20 the document states that the agent asked
+`find_callers` about `tls_alert_send` "rather than the `tls_handshake_close` that the question
+described", which is the answer. That question scored 0/3 for this server in
+`runs/linux-scanfix-20260920` under the document that predates the sentence, 3/3 in
+`runs/linux-complete-20260921` under the one that contains it, then 2/3 and 0/3 — a pattern the
+binary changed under too, so the run that first met a registered per-question prediction cannot
+be separated from the run that first carried the answer. One answer of 63.
+
+The fix is `-c project_doc_max_bytes=0` on the launch, plus `session_instructions()` reading the
+rollout log back so a client that ignores the flag is reported as `project_doc` in the
+`contaminated` column rather than passing silently. Tests in
+`experiments/tests/test_codex_wrapper.py`. No archived Codex number is retracted by this, and none
+is clean of it either: clearing it needs the kernel plan re-run under the flag, which is model
+spend and is not authorised here.
 
 ### The Linux kernel: where the claim stops
 
@@ -1494,7 +1605,7 @@ slice, and composes two or three of those per call. The four-tool surface answer
 round trip and cannot be piped into anything.
 
 **What this does to the claim.** The published result stands where it was measured — Django at
-−33.5%, etcd at −44.6%, 468 trials with quality never separating — and it now has a stated
+−33.5%, etcd at −42.4%, 468 trials with quality never separating — and it now has a stated
 boundary: on a corpus of this size, with a shell-capable client, it reverses on every axis. That is
 one corpus, one client and 126 trials, so the boundary is as provisional as the claim was after its
 first corpus. What it is not is unknown.

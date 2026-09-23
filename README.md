@@ -74,10 +74,10 @@ Measured once on a sealed held-out set and not tuned against afterwards — 30 q
 | Calls to first evidence | 1.79 | 1.35 | **1.17** |
 | Answered without evidence | **0** | **0** | **0** |
 
-*Input tokens* counts uncached input plus cache creation — the bytes a turn pays for that were not
-already resident. Count cache reads as well and the totals are 2.17 M / 1.83 M / 1.39 M, the same
-comparison at −36.2% against native and −24.2% against zvec-grep. Both definitions appear in this
-project; the table says which one it uses so no one has to reverse-engineer it.
+*Input tokens* is the whole context each request carried, with the cached prefix counted once.
+Earlier revisions published a second column that added cache reads on top of a total that already
+contained them — 2.17 M / 1.83 M / 1.39 M here, −36.2% against native — and that column was a
+double count, now removed from `published_results.json`.
 
 Against the native control specifically: **−33.5% input tokens, −47% tool calls, −14.5% carried
 context, one more correct answer.** Against zvec-grep: −24% input tokens, −34% context, the same
@@ -91,12 +91,13 @@ between models, so that is the claim's boundary.
 
 **Replicated on a second corpus, with a different model.** 30 mixed-shape questions over an etcd
 client corpus, three repetitions, 270 trials, `gpt-5.6-luna`: quality 87 / 89 / 89 of 90 for
-retrieval-mcp, native and zvec-grep, on 17.8 M input tokens against native's 32.1 M counting cache
-reads — **−44.6%**, or −42.4% on the table's narrower definition — with 320 tool calls against 409
-and less carried context. That study **missed its registered
-quality criterion by one answer and is published as a miss**; across 468 scored trials on the two
-corpora quality has never separated in either direction, and the token gap has never failed to
-replicate. [Both studies, with their criteria](experiments/README.md#the-rerun-on-head-the-repaired-suite-and-a-miss-by-one-answer).
+retrieval-mcp, native and zvec-grep, on 10.0 M input tokens against native's 17.4 M —
+**−42.4%** — with 320 tool calls against 409 and less carried context. This study was published at
+−44.6% until 2026-09-22, when the cached prefix turned out to have been counted twice; the
+corrected figure is measured from the same three archived reports. That study **missed its
+registered quality criterion by one answer and is published as a miss**; across 468 scored trials
+on the two corpora quality has never separated in either direction, and the token gap has never
+failed to replicate. [Both studies, with their criteria](experiments/README.md#the-rerun-on-head-the-repaired-suite-and-a-miss-by-one-answer).
 
 **And it stops at a scale.** The same two arms, the same client, on Linux 6.12 — 86,602 files, 21
 questions, three repetitions, 126 trials: **56 correct against native's 62, and +16.4% input
@@ -531,7 +532,7 @@ subprocess calls.
 cargo build --locked --release --bin retrieval-mcp
 cargo test --locked --all-targets            # 45 library, 22 stdio (1 ignored), 6 example tests
 cargo clippy --locked --all-targets -- -D warnings
-python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 265 tests
+python3 -W error::ResourceWarning -m unittest discover -s experiments -p 'test_*.py'   # 298 tests
 python3 experiments/check_docs.py            # the docs still describe the server that exists
 ```
 
