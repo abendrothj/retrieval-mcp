@@ -196,6 +196,14 @@ def main():
     # prompt prefix changes - so the arm that uses it has its prefix measured and recorded.
     if os.environ.get("CODEX_DISABLE_SHELL") == "1":
         command += ["--disable", "shell_tool"]
+    # The same mechanism, for any other feature an arm needs taken away. `code_mode` and
+    # `tool_search` are the ones that matter next: on 0.155.1 they are on by default and unset
+    # by anything this harness does, and they are why the MCP arm spends round trips searching
+    # ALL_TOOLS for its own tools before touching the corpus. Codex validates the names, so a
+    # typo fails the launch rather than silently measuring the default.
+    for feature in (os.environ.get("CODEX_DISABLE_FEATURES") or "").split(","):
+        if feature.strip():
+            command += ["--disable", feature.strip()]
     if retrieval and retrieval.get("command"):
         command += ["-c", f"mcp_servers.retrieval.command={json.dumps(retrieval['command'])}",
                     "-c", "mcp_servers.retrieval.args=" + json.dumps(retrieval.get("args", []))]

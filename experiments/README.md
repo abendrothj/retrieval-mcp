@@ -2317,6 +2317,33 @@ What none of this can settle offline is whether the fee scales with the catalogu
 `--tools` would say, and it is the obvious next registration: if three tools cost what seven
 cost, the fee is the search itself and a server cannot shrink it by exposing less.
 
+**And the fee is not a setting.** `code_mode` and `tool_search` are real feature flags on this
+client — Codex validates the names, `apply_patch_tool` is rejected — and both are on by default
+with nothing in this harness setting them, so the obvious next move was to turn them off and
+price them. `runs/codemode-price-20260924`, 20 trials, two arms differing in exactly `id` and
+`agent_environment`, on the same corpus and a shape-balanced ten of the same questions:
+
+| | discovery calls | requests | input tokens | resolved |
+|---|---:|---:|---:|---:|
+| code mode on | 3.10 | 6.10 | 167,900 | 9/10 |
+| `--disable code_mode,tool_search` | **3.00** | **6.10** | 169,914 | 8/10 |
+
+Nothing moves. The registration's second branch fired: the arm still searches, in 10 of 10
+trials either way, and requests do not shift by a single hundredth. The flags were verified to
+apply rather than assumed to — `CODEX_DISABLE_FEATURES=definitely_not_a_feature` fails the
+launch with an empty usage record, because Codex rejects an unknown feature before making any
+model call, while the same invocation unset returns normally. So the null belongs to the flags
+and not to the plumbing.
+
+Two things follow. Discovery **replicates** — 2.93 calls a trial over 30 trials in the transport
+study, 3.00 and 3.10 over ten each on a separate launch — so it is stable rather than an
+artifact of one run. And it is **not avoidable by configuration**: whatever those flags govern,
+the model keeps the `ALL_TOOLS` idiom without them, which points at the `exec` sandbox itself
+rather than at a toggle above it. The only lever left is `unified_exec`, which removes the tool
+altogether, and that condition is already measured and bad — `runs/locbench-noshell-20260923`
+scored 10 of 25 against its shell-bearing twin's 19. On this client an MCP server pays the
+discovery tax and cannot configure its way out.
+
 **The announcement is measured, not assumed.** A command is announced by nothing, so the arm
 needs a prompt fragment, and that fragment is the most dangerous object in the study given what
 `~/.agents/skills/retrieval-mcp/SKILL.md` did to 2,109 archived trials. It is therefore

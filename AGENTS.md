@@ -239,6 +239,15 @@ Open threads:
   a request** and buys exactly what the MCP arm must go and find - 2.93 discovery round trips a
   trial. That is not a handicap to subtract from the CLI arm; on this client it is the cheaper
   side of the trade by a wide margin, 57,424 input tokens a trial against 163,148.
+- **The discovery tax is not a setting, and it replicates.** `code_mode` and `tool_search` are
+  real flags on this client - Codex validates names, `apply_patch_tool` is rejected - both on by
+  default and set by nothing here. `runs/codemode-price-20260924` turned both off over 20 trials
+  and moved nothing: discovery 3.10 to 3.00, present in 10 of 10 trials either way, requests
+  6.10 against 6.10. The flags were verified to apply rather than assumed to, because
+  `CODEX_DISABLE_FEATURES=definitely_not_a_feature` fails the launch with an empty usage record.
+  Discovery also replicates across launches, 2.93 a trial over 30 and 3.0 over 10. So an MCP
+  server here cannot configure its way out of the tax; the only remaining lever is
+  `unified_exec`, which removes the tool altogether and is the no-shell arm that scored 10 of 25.
 - **Deliberation did not respond to better evidence on the page.** `runs/linux-relations-20260922`
   stated which candidate calls which - 10 of 21 pages, no byte cost, offline-proven - and under a
   model it missed every registered criterion: idle requests 1.95 to 2.03, quality 59 to 56 of 63,
