@@ -216,8 +216,15 @@ def load_systems(path):
         if system["mcp_enabled"]:
             if not system["upstreams"]:
                 raise ValueError(f"{system_id} MCP configuration must name at least one upstream")
-        elif system["upstreams"] or system["prepare_commands"] or system["check_commands"]:
+        elif system["upstreams"] or system["prepare_commands"]:
             raise ValueError(f"{system_id} native control must not configure an MCP server")
+        # `check_commands` stays open to an arm with no MCP server, because "no server" stopped
+        # meaning "nothing to verify" when a retrieval arm could reach the same index as a
+        # command in its own shell. runs/cli-transport-20260924 needs to prove its binary runs:
+        # an arm whose command is unreachable is the native arm carrying its instructions for
+        # nothing, and it would be scored as though the channel had been tested. What the guard
+        # is actually for - a control that secretly has retrieval - is `upstreams`, which is
+        # still refused, and the corpus fingerprint still refuses a check that edits the tree.
         if "server" in system:
             if not isinstance(system["server"], str) or not system["server"]:
                 raise ValueError(f"{system_id}.server must be a nonempty path to a server binary")

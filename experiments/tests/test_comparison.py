@@ -373,5 +373,40 @@ class ComparisonTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unexpected fields"):
                 comparison_runner.load_systems(path)
 
+    def test_an_arm_with_no_server_may_still_verify_something(self):
+        """A retrieval arm can reach the index as a command rather than as a server.
+
+        `runs/cli-transport-20260924` has one: no upstream, but a binary whose reachability has
+        to be proved, because an arm whose command does not run is the native arm carrying its
+        instructions for nothing and would be scored as though the channel had been tested.
+        What the guard is for - a control that secretly has retrieval - is `upstreams`, and that
+        stays refused.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "systems.json"
+            systems(path)
+            document = json.loads(path.read_text())
+            document["systems"][0]["check_commands"] = [["/usr/bin/true", "--version"]]
+            path.write_text(json.dumps(document))
+            loaded = comparison_runner.load_systems(path)
+            self.assertEqual(loaded["systems"][0]["check_commands"],
+                             [["/usr/bin/true", "--version"]])
+
+            document["systems"][0]["prepare_commands"] = [["/usr/bin/true"]]
+            path.write_text(json.dumps(document))
+            with self.assertRaisesRegex(ValueError, "must not configure an MCP server"):
+                comparison_runner.load_systems(path)
+
+            # Emptied, not removed: `prepare_commands` is required, and popping it fails the
+            # shape check before it can reach the rule under test.
+            document["systems"][0]["prepare_commands"] = []
+            document["systems"][0]["upstreams"] = [{
+                "id": "retrieval", "command": ["x"], "environment": {},
+                "visible_tools": ["search_exact"], "expected_upstream_tools": ["search_exact"]}]
+            path.write_text(json.dumps(document))
+            with self.assertRaisesRegex(ValueError, "must not configure an MCP server"):
+                comparison_runner.load_systems(path)
+
+
 if __name__ == "__main__":
     unittest.main()
