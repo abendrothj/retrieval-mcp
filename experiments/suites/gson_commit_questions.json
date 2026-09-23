@@ -1,166 +1,163 @@
 [
   {
-    "id": "gs-ed99017a3",
+    "id": "gs-425cb2554",
     "category": "commit_change_locus",
     "set": "holdout",
-    "question": "Remove redundant `recordPromotedName` calls (#3117)\n\n* Remove redundant `recordPromotedName` calls\n\nThese calls are guarded by a `case PEEKED_LONG`, but it seems\n`PEEKED_LONG` is only used if an actual number occurred in the JSON\ndocument. Whereas when promoting a name to a value, it will always be a\nJSON string value.\n\nThese redundant calls were also the \"expensive\" ones, converting a long\nto a String.\n\n* Add test for unquoted number as name\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "question": "Adjust some minor details of #1391.\n\nUse two-space indentation for the new test.\nUse standard Google import style.\nSupply missing type argument for `TypeVariable`.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
     "expected_json": {
-      "answer": [
-        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextDouble",
-        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextInt",
-        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextLong"
-      ]
+      "answer": "gson/src/main/java/com/google/gson/internal/$Gson$Types.java::resolve"
     },
     "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/stream/JsonReader.java::JsonReader",
-      "gson/src/main/java/com/google/gson/stream/JsonReader.java::setLenient",
-      "gson/src/main/java/com/google/gson/stream/JsonReader.java::setStrictness"
+      "gson/src/main/java/com/google/gson/internal/$Gson$Types.java::$Gson$Types",
+      "gson/src/main/java/com/google/gson/internal/$Gson$Types.java::newParameterizedTypeWithOwner",
+      "gson/src/main/java/com/google/gson/internal/$Gson$Types.java::arrayOf"
     ],
     "evidence": [
       {
-        "path": "gson/src/main/java/com/google/gson/stream/JsonReader.java",
-        "contains": "public double nextDouble() throws IOException {"
+        "path": "gson/src/main/java/com/google/gson/internal/$Gson$Types.java",
+        "contains": "public static Type resolve(Type context, Class<?> contextRawType, Type toResolve) {"
       }
     ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit ed99017a3b7ff41a08b96f3b972e7599743abe99 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 425cb25549ae83082b5e1ba4dfbc3bb635a15faf against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
     "covariates": {
-      "commit": "ed99017a3b7ff41a08b96f3b972e7599743abe99",
-      "gold_cardinality": 3,
-      "names_target": true,
-      "message_chars": 446
+      "commit": "425cb25549ae83082b5e1ba4dfbc3bb635a15faf",
+      "gold_cardinality": 1,
+      "names_target": false,
+      "message_chars": 163
     }
   },
   {
-    "id": "gs-8b4b55051",
+    "id": "gs-e6fae590c",
     "category": "commit_change_locus",
     "set": "holdout",
-    "question": "fix: reject unpaired surrogates in strict JSON (#3116)\n\n* fix: reject unpaired surrogates in strict JSON\n\n* fix: cover direct unpaired surrogates in strict mode\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "question": "Prevent Java deserialization of internal classes (#1991)\n\nAdversaries might be able to forge data which can be abused for DoS attacks.\nThese classes are already writing a replacement JDK object during serialization\nfor a long time, so this change should not cause any issues.\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
     "expected_json": {
       "answer": [
-        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextQuotedValue",
-        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextUnquotedValue"
+        "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java::hashCode",
+        "gson/src/main/java/com/google/gson/internal/LinkedHashTreeMap.java::writeReplace",
+        "gson/src/main/java/com/google/gson/internal/LinkedTreeMap.java::writeReplace"
       ]
     },
     "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/stream/JsonReader.java::JsonReader",
+      "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java::LazilyParsedNumber",
+      "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java::intValue",
+      "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java::longValue"
+    ],
+    "evidence": [
+      {
+        "path": "gson/src/main/java/com/google/gson/internal/LazilyParsedNumber.java",
+        "contains": "public int hashCode() {"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit e6fae590cf2a758c47cd5a17f9bf3780ce62c986 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "e6fae590cf2a758c47cd5a17f9bf3780ce62c986",
+      "gold_cardinality": 3,
+      "names_target": false,
+      "message_chars": 275
+    }
+  },
+  {
+    "id": "gs-6e06bf0d8",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "Fix for an ArrayIndexOutOfBoundsException.\n\nThe `fillBuffer` method changes `pos`, so it is incorrect to cache\nits previous value.\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "expected_json": {
+      "answer": [
+        "gson/src/main/java/com/google/gson/stream/JsonReader.java::JsonReader",
+        "gson/src/main/java/com/google/gson/stream/JsonReader.java::consumeNonExecutePrefix"
+      ]
+    },
+    "rejected_alternates": [
       "gson/src/main/java/com/google/gson/stream/JsonReader.java::setLenient",
-      "gson/src/main/java/com/google/gson/stream/JsonReader.java::setStrictness"
+      "gson/src/main/java/com/google/gson/stream/JsonReader.java::isLenient",
+      "gson/src/main/java/com/google/gson/stream/JsonReader.java::beginArray"
     ],
     "evidence": [
       {
         "path": "gson/src/main/java/com/google/gson/stream/JsonReader.java",
-        "contains": "private String nextQuotedValue(char quote) throws IOException {"
+        "contains": "public class JsonReader implements Closeable {"
       }
     ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 8b4b55051489132190cb8d1c61eb9dc7f5381295 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 6e06bf0d89ad71f317c920cdaf9981a0508446d3 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
     "covariates": {
-      "commit": "8b4b55051489132190cb8d1c61eb9dc7f5381295",
+      "commit": "6e06bf0d89ad71f317c920cdaf9981a0508446d3",
       "gold_cardinality": 2,
       "names_target": false,
-      "message_chars": 160
+      "message_chars": 130
     }
   },
   {
-    "id": "gs-dae37cf0f",
+    "id": "gs-dc28951fa",
     "category": "commit_change_locus",
     "set": "holdout",
-    "question": "Fix some adapter exceptions not including JSON document location (#3096)\n\n* Fix some adapter exceptions not including JSON document location\n\n* Wrap `MalformedURLException` from URL adapter\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "question": "Change target Java version to 7 (#2043)\n\n* Change target Java version to 7\n\n* Document Gson requirements\n\n* Add package-info.java for `stream` package\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
     "expected_json": {
       "answer": [
-        "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::Adapter",
+        "gson/src/main/java/com/google/gson/internal/$Gson$Types.java::WildcardTypeImpl",
+        "gson/src/main/java/com/google/gson/stream/MalformedJsonException.java::MalformedJsonException"
+      ]
+    },
+    "rejected_alternates": [
+      "gson/src/main/java/com/google/gson/internal/$Gson$Types.java::$Gson$Types",
+      "gson/src/main/java/com/google/gson/internal/$Gson$Types.java::newParameterizedTypeWithOwner",
+      "gson/src/main/java/com/google/gson/internal/$Gson$Types.java::arrayOf"
+    ],
+    "evidence": [
+      {
+        "path": "gson/src/main/java/com/google/gson/internal/$Gson$Types.java",
+        "contains": "private static final class WildcardTypeImpl implements WildcardType, Serializable {"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit dc28951fa7e7112f0e229e0a4665ad27a1891d79 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "dc28951fa7e7112f0e229e0a4665ad27a1891d79",
+      "gold_cardinality": 2,
+      "names_target": false,
+      "message_chars": 150
+    }
+  },
+  {
+    "id": "gs-6b96a389c",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "Put `module-info.class` into Multi-Release JAR folder (#2013)\n\n* Put module-info.class into Multi-Release JAR folder\n\nUses ModiTect to place module-info.class under Multi-Release JAR folder\n`META-INF/versions/9`.\n\n* Adjust pom.xml to drop support for Java 6\n\n* Change doclint setting\n\nAll Javadoc errors have been solved previously; doclint can now be enabled\nwithout causing build failures.\n\n* Improve README Java requirements\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "expected_json": {
+      "answer": [
+        "proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java::ProtoTypeAdapter",
+        "proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java::deserialize",
+        "proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java::getCachedMethod"
+      ]
+    },
+    "rejected_alternates": [
+      "proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java::EnumSerialization",
+      "proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java::Builder",
+      "proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java::setEnumSerialization"
+    ],
+    "evidence": [
+      {
+        "path": "proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java",
+        "contains": "public class ProtoTypeAdapter"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 6b96a389cc40d56fd3d00547c00a42ab2bef6098 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "6b96a389cc40d56fd3d00547c00a42ab2bef6098",
+      "gold_cardinality": 3,
+      "names_target": false,
+      "message_chars": 427
+    }
+  },
+  {
+    "id": "gs-7ee3e2787",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "Parsing Map<Enum,Obj> - 501 (#1950)\n\n* Added parsing support for enum that has overridden toString() method.\n\n* Fix a tiny formatting problem\n\n* Fixed formatting issue\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "expected_json": {
+      "answer": [
+        "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::EnumTypeAdapter",
         "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::read"
       ]
-    },
-    "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::MapTypeAdapterFactory",
-      "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::create",
-      "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::getKeyAdapter"
-    ],
-    "evidence": [
-      {
-        "path": "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java",
-        "contains": "private final class Adapter<K, V> extends TypeAdapter<Map<K, V>> {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit dae37cf0fe12235b76fb09f01118a0a8c8823f42 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "dae37cf0fe12235b76fb09f01118a0a8c8823f42",
-      "gold_cardinality": 2,
-      "names_target": true,
-      "message_chars": 189
-    }
-  },
-  {
-    "id": "gs-138377c6b",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Include location in NumberFormatException thrown by JsonTreeReader (#3062)\n\n* Include location in NumberFormatException thrown by JsonTreeReader\n\n* Apply spotless formatting: single-line method signature\n\n---------\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
-    "expected_json": {
-      "answer": [
-        "gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java::nextDouble",
-        "gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java::nextInt",
-        "gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java::nextLong",
-        "gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java::validateAscii"
-      ]
-    },
-    "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java::JsonTreeReader",
-      "gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java::read",
-      "gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java::close"
-    ],
-    "evidence": [
-      {
-        "path": "gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java",
-        "contains": "public double nextDouble() throws IOException {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 138377c6b6c724dc1e0579f7c62337f85d9ee836 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "138377c6b6c724dc1e0579f7c62337f85d9ee836",
-      "gold_cardinality": 4,
-      "names_target": false,
-      "message_chars": 214
-    }
-  },
-  {
-    "id": "gs-866bc3892",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Use LinkedHashMap as the default Map. (#3057)\n\n* Use LinkedHashMap as the default Map.\n\nThe JDK and Android have had DoS protection at least as good as LinkedTreeMap for decades now.\n\n* Add a test for deserializing a null key in the list-of-entries encoding.\n\n* Fix 'unused' warnings.\n\n* Another 'unused' warning.\n\n* Respond to review comments.\n\n* Remove unused imports.\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
-    "expected_json": {
-      "answer": [
-        "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::ConstructorConstructor",
-        "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::get",
-        "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::newDefaultImplementationConstructor",
-        "gson/src/main/java/com/google/gson/internal/bind/ObjectTypeAdapter.java::tryBeginNesting"
-      ]
-    },
-    "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::checkInstantiable",
-      "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::newSpecialCollectionConstructor",
-      "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::newDefaultConstructor"
-    ],
-    "evidence": [
-      {
-        "path": "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java",
-        "contains": "public final class ConstructorConstructor {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 866bc38923123f4ad8025c3c363511deb4380edf against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "866bc38923123f4ad8025c3c363511deb4380edf",
-      "gold_cardinality": 4,
-      "names_target": true,
-      "message_chars": 370
-    }
-  },
-  {
-    "id": "gs-e4f54f78c",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Throw JsonSyntaxException instead of NPE for a null AtomicLongArray element (#3038)\n\nDeserializing a JSON array with a null element into AtomicLongArray\n(e.g. [1,null,3]) called longValue() on the null returned by the element\nadapter, throwing a NullPointerException. Throw a JsonSyntaxException for the\nnull element, consistent with how the Long adapter reports malformed numbers.\nAdds a regression test.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
-    "expected_json": {
-      "answer": "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::read"
     },
     "rejected_alternates": [
       "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::TypeAdapters",
@@ -170,117 +167,32 @@
     "evidence": [
       {
         "path": "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java",
-        "contains": "public Class read(JsonReader in) throws IOException {"
+        "contains": "private static final class EnumTypeAdapter<T extends Enum<T>> extends TypeAdapter<T> {"
       }
     ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit e4f54f78c93dae0507fcac5be81253974bc9042d against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 7ee3e2787f45f5453b61a9af6c659993b4eba6d5 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
     "covariates": {
-      "commit": "e4f54f78c93dae0507fcac5be81253974bc9042d",
-      "gold_cardinality": 1,
-      "names_target": false,
-      "message_chars": 405
-    }
-  },
-  {
-    "id": "gs-f4d371d29",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Fix duplicate key detection when first value is null (#3006)\n\n* Fix duplicate key detection when first value is null\n\nMapTypeAdapterFactory detected duplicate map keys by checking the\nreturn value of Map.put(): `if (replaced != null)`. This missed\nduplicates where the first value was null, because Map.put() returns\nnull (the previous value) which passed the != null check.\n\nFor example, {\"a\":null,\"a\":1} was silently accepted as {a=1} instead\nof throwing JsonSyntaxException(\"duplicate key: a\").\n\nFix: check Map.containsKey() before put() instead of relying on the\nreturn value of put(). This correctly detects duplicates regardless\nof whether the first value is null.\n\nFixes both the object form and the array-of-entries form\n(enableComplexMapKeySerialization).\n\n* Apply spotless formatting\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
-    "expected_json": {
-      "answer": "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::Adapter"
-    },
-    "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::MapTypeAdapterFactory",
-      "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::create",
-      "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::getKeyAdapter"
-    ],
-    "evidence": [
-      {
-        "path": "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java",
-        "contains": "private final class Adapter<K, V> extends TypeAdapter<Map<K, V>> {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit f4d371d29c04066dbe7fdb31f642831f9c7f40cd against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "f4d371d29c04066dbe7fdb31f642831f9c7f40cd",
-      "gold_cardinality": 1,
+      "commit": "7ee3e2787f45f5453b61a9af6c659993b4eba6d5",
+      "gold_cardinality": 2,
       "names_target": true,
-      "message_chars": 793
+      "message_chars": 167
     }
   },
   {
-    "id": "gs-1fa9b7a0a",
+    "id": "gs-2d01d6a20",
     "category": "commit_change_locus",
     "set": "holdout",
-    "question": "Validate that strings being parsed as integers consist of ASCII characters (#2995)\n\n* Validate that strings being parsed as integers consist of ASCII characters.\n\nThis is technically an incompatible change, although it is unlikely that\nanyone will be affected by it. It also fixes a minor security issue.\n\nFixes \n\n* Verify that `Integer.parseInt` does accept non-ASCII digits.\n\n* Move validation outside try/catch.\n\nSuggested by @Marcono1234.\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
-    "expected_json": {
-      "answer": [
-        "gson/src/main/java/com/google/gson/stream/JsonReader.java::JsonReader",
-        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextInt",
-        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextLong"
-      ]
-    },
-    "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/stream/JsonReader.java::setLenient",
-      "gson/src/main/java/com/google/gson/stream/JsonReader.java::setStrictness",
-      "gson/src/main/java/com/google/gson/stream/JsonReader.java::isLenient"
-    ],
-    "evidence": [
-      {
-        "path": "gson/src/main/java/com/google/gson/stream/JsonReader.java",
-        "contains": "public class JsonReader implements Closeable {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 1fa9b7a0a994b006b3be00e2df9de778e71e6807 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "1fa9b7a0a994b006b3be00e2df9de778e71e6807",
-      "gold_cardinality": 3,
-      "names_target": true,
-      "message_chars": 442
-    }
-  },
-  {
-    "id": "gs-552b4135c",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Avoid a potential CheckReturnValue issue. (#2987)\n\nAssign the result of `new SimpleDateFormat(pattern)` to a variable `unused`. We're only calling the constructor to validate `pattern`.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
-    "expected_json": {
-      "answer": "gson/src/main/java/com/google/gson/GsonBuilder.java::setDateFormat"
-    },
-    "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/GsonBuilder.java::GsonBuilder",
-      "gson/src/main/java/com/google/gson/GsonBuilder.java::setVersion",
-      "gson/src/main/java/com/google/gson/GsonBuilder.java::excludeFieldsWithModifiers"
-    ],
-    "evidence": [
-      {
-        "path": "gson/src/main/java/com/google/gson/GsonBuilder.java",
-        "contains": "public GsonBuilder setDateFormat(String pattern) {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 552b4135c87f8d52bfd9ffcee6e7098e37f7a217 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "552b4135c87f8d52bfd9ffcee6e7098e37f7a217",
-      "gold_cardinality": 1,
-      "names_target": true,
-      "message_chars": 185
-    }
-  },
-  {
-    "id": "gs-7878ee2b3",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Don't rely on Android desugaring. (#2966)\n\nSome Google libraries that rely on Gson require Android 23 *without* desugaring, because otherwise their clients would be forced to enable desugaring too. So revert to the standard animal-sniffer configuration, and reinstate the local `toIntExact` implementation.\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "question": "Make `Object` and `JsonElement` deserialization iterative (#1912)\n\n* Make Object and JsonElement deserialization iterative\n\nOften when Object and JsonElement are deserialized the format of the JSON\ndata is unknown and it might come from an untrusted source. To avoid a\nStackOverflowError from maliciously crafted JSON, deserialize Object and\nJsonElement iteratively instead of recursively.\n\nConcept based on \nBut implementation is not based on it.\n\n* Improve imports grouping\n\n* Address review feedback\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
     "expected_json": {
       "answer": [
         "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::TypeAdapters",
-        "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::javaTimeTypeAdapterFactory"
+        "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::read"
       ]
     },
     "rejected_alternates": [
       "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::write",
-      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::read",
-      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::newFactory"
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::newFactory",
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::newTypeHierarchyFactory"
     ],
     "evidence": [
       {
@@ -288,323 +200,182 @@
         "contains": "public final class TypeAdapters {"
       }
     ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 7878ee2b3c7d71278e94e01b5896b5179df3a29a against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 2d01d6a20f39881c692977564c1ea591d9f39027 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
     "covariates": {
-      "commit": "7878ee2b3c7d71278e94e01b5896b5179df3a29a",
+      "commit": "2d01d6a20f39881c692977564c1ea591d9f39027",
       "gold_cardinality": 2,
       "names_target": false,
-      "message_chars": 306
+      "message_chars": 502
     }
   },
   {
-    "id": "gs-a271f487b",
+    "id": "gs-46b97bf15",
     "category": "commit_change_locus",
     "set": "holdout",
-    "question": "Add build config for Gson subset (#2947)\n\n* Add build config for Gson subset\n\n* Adjust configuration\n\n* Sort includes, and remove serializer and deserializer\n\n* Run tests for Gson subset\n\n* Adjust list of included classes\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
+    "question": "Fixed nullSafe usage. (#1555)\n\nThe JsonSerializer/Deserializer adapters used to ignore this attribute\nwhich result in inconsistent behaviour for annotated adapters.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
     "expected_json": {
-      "answer": "gson/src/main/java/com/google/gson/JsonElement.java::JsonElement"
+      "answer": "gson/src/main/java/com/google/gson/internal/bind/TreeTypeAdapter.java::TreeTypeAdapter"
     },
     "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/JsonElement.java::deepCopy",
-      "gson/src/main/java/com/google/gson/JsonElement.java::isJsonArray",
-      "gson/src/main/java/com/google/gson/JsonElement.java::isJsonObject"
+      "gson/src/main/java/com/google/gson/internal/bind/TreeTypeAdapter.java::read",
+      "gson/src/main/java/com/google/gson/internal/bind/TreeTypeAdapter.java::write",
+      "gson/src/main/java/com/google/gson/internal/bind/TreeTypeAdapter.java::delegate"
     ],
     "evidence": [
       {
-        "path": "gson/src/main/java/com/google/gson/JsonElement.java",
-        "contains": "public abstract class JsonElement {"
+        "path": "gson/src/main/java/com/google/gson/internal/bind/TreeTypeAdapter.java",
+        "contains": "public final class TreeTypeAdapter<T> extends TypeAdapter<T> {"
       }
     ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit a271f487b5969601308ed438b2da9c8fc1a8e927 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 46b97bf15633929e7db6c43007a6b03e852e2aee against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
     "covariates": {
-      "commit": "a271f487b5969601308ed438b2da9c8fc1a8e927",
+      "commit": "46b97bf15633929e7db6c43007a6b03e852e2aee",
       "gold_cardinality": 1,
       "names_target": false,
-      "message_chars": 221
+      "message_chars": 164
     }
   },
   {
-    "id": "gs-3488c30c6",
+    "id": "gs-3e3266cf4",
     "category": "commit_change_locus",
     "set": "holdout",
-    "question": "Remove redundant warning suppression (#2876)\n\nThe suppression is redundant because 45e5e141b1a39926e6b43c6eacd3dc0280321f71\nhad changed the class name.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
+    "question": "Perform numeric conversion for primitive numeric type adapters (#2158)\n\n* Perform numeric conversion for primitive numeric type adapters\n\nThis should probably not be visible to the user unless they use the\nnon-typesafe `Gson.toJson(Object, Type)` where unrelated number types can\nbe used, or when malformed generic containers are used. For example a\n`List<Byte>` containing a Float.\n\nThis change also has the advantage of avoiding `JsonWriter.value(Number)`\nfor primitive type adapters. That method has some overhead because it needs\nto make sure that the value is a valid JSON number. However, for primitive\nnumbers this check is redundant.\n\n* Don't call `JsonWriter.value(float)` for backward compatibility\n\n* Fix typo in comments\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
     "expected_json": {
-      "answer": "gson/src/main/java/com/google/gson/internal/GsonTypes.java::GsonTypes"
+      "answer": "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::write"
     },
     "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/internal/GsonTypes.java::newParameterizedTypeWithOwner",
-      "gson/src/main/java/com/google/gson/internal/GsonTypes.java::arrayOf",
-      "gson/src/main/java/com/google/gson/internal/GsonTypes.java::subtypeOf"
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::TypeAdapters",
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::read",
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::newFactory"
     ],
     "evidence": [
       {
-        "path": "gson/src/main/java/com/google/gson/internal/GsonTypes.java",
-        "contains": "public final class GsonTypes {"
+        "path": "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java",
+        "contains": "public void write(JsonWriter out, Class value) throws IOException {"
       }
     ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 3488c30c65afb7bc3715c68b2a4f10ca2500c821 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 3e3266cf48f132928225e1561a6ae4cb5503d08f against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
     "covariates": {
-      "commit": "3488c30c65afb7bc3715c68b2a4f10ca2500c821",
+      "commit": "3e3266cf48f132928225e1561a6ae4cb5503d08f",
       "gold_cardinality": 1,
       "names_target": false,
-      "message_chars": 151
+      "message_chars": 732
     }
   },
   {
-    "id": "gs-810e35605",
+    "id": "gs-e614e71ee",
     "category": "commit_change_locus",
     "set": "holdout",
-    "question": "Add shrinker test for interface implementation being deserialized (#2845)\n\nFor R8 this currently fails, see TODOs in the new code.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
-    "expected_json": {
-      "answer": "test-shrinker/src/main/java/com/example/Main.java::runTests"
-    },
-    "rejected_alternates": [
-      "test-shrinker/src/main/java/com/example/Main.java::Main",
-      "test-shrinker/src/main/java/com/example/Main.java::testTypeTokenWriteRead",
-      "test-shrinker/src/main/java/com/example/Main.java::testNamedFields"
-    ],
-    "evidence": [
-      {
-        "path": "test-shrinker/src/main/java/com/example/Main.java",
-        "contains": "public static void runTests(BiConsumer<String, String> outputConsumer) {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 810e3560590bb807ed7113ccfff716aac21a3f33 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "810e3560590bb807ed7113ccfff716aac21a3f33",
-      "gold_cardinality": 1,
-      "names_target": false,
-      "message_chars": 130
-    }
-  },
-  {
-    "id": "gs-de190d7ef",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Restructure code to avoid assignment expression warning. (#2833)\n\n* Restructure code to avoid assignment expression warning.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
-    "expected_json": {
-      "answer": "gson/src/main/java/com/google/gson/internal/Excluder.java::delegate"
-    },
-    "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/internal/Excluder.java::Excluder",
-      "gson/src/main/java/com/google/gson/internal/Excluder.java::clone",
-      "gson/src/main/java/com/google/gson/internal/Excluder.java::withVersion"
-    ],
-    "evidence": [
-      {
-        "path": "gson/src/main/java/com/google/gson/internal/Excluder.java",
-        "contains": "delegate().write(out, value);"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit de190d7ef5feb4950d5daca819a625b39f3fd2f5 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "de190d7ef5feb4950d5daca819a625b39f3fd2f5",
-      "gold_cardinality": 1,
-      "names_target": false,
-      "message_chars": 124
-    }
-  },
-  {
-    "id": "gs-10bdd6dc6",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Simplify collection type adapters slightly. (#2791)\n\n* Simplify collection type adapters slightly.\n\nBy moving some computations to the factory, we can pass fewer parameters\nto the constructor.\n\n* Fix formatting.\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "question": "Clarify in documentation that Gson might cache strategy results (#2215)\n\n* Clarify in documentation that Gson might cache strategy results\n\n* Improve wording; mention that adapter factory results are cached as well\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
     "expected_json": {
       "answer": [
-        "gson/src/main/java/com/google/gson/internal/bind/CollectionTypeAdapterFactory.java::Adapter",
-        "gson/src/main/java/com/google/gson/internal/bind/CollectionTypeAdapterFactory.java::create",
-        "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::Adapter",
-        "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::create"
+        "gson/src/main/java/com/google/gson/GsonBuilder.java::registerTypeAdapterFactory",
+        "gson/src/main/java/com/google/gson/GsonBuilder.java::setExclusionStrategies",
+        "gson/src/main/java/com/google/gson/GsonBuilder.java::setFieldNamingStrategy",
+        "gson/src/main/java/com/google/gson/annotations/JsonAdapter.java::JsonAdapter"
       ]
     },
     "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/internal/bind/CollectionTypeAdapterFactory.java::CollectionTypeAdapterFactory",
-      "gson/src/main/java/com/google/gson/internal/bind/CollectionTypeAdapterFactory.java::read",
-      "gson/src/main/java/com/google/gson/internal/bind/CollectionTypeAdapterFactory.java::write"
+      "gson/src/main/java/com/google/gson/GsonBuilder.java::GsonBuilder",
+      "gson/src/main/java/com/google/gson/GsonBuilder.java::setVersion",
+      "gson/src/main/java/com/google/gson/GsonBuilder.java::excludeFieldsWithModifiers"
     ],
     "evidence": [
       {
-        "path": "gson/src/main/java/com/google/gson/internal/bind/CollectionTypeAdapterFactory.java",
-        "contains": "private static final class Adapter<E> extends TypeAdapter<Collection<E>> {"
+        "path": "gson/src/main/java/com/google/gson/GsonBuilder.java",
+        "contains": "public GsonBuilder registerTypeAdapterFactory(TypeAdapterFactory factory) {"
       }
     ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 10bdd6dc6a2f86151762e9c18d155970e90d14a9 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit e614e71ee43ca7bc1cb466bd1eaf4d85499900d9 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
     "covariates": {
-      "commit": "10bdd6dc6a2f86151762e9c18d155970e90d14a9",
+      "commit": "e614e71ee43ca7bc1cb466bd1eaf4d85499900d9",
       "gold_cardinality": 4,
+      "names_target": true,
+      "message_chars": 214
+    }
+  },
+  {
+    "id": "gs-86c35bba3",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "Small adjustments to the new record code. (#2219)\n\n* Small adjustments to the new record code.\n\n* Replace wildcard imports with single imports.\n* Enable `Java17RecordTest` and fix its many previously-hidden problems.\n* Use a `Map` to get primitive zero values rather than a potentially-expensive reflective trick.\n* Apply some automated code fixes.\n\n* Address review comments.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
+    "expected_json": {
+      "answer": "gson/src/main/java/com/google/gson/internal/bind/ReflectiveTypeAdapterFactory.java::getFieldNames"
+    },
+    "rejected_alternates": [
+      "gson/src/main/java/com/google/gson/internal/bind/ReflectiveTypeAdapterFactory.java::ReflectiveTypeAdapterFactory",
+      "gson/src/main/java/com/google/gson/internal/bind/ReflectiveTypeAdapterFactory.java::excludeField",
+      "gson/src/main/java/com/google/gson/internal/bind/ReflectiveTypeAdapterFactory.java::create"
+    ],
+    "evidence": [
+      {
+        "path": "gson/src/main/java/com/google/gson/internal/bind/ReflectiveTypeAdapterFactory.java",
+        "contains": "private List<String> getFieldNames(Field f) {"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 86c35bba3091afe70f38598b04ba89b7e8f539f7 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "86c35bba3091afe70f38598b04ba89b7e8f539f7",
+      "gold_cardinality": 1,
+      "names_target": true,
+      "message_chars": 376
+    }
+  },
+  {
+    "id": "gs-26229d33d",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "FormattingStyle follow-up (#2327)\n\n* FormattingStyle follow-up\n\n* Add links to FormattingStyle\n\n* Use Truth for FormattingStyleTest\n\n* Reduce pull request scope to Javadoc and minor code changes\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "expected_json": {
+      "answer": [
+        "gson/src/main/java/com/google/gson/GsonBuilder.java::setPrettyPrinting",
+        "gson/src/main/java/com/google/gson/stream/JsonWriter.java::setIndent"
+      ]
+    },
+    "rejected_alternates": [
+      "gson/src/main/java/com/google/gson/GsonBuilder.java::GsonBuilder",
+      "gson/src/main/java/com/google/gson/GsonBuilder.java::setVersion",
+      "gson/src/main/java/com/google/gson/GsonBuilder.java::excludeFieldsWithModifiers"
+    ],
+    "evidence": [
+      {
+        "path": "gson/src/main/java/com/google/gson/GsonBuilder.java",
+        "contains": "public GsonBuilder setPrettyPrinting() {"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 26229d33d81f0d60f508411eb3c541f3e87322ac against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "26229d33d81f0d60f508411eb3c541f3e87322ac",
+      "gold_cardinality": 2,
       "names_target": false,
-      "message_chars": 211
+      "message_chars": 194
     }
   },
   {
-    "id": "gs-a2b1c3c88",
+    "id": "gs-43396e45f",
     "category": "commit_change_locus",
     "set": "holdout",
-    "question": "Allow registering adapters for `JsonElement` again (#2789)\n\nThis is done for backward compatibility, however registering the adapter still\nhas no effect because the built-in adapter as higher precedence (like it is\nthe case for multiple years already).\n\nThe Javadoc for the GsonBuilder methods has not been adjusted, to discourage\nusers from trying to register adapters for JsonElement.\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "question": "Add ProGuard / R8 integration tests & add default ProGuard rules (#2397)\n\n* Add code shrinking tools integration test\n\n* Keep no-args constructor of classes usable with JsonAdapter\n\n* Add library ProGuard rules for Gson\n\nThey are automatically applied for all users of Gson, see\n\n* Skip japicmp-maven-plugin for shrinker-test\n\n* Add more tests for JsonAdapter, add tests for generic classes\n\n* Extend default constructor test\n\n* Add Troubleshooting Guide entry for TypeToken\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
     "expected_json": {
-      "answer": [
-        "gson/src/main/java/com/google/gson/GsonBuilder.java::registerTypeAdapter",
-        "gson/src/main/java/com/google/gson/GsonBuilder.java::registerTypeHierarchyAdapter"
-      ]
+      "answer": "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::newUnsafeAllocator"
     },
     "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/GsonBuilder.java::GsonBuilder",
-      "gson/src/main/java/com/google/gson/GsonBuilder.java::setVersion",
-      "gson/src/main/java/com/google/gson/GsonBuilder.java::excludeFieldsWithModifiers"
+      "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::ConstructorConstructor",
+      "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::get",
+      "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::construct"
     ],
     "evidence": [
       {
-        "path": "gson/src/main/java/com/google/gson/GsonBuilder.java",
-        "contains": "public GsonBuilder registerTypeAdapter(Type type, Object typeAdapter) {"
+        "path": "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java",
+        "contains": "private <T> ObjectConstructor<T> newUnsafeAllocator("
       }
     ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit a2b1c3c88276697578a961de8286752e772c55db against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 43396e45fd1f03e408e0e83b168a72a0f3e0b84e against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
     "covariates": {
-      "commit": "a2b1c3c88276697578a961de8286752e772c55db",
-      "gold_cardinality": 2,
-      "names_target": true,
-      "message_chars": 386
-    }
-  },
-  {
-    "id": "gs-6c2e3db7d",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Enforce rawType to be a Class in ParameterizedTypeImpl (#2759)\n\nEnforce rawType to be a Class in ParameterizedTypeImpl\n\nEnforce rawType to be a Class in ParameterizedTypeImpl\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
-    "expected_json": {
-      "answer": "gson/src/main/java/com/google/gson/reflect/TypeToken.java::getParameterized"
-    },
-    "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/reflect/TypeToken.java::TypeToken",
-      "gson/src/main/java/com/google/gson/reflect/TypeToken.java::isCapturingTypeVariablesForbidden",
-      "gson/src/main/java/com/google/gson/reflect/TypeToken.java::getTypeTokenTypeArgument"
-    ],
-    "evidence": [
-      {
-        "path": "gson/src/main/java/com/google/gson/reflect/TypeToken.java",
-        "contains": "public static TypeToken<?> getParameterized(Type rawType, Type... typeArguments) {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 6c2e3db7d25ceceabe056aeb8b65477fdd509214 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "6c2e3db7d25ceceabe056aeb8b65477fdd509214",
+      "commit": "43396e45fd1f03e408e0e83b168a72a0f3e0b84e",
       "gold_cardinality": 1,
-      "names_target": true,
-      "message_chars": 174
-    }
-  },
-  {
-    "id": "gs-99cc4cb11",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Migrate all tests to Truth & use `assertThrows` (#2687)\n\n* Use `assertThrows` for expected exceptions in tests\n\n* Use Truth for unit tests in `proto` and `extras` module\n\n* Perform assertions on some currently unused test variables\n\n* Improve tests\n\n* Improve non-finite floating point tests\n\nBecause there is only `Gson.toJson(Object)` (and no primitive specific\noverloads) the tests were previously testing the adapter for the boxed\nobject, e.g. Double, twice.\n\n* Improve tests\n\n* Remove explicit type arguments from tests where they can be inferred\n\nThis works because unlike the main sources the tests are compiled with Java 11.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
-    "expected_json": {
-      "answer": "extras/src/main/java/com/google/gson/typeadapters/RuntimeTypeAdapterFactory.java::RuntimeTypeAdapterFactory"
-    },
-    "rejected_alternates": [
-      "extras/src/main/java/com/google/gson/typeadapters/RuntimeTypeAdapterFactory.java::recognizeSubtypes",
-      "extras/src/main/java/com/google/gson/typeadapters/RuntimeTypeAdapterFactory.java::registerSubtype",
-      "extras/src/main/java/com/google/gson/typeadapters/RuntimeTypeAdapterFactory.java::create"
-    ],
-    "evidence": [
-      {
-        "path": "extras/src/main/java/com/google/gson/typeadapters/RuntimeTypeAdapterFactory.java",
-        "contains": "public final class RuntimeTypeAdapterFactory<T> implements TypeAdapterFactory {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 99cc4cb11f73a6d672aa6381013d651b7921e00f against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "99cc4cb11f73a6d672aa6381013d651b7921e00f",
-      "gold_cardinality": 1,
-      "names_target": true,
-      "message_chars": 632
-    }
-  },
-  {
-    "id": "gs-454a49127",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Improved Long-Double Number Policy (#2674)\n\n* Improved Long-Double Number Policy\n\nThe Parsing of a Double value was always executing a `Long.parseLong(value)`, which generated a `NumberFormatException`.\n\nIdentifying that a Number is a Double or a Long can be easily achieve (in a naive way) looking for the decimal separator.\n\nThis simple change avoids the extra `NumberFormatException`\n\nA simple JUnit test, parsing a `Long` or a `Double` 10K times shows the next values:\n\n* Double (old parsing): ~42 ms\n* Double (new parsing): ~6 ms\n* Long (old parsing): ~7 ms\n* Long (new parsing): ~7 ms\n\nAs we can see, the parsing for `Long` values stays the same (\u00b11ms), while the parsing for `Double` is dramatically improved.\n\nReducing the number of exceptions also has a positive side effect in memory consumption.\n\n* Replace `contains(\".\")` by `indexOf('.') >= 0`\n\nThe usage of `indexOf(char)` is slightly faster\n\n* Rename exception variables\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
-    "expected_json": {
-      "answer": "gson/src/main/java/com/google/gson/ToNumberPolicy.java::readNumber"
-    },
-    "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/ToNumberPolicy.java::ToNumberPolicy",
-      "gson/src/main/java/com/google/gson/ToNumberPolicy.java::parseAsDouble"
-    ],
-    "evidence": [
-      {
-        "path": "gson/src/main/java/com/google/gson/ToNumberPolicy.java",
-        "contains": "public Double readNumber(JsonReader in) throws IOException {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 454a49127f9416f45221eecf311eefdca50e4cdc against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "454a49127f9416f45221eecf311eefdca50e4cdc",
-      "gold_cardinality": 1,
-      "names_target": true,
-      "message_chars": 935
-    }
-  },
-  {
-    "id": "gs-ee61e3f02",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Add Troubleshooting Guide entry for custom adapter not being used (#2619)\n\n* Add Troubleshooting Guide entry for custom adapter being unused\n\n* Extend documentation\n\n* Fix line endings\n\n* Mention missing adapter in case of \"Expected BEGIN_OBJECT ...\" exception\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
-    "expected_json": {
-      "answer": [
-        "gson/src/main/java/com/google/gson/GsonBuilder.java::registerTypeAdapter",
-        "gson/src/main/java/com/google/gson/GsonBuilder.java::registerTypeAdapterFactory"
-      ]
-    },
-    "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/GsonBuilder.java::GsonBuilder",
-      "gson/src/main/java/com/google/gson/GsonBuilder.java::setVersion",
-      "gson/src/main/java/com/google/gson/GsonBuilder.java::excludeFieldsWithModifiers"
-    ],
-    "evidence": [
-      {
-        "path": "gson/src/main/java/com/google/gson/GsonBuilder.java",
-        "contains": "public GsonBuilder registerTypeAdapter(Type type, Object typeAdapter) {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit ee61e3f020351f0498dd3ff8f8386b96454a4dfe against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "ee61e3f020351f0498dd3ff8f8386b96454a4dfe",
-      "gold_cardinality": 2,
-      "names_target": true,
-      "message_chars": 260
-    }
-  },
-  {
-    "id": "gs-58d1a9f0e",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Fix DateFormat time zone is not restored and add Test. (#2549)\n\n* Fix DateFormat time zone is not restored and add Test.\n\n* delete the test and make sure mvn clean test -X can be SUCCESS\n\n* delete the test and make sure mvn clean test -X can be SUCCESS\n\n* add test\n\n* restore the DateFormat time zone in SqlDateTypeAdapter and SqlTimeTypeAdapter\n\n* Adjust the code according to the code review feedback.\n\n* Adjust the code according to the code review feedback.\n\n* Adjust the code according to the code review feedback.\n\n* Adjust the Test\n\n* fix Werror error\n\n* Adjust the DefaultDateTypeAdapterTest according to the code review feedback.\n\n---------\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
-    "expected_json": {
-      "answer": [
-        "gson/src/main/java/com/google/gson/internal/bind/DefaultDateTypeAdapter.java::deserializeToDate",
-        "gson/src/main/java/com/google/gson/internal/sql/SqlDateTypeAdapter.java::read",
-        "gson/src/main/java/com/google/gson/internal/sql/SqlTimeTypeAdapter.java::read"
-      ]
-    },
-    "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/internal/bind/DefaultDateTypeAdapter.java::DefaultDateTypeAdapter",
-      "gson/src/main/java/com/google/gson/internal/bind/DefaultDateTypeAdapter.java::create",
-      "gson/src/main/java/com/google/gson/internal/bind/DefaultDateTypeAdapter.java::toString"
-    ],
-    "evidence": [
-      {
-        "path": "gson/src/main/java/com/google/gson/internal/bind/DefaultDateTypeAdapter.java",
-        "contains": "private Date deserializeToDate(JsonReader in) throws IOException {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 58d1a9f0eb396ff64a622532e2ba5c5c726165e6 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "58d1a9f0eb396ff64a622532e2ba5c5c726165e6",
-      "gold_cardinality": 3,
-      "names_target": true,
-      "message_chars": 649
+      "names_target": false,
+      "message_chars": 474
     }
   },
   {
@@ -629,7 +400,7 @@
         "contains": "public GsonBuilder setDateFormat(String pattern) {"
       }
     ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 335ff0f9ae2ed71714a937513d4e6aba1d4318a4 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 335ff0f9ae2ed71714a937513d4e6aba1d4318a4 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
     "covariates": {
       "commit": "335ff0f9ae2ed71714a937513d4e6aba1d4318a4",
       "gold_cardinality": 2,
@@ -638,98 +409,153 @@
     }
   },
   {
-    "id": "gs-0109f4512",
+    "id": "gs-ea4ffde76",
     "category": "commit_change_locus",
     "set": "holdout",
-    "question": "issue#2436: Throw exception when registering adapter for Object or JsonElement (#2479)\n\n* Code changes and tests for #2436 to throw exception when trying to register adapter for Object or JsonElement\n\n* #2436 - Updates to User guide & comments to indicate exception cases and fix for 7 test cases of Parameterized Type\n\n* #2436 - Fixes as per the review comments.\n\n* #2436 - Refactored as per latest review comments + throwing error message.\n\n* #2436 - added a clarifying comment in a positive test case.\n\n* #2436 - formatting and minor changes as per review.\n\n* Update gson/src/main/java/com/google/gson/GsonBuilder.java\n\n* Update gson/src/test/java/com/google/gson/GsonBuilderTest.java\n\n* Update gson/src/test/java/com/google/gson/GsonBuilderTest.java\n\n---------\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "question": "Remove `DateTypeAdapter` to avoid code duplication (#2546)\n\nThe same functionality exists in `DefaultDateTypeAdapter` (with some slight\noverhead), and there is currently code duplication between these classes.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
     "expected_json": {
-      "answer": [
-        "gson/src/main/java/com/google/gson/GsonBuilder.java::registerTypeAdapter",
-        "gson/src/main/java/com/google/gson/GsonBuilder.java::registerTypeAdapterFactory",
-        "gson/src/main/java/com/google/gson/GsonBuilder.java::registerTypeHierarchyAdapter"
-      ]
+      "answer": "gson/src/main/java/com/google/gson/Gson.java::Gson"
     },
     "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/GsonBuilder.java::GsonBuilder",
-      "gson/src/main/java/com/google/gson/GsonBuilder.java::setVersion",
-      "gson/src/main/java/com/google/gson/GsonBuilder.java::excludeFieldsWithModifiers"
+      "gson/src/main/java/com/google/gson/Gson.java::doubleAdapter",
+      "gson/src/main/java/com/google/gson/Gson.java::floatAdapter",
+      "gson/src/main/java/com/google/gson/Gson.java::newBuilder"
     ],
     "evidence": [
       {
-        "path": "gson/src/main/java/com/google/gson/GsonBuilder.java",
-        "contains": "public GsonBuilder registerTypeAdapter(Type type, Object typeAdapter) {"
+        "path": "gson/src/main/java/com/google/gson/Gson.java",
+        "contains": "public final class Gson {"
       }
     ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 0109f451299e7780a334d1844548d3a3346a9b39 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit ea4ffde76ce780bcfa15f22d9296ee869bdc33bf against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
     "covariates": {
-      "commit": "0109f451299e7780a334d1844548d3a3346a9b39",
-      "gold_cardinality": 3,
-      "names_target": true,
-      "message_chars": 764
-    }
-  },
-  {
-    "id": "gs-edfaf0c38",
-    "category": "commit_change_locus",
-    "set": "holdout",
-    "question": "Add clarifying parentheses to a ternary expression. (#2496)\n\nThe latest Error Prone version issues a warning without the parentheses.\nSince we build with `-Werror`, that breaks the build.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
-    "expected_json": {
-      "answer": "gson/src/main/java/com/google/gson/JsonPrimitive.java::equals"
-    },
-    "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/JsonPrimitive.java::JsonPrimitive",
-      "gson/src/main/java/com/google/gson/JsonPrimitive.java::deepCopy",
-      "gson/src/main/java/com/google/gson/JsonPrimitive.java::isBoolean"
-    ],
-    "evidence": [
-      {
-        "path": "gson/src/main/java/com/google/gson/JsonPrimitive.java",
-        "contains": "public boolean equals(Object obj) {"
-      }
-    ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit edfaf0c387cd0dc42403f8994c3ef4722d2898a9 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
-    "covariates": {
-      "commit": "edfaf0c387cd0dc42403f8994c3ef4722d2898a9",
+      "commit": "ea4ffde76ce780bcfa15f22d9296ee869bdc33bf",
       "gold_cardinality": 1,
       "names_target": false,
-      "message_chars": 187
+      "message_chars": 209
     }
   },
   {
-    "id": "gs-c5c1fbf9a",
+    "id": "gs-00028fb5a",
     "category": "commit_change_locus",
     "set": "holdout",
-    "question": "Access `RecordComponent` via `Class.forName`. (#2465)\n\nThis should mean that GraalVM will understand the reflective lookup of its methods.\nSee [documentation](\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "question": "Remove `AccessController` usage for enum adapter (#2704)\n\n* Remove `AccessController` usage for enum adapter\n\nSecurityManager and AccessController are marked as deprecated for removal\nin the latest JDK versions, see \nAdditionally this code was originally added providently but it is not clear\nif or how many users actually depend on it.\n\n* Add test using JDK enum class\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
     "expected_json": {
-      "answer": [
-        "gson/src/main/java/com/google/gson/internal/reflect/ReflectionHelper.java::RecordSupportedHelper",
-        "gson/src/main/java/com/google/gson/internal/reflect/ReflectionHelper.java::ReflectionHelper"
-      ]
+      "answer": "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::EnumTypeAdapter"
     },
     "rejected_alternates": [
-      "gson/src/main/java/com/google/gson/internal/reflect/ReflectionHelper.java::getInaccessibleTroubleshootingSuffix",
-      "gson/src/main/java/com/google/gson/internal/reflect/ReflectionHelper.java::makeAccessible",
-      "gson/src/main/java/com/google/gson/internal/reflect/ReflectionHelper.java::getAccessibleObjectDescription"
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::TypeAdapters",
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::write",
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::read"
     ],
     "evidence": [
       {
-        "path": "gson/src/main/java/com/google/gson/internal/reflect/ReflectionHelper.java",
-        "contains": "private static final class RecordSupportedHelper extends RecordHelper {"
+        "path": "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java",
+        "contains": "private static final class EnumTypeAdapter<T extends Enum<T>> extends TypeAdapter<T> {"
       }
     ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit c5c1fbf9a12def0b3b5e6c6e84c36b185dfb4628 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 00028fb5a7f3fc9b72d77b2d028a58e3155dadec against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
     "covariates": {
-      "commit": "c5c1fbf9a12def0b3b5e6c6e84c36b185dfb4628",
-      "gold_cardinality": 2,
+      "commit": "00028fb5a7f3fc9b72d77b2d028a58e3155dadec",
+      "gold_cardinality": 1,
       "names_target": true,
-      "message_chars": 159
+      "message_chars": 369
     }
   },
   {
-    "id": "gs-cdbbee4e7",
+    "id": "gs-10bdd6dc6",
     "category": "commit_change_locus",
     "set": "holdout",
-    "question": "Bump com.google.errorprone:error_prone_core from 2.20.0 to 2.21.1 (#2463)\n\nSuppress a couple of new Error Prone warnings.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
+    "question": "Simplify collection type adapters slightly. (#2791)\n\n* Simplify collection type adapters slightly.\n\nBy moving some computations to the factory, we can pass fewer parameters\nto the constructor.\n\n* Fix formatting.\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "expected_json": {
+      "answer": [
+        "gson/src/main/java/com/google/gson/internal/bind/CollectionTypeAdapterFactory.java::Adapter",
+        "gson/src/main/java/com/google/gson/internal/bind/CollectionTypeAdapterFactory.java::create",
+        "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::Adapter"
+      ]
+    },
+    "rejected_alternates": [
+      "gson/src/main/java/com/google/gson/internal/bind/CollectionTypeAdapterFactory.java::CollectionTypeAdapterFactory",
+      "gson/src/main/java/com/google/gson/internal/bind/CollectionTypeAdapterFactory.java::read",
+      "gson/src/main/java/com/google/gson/internal/bind/CollectionTypeAdapterFactory.java::write"
+    ],
+    "evidence": [
+      {
+        "path": "gson/src/main/java/com/google/gson/internal/bind/CollectionTypeAdapterFactory.java",
+        "contains": "private static final class Adapter<E> extends TypeAdapter<Collection<E>> {"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 10bdd6dc6a2f86151762e9c18d155970e90d14a9 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "10bdd6dc6a2f86151762e9c18d155970e90d14a9",
+      "gold_cardinality": 3,
+      "names_target": false,
+      "message_chars": 211
+    }
+  },
+  {
+    "id": "gs-7878ee2b3",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "Don't rely on Android desugaring. (#2966)\n\nSome Google libraries that rely on Gson require Android 23 *without* desugaring, because otherwise their clients would be forced to enable desugaring too. So revert to the standard animal-sniffer configuration, and reinstate the local `toIntExact` implementation.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
+    "expected_json": {
+      "answer": "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::TypeAdapters"
+    },
+    "rejected_alternates": [
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::write",
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::read",
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::newFactory"
+    ],
+    "evidence": [
+      {
+        "path": "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java",
+        "contains": "public final class TypeAdapters {"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 7878ee2b3c7d71278e94e01b5896b5179df3a29a against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "7878ee2b3c7d71278e94e01b5896b5179df3a29a",
+      "gold_cardinality": 1,
+      "names_target": false,
+      "message_chars": 306
+    }
+  },
+  {
+    "id": "gs-1fa9b7a0a",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "Validate that strings being parsed as integers consist of ASCII characters (#2995)\n\n* Validate that strings being parsed as integers consist of ASCII characters.\n\nThis is technically an incompatible change, although it is unlikely that\nanyone will be affected by it. It also fixes a minor security issue.\n\nFixes \n\n* Verify that `Integer.parseInt` does accept non-ASCII digits.\n\n* Move validation outside try/catch.\n\nSuggested by @Marcono1234.\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "expected_json": {
+      "answer": [
+        "gson/src/main/java/com/google/gson/stream/JsonReader.java::JsonReader",
+        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextInt",
+        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextLong"
+      ]
+    },
+    "rejected_alternates": [
+      "gson/src/main/java/com/google/gson/stream/JsonReader.java::setLenient",
+      "gson/src/main/java/com/google/gson/stream/JsonReader.java::isLenient",
+      "gson/src/main/java/com/google/gson/stream/JsonReader.java::beginArray"
+    ],
+    "evidence": [
+      {
+        "path": "gson/src/main/java/com/google/gson/stream/JsonReader.java",
+        "contains": "public class JsonReader implements Closeable {"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 1fa9b7a0a994b006b3be00e2df9de778e71e6807 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "1fa9b7a0a994b006b3be00e2df9de778e71e6807",
+      "gold_cardinality": 3,
+      "names_target": true,
+      "message_chars": 442
+    }
+  },
+  {
+    "id": "gs-e4f54f78c",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "Throw JsonSyntaxException instead of NPE for a null AtomicLongArray element (#3038)\n\nDeserializing a JSON array with a null element into AtomicLongArray\n(e.g. [1,null,3]) called longValue() on the null returned by the element\nadapter, throwing a NullPointerException. Throw a JsonSyntaxException for the\nnull element, consistent with how the Long adapter reports malformed numbers.\nAdds a regression test.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
     "expected_json": {
       "answer": "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::read"
     },
@@ -744,12 +570,161 @@
         "contains": "public Class read(JsonReader in) throws IOException {"
       }
     ],
-    "author_notes": "Derived mechanically by commit_suite.py from upstream commit cdbbee4e723c39c1df302a805f3bde8d4fe12bd1 against the corpus pinned at 3d33a8621f70c03269dbf8a15c18a2a1ba68f9f5; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit e4f54f78c93dae0507fcac5be81253974bc9042d against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
     "covariates": {
-      "commit": "cdbbee4e723c39c1df302a805f3bde8d4fe12bd1",
+      "commit": "e4f54f78c93dae0507fcac5be81253974bc9042d",
       "gold_cardinality": 1,
       "names_target": false,
-      "message_chars": 121
+      "message_chars": 405
+    }
+  },
+  {
+    "id": "gs-866bc3892",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "Use LinkedHashMap as the default Map. (#3057)\n\n* Use LinkedHashMap as the default Map.\n\nThe JDK and Android have had DoS protection at least as good as LinkedTreeMap for decades now.\n\n* Add a test for deserializing a null key in the list-of-entries encoding.\n\n* Fix 'unused' warnings.\n\n* Another 'unused' warning.\n\n* Respond to review comments.\n\n* Remove unused imports.\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "expected_json": {
+      "answer": [
+        "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::ConstructorConstructor",
+        "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::get",
+        "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::newDefaultImplementationConstructor"
+      ]
+    },
+    "rejected_alternates": [
+      "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::construct",
+      "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::newDefaultConstructor",
+      "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java::newUnsafeAllocator"
+    ],
+    "evidence": [
+      {
+        "path": "gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java",
+        "contains": "public final class ConstructorConstructor {"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 866bc38923123f4ad8025c3c363511deb4380edf against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "866bc38923123f4ad8025c3c363511deb4380edf",
+      "gold_cardinality": 3,
+      "names_target": true,
+      "message_chars": 370
+    }
+  },
+  {
+    "id": "gs-9d5d6a8f4",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "Update code and docs for minimum Android API level 24 (#3085)\n\n* Update code and docs for minimum Android API level 24\n\nThe overridden methods for NonNullElementWrapperList are already covered\nby the tests in JsonArrayAsListTest.\n\n* Doc API level 21 as minimum version for Gson 2.14.0\n\nThe minimum API level for the `check-android-compatibility` check had\nbeen increased to 23, but it seems there was no usage from that API level.\n\nName the function or method in this corpus that implements the behaviour described above, as path::name.",
+    "expected_json": {
+      "answer": "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::TypeAdapters"
+    },
+    "rejected_alternates": [
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::write",
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::read",
+      "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::newFactory"
+    ],
+    "evidence": [
+      {
+        "path": "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java",
+        "contains": "public final class TypeAdapters {"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 9d5d6a8f457f3e60f2e84bf39b904c9a774d2365 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "9d5d6a8f457f3e60f2e84bf39b904c9a774d2365",
+      "gold_cardinality": 1,
+      "names_target": false,
+      "message_chars": 430
+    }
+  },
+  {
+    "id": "gs-dae37cf0f",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "Fix some adapter exceptions not including JSON document location (#3096)\n\n* Fix some adapter exceptions not including JSON document location\n\n* Wrap `MalformedURLException` from URL adapter\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "expected_json": {
+      "answer": [
+        "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::Adapter",
+        "gson/src/main/java/com/google/gson/internal/bind/TypeAdapters.java::read"
+      ]
+    },
+    "rejected_alternates": [
+      "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::MapTypeAdapterFactory",
+      "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::create",
+      "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java::getKeyAdapter"
+    ],
+    "evidence": [
+      {
+        "path": "gson/src/main/java/com/google/gson/internal/bind/MapTypeAdapterFactory.java",
+        "contains": "private final class Adapter<K, V> extends TypeAdapter<Map<K, V>> {"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit dae37cf0fe12235b76fb09f01118a0a8c8823f42 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "dae37cf0fe12235b76fb09f01118a0a8c8823f42",
+      "gold_cardinality": 2,
+      "names_target": true,
+      "message_chars": 189
+    }
+  },
+  {
+    "id": "gs-8b4b55051",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "fix: reject unpaired surrogates in strict JSON (#3116)\n\n* fix: reject unpaired surrogates in strict JSON\n\n* fix: cover direct unpaired surrogates in strict mode\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "expected_json": {
+      "answer": [
+        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextQuotedValue",
+        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextUnquotedValue"
+      ]
+    },
+    "rejected_alternates": [
+      "gson/src/main/java/com/google/gson/stream/JsonReader.java::JsonReader",
+      "gson/src/main/java/com/google/gson/stream/JsonReader.java::setLenient",
+      "gson/src/main/java/com/google/gson/stream/JsonReader.java::isLenient"
+    ],
+    "evidence": [
+      {
+        "path": "gson/src/main/java/com/google/gson/stream/JsonReader.java",
+        "contains": "private String nextQuotedValue(char quote) throws IOException {"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit 8b4b55051489132190cb8d1c61eb9dc7f5381295 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "8b4b55051489132190cb8d1c61eb9dc7f5381295",
+      "gold_cardinality": 2,
+      "names_target": false,
+      "message_chars": 160
+    }
+  },
+  {
+    "id": "gs-ed99017a3",
+    "category": "commit_change_locus",
+    "set": "holdout",
+    "question": "Remove redundant `recordPromotedName` calls (#3117)\n\n* Remove redundant `recordPromotedName` calls\n\nThese calls are guarded by a `case PEEKED_LONG`, but it seems\n`PEEKED_LONG` is only used if an actual number occurred in the JSON\ndocument. Whereas when promoting a name to a value, it will always be a\nJSON string value.\n\nThese redundant calls were also the \"expensive\" ones, converting a long\nto a String.\n\n* Add test for unquoted number as name\n\nName every function or method in this corpus that the change described above modified, each as path::name.",
+    "expected_json": {
+      "answer": [
+        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextDouble",
+        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextInt",
+        "gson/src/main/java/com/google/gson/stream/JsonReader.java::nextLong"
+      ]
+    },
+    "rejected_alternates": [
+      "gson/src/main/java/com/google/gson/stream/JsonReader.java::JsonReader",
+      "gson/src/main/java/com/google/gson/stream/JsonReader.java::setLenient",
+      "gson/src/main/java/com/google/gson/stream/JsonReader.java::isLenient"
+    ],
+    "evidence": [
+      {
+        "path": "gson/src/main/java/com/google/gson/stream/JsonReader.java",
+        "contains": "public double nextDouble() throws IOException {"
+      }
+    ],
+    "author_notes": "Derived mechanically by commit_suite.py from upstream commit ed99017a3b7ff41a08b96f3b972e7599743abe99 against the corpus pinned at 3c6eea6b7df00cac5a080b28533cd34c120c3860; no agent authored the question. The prose is the commit's own message with trailers and URLs removed, followed by one constant sentence used for every question of this shape. Gold is the set of enclosing definitions the diff modified, attributed by study_b.attribution and required to exist at the pinned revision. Covariates are recorded in the report beside this suite and were not used to select it.",
+    "covariates": {
+      "commit": "ed99017a3b7ff41a08b96f3b972e7599743abe99",
+      "gold_cardinality": 3,
+      "names_target": true,
+      "message_chars": 446
     }
   }
 ]

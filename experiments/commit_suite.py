@@ -55,6 +55,7 @@ import re
 import subprocess
 import tempfile
 
+import quality_pass
 import study_b
 
 # A commit message's trailers say who signed it off, not what it did.
@@ -81,6 +82,28 @@ TEST_NAME = re.compile(r"^(test[_A-Z]|Test[A-Z]|should[A-Z])")
 # wrong for a file that puts one in the middle. The upgrade path is asking the symbol index for
 # the enclosing module instead of scanning for the marker.
 TEST_SCOPE = re.compile(r"^\s*#\[cfg\(test\)\]")
+# Maintenance commits describe tooling, not the repository's behaviour, so nothing in the corpus
+# implements what they say and no arm can find it. The first smoke drew "Bump
+# com.google.errorprone:error_prone_core from 2.20.0 to 2.21.1" keyed to `TypeAdapters.java::read`
+# and all four arms answered differently and wrongly: a question that measures nothing but costs a
+# trial. The class is a property of the commit message, never of an arm.
+#
+# Researcher degree of freedom, stated rather than hidden: these patterns were written after
+# reading this corpus's own subject lines. A different corpus should re-derive them rather than
+# inherit them, and the count they remove is reported.
+MAINTENANCE = re.compile(
+    r"^\s*(bump|upgrade|update)\b.*\bfrom\b.*\bto\b"
+    r"|^\s*(bump|chore|ci|build|docs?|style)\b\s*[:(]"
+    r"|suppress\w*\s+(a\s+couple\s+of\s+)?\w*\s*warnings?"
+    r"|error[\s-]?prone"
+    r"|\bmigrate\s+(all\s+)?tests?\b"
+    r"|\bavoid\b.*\b(warning|check|issue)\b"
+    r"|\brestructure\b.*\bwarning\b"
+    r"|\badd\s+build\s+config\b"
+    r"|\btroubleshooting\s+guide\b"
+    r"|\bclarifying\s+parentheses\b"
+    r"|\bjavadoc\b|\bchangelog\b|\breadme\b",
+    re.IGNORECASE)
 # One constant per gold shape, so no per-question wording decision is made in this repository.
 ONE = ("Name the function or method in this corpus that implements the behaviour described "
        "above, as path::name.")
@@ -97,8 +120,8 @@ def git(repo, *arguments):
     return done.stdout
 
 
-def commits_after(repo, revision, limit, newest_first=False):
-    """Non-merge commits in `revision..HEAD`, nearest the pinned snapshot first.
+def commits_after(repo, revision, limit, newest_first=False, until="HEAD"):
+    """Non-merge commits in `revision..until`, nearest the pinned snapshot first.
 
     Which end is nearest depends on which end the snapshot is, and both are real cases:
 
@@ -112,7 +135,7 @@ def commits_after(repo, revision, limit, newest_first=False):
     longer exists there is dropped. Mining from the wrong end spends the budget on the commits
     likeliest to be refused.
     """
-    out = git(repo, "rev-list", "--no-merges", f"{revision}..HEAD")
+    out = git(repo, "rev-list", "--no-merges", f"{revision}..{until}")
     found = [line.strip() for line in out.splitlines() if line.strip()]
     if not newest_first:
         found.reverse()
@@ -206,9 +229,22 @@ def names_target(message, identities):
 
 
 def leaks(message, identities):
-    """Whether the message spells a target identifier, which `validate_suite.py` refuses."""
-    return any(re.search(rf"(?<!\w){re.escape(identity.split('::')[-1])}(?!\w)", message)
-               for identity in identities)
+    """Whether the message hands over the answer, by symbol or by the file that holds it.
+
+    `validate_suite.py` refuses a leaked target identifier, so the leaf check is mandatory. The
+    file check is here because the smoke found the other half: "Fix `RuntimeTypeAdapterFactory`
+    depending on internal `Streams` class" names the gold's own file, which leaves only "which
+    method", and several arms answered it with zero retrieval calls. A question any arm can
+    answer without retrieving measures nothing about retrieval and makes every arm look alike.
+    """
+    for identity in identities:
+        path, _, _ = identity.partition("::")
+        leaf = identity.split("::")[-1]
+        stem = Path(path).stem
+        for token in (leaf, stem):
+            if re.search(rf"(?<!\w){re.escape(token)}(?!\w)", message):
+                return True
+    return False
 
 
 def declaration_line(corpus, path, leaf):
@@ -275,12 +311,14 @@ def question_for(commit, message, identities, corpus, prefix, revision):
 
 
 def build(corpus, revision, prefix, limit, scan, max_definitions, min_chars, max_chars,
-          include_tests=False, newest_first=False):
+          include_tests=False, newest_first=False, until="HEAD"):
     questions, refused = [], Counter()
     considered = mixed = 0
+    # One index over the pinned corpus, built by the grader's own definition table.
+    graded = quality_pass.definitions(corpus)
     with tempfile.TemporaryDirectory() as raw:
         workspace = Path(raw)
-        for commit in commits_after(corpus, revision, scan, newest_first):
+        for commit in commits_after(corpus, revision, scan, newest_first, until):
             if limit and len(questions) >= limit:
                 break
             considered += 1
@@ -289,12 +327,22 @@ def build(corpus, revision, prefix, limit, scan, max_definitions, min_chars, max
             if not min_chars <= len(message) <= max_chars:
                 refused["message outside the length band"] += 1
                 continue
+            # Subject only. Matching the body killed 131 of 395 commits because a body that
+            # merely mentions a README or a javadoc is not a maintenance commit; what the commit
+            # *is* about is its subject line.
+            if MAINTENANCE.search(message.splitlines()[0] if message else ""):
+                refused["maintenance commit: describes tooling, not behaviour"] += 1
+                continue
             identities, dropped_tests = set(), 0
             for path in touched_paths(corpus, commit):
                 for leaf in definitions_touched(corpus, commit, path, workspace):
-                    # The gold has to be answerable against the revision the agent searches, not
-                    # against the revision the commit was written on.
-                    if not ((corpus / path).is_file() and study_b.defines(corpus, path, leaf)):
+                    # The gold has to be answerable against the revision the agent searches,
+                    # not against the revision the commit was written on - and "answerable" has
+                    # to mean what the *grader* can see. `study_b.defines` deliberately uses a
+                    # looser table than `quality_pass.definitions`, so checking gold against it
+                    # let through identities validate_suite then refused as not defined where the
+                    # gold placed them. The grader's index is the one that decides gradability.
+                    if not ((corpus / path).is_file() and path in graded.get(leaf, set())):
                         continue
                     if not include_tests and is_test_code(corpus, path, leaf):
                         dropped_tests += 1
@@ -376,6 +424,10 @@ def main():
     parser.add_argument("--max-chars", type=int, default=1200)
     parser.add_argument("--include-tests", action="store_true",
                         help="allow test definitions into the gold; off by default")
+    parser.add_argument("--until", default="HEAD",
+                        help="the far end of the commit range; the corpus checkout stays "
+                             "the pinned revision, so mining forward never requires "
+                             "checking the far end out")
     parser.add_argument("--newest-first", action="store_true",
                         help="the corpus is pinned at HEAD and --revision is an "
                              "ancestor, so the newest commit is nearest the snapshot")
@@ -385,7 +437,8 @@ def main():
     corpus = args.corpus.resolve(strict=True)
     questions, refused, considered, mixed = build(
         corpus, args.revision, args.prefix, args.limit, args.scan, args.max_definitions,
-        args.min_chars, args.max_chars, args.include_tests, args.newest_first)
+        args.min_chars, args.max_chars, args.include_tests, args.newest_first,
+        args.until)
     result = report(questions, refused, considered, mixed, corpus, args.revision)
     if args.output:
         if args.output.exists():

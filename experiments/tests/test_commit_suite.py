@@ -172,6 +172,66 @@ class Mining(unittest.TestCase):
         self.assertEqual(result["problems"], 0, json.dumps(result["findings"], indent=1))
 
 
+class Maintenance(unittest.TestCase):
+    """A commit about tooling describes no repository behaviour, so nothing implements it.
+
+    One reached a smoke - "Bump com.google.errorprone:error_prone_core from 2.20.0 to 2.21.1",
+    keyed to `TypeAdapters.java::read` - and all four arms answered differently and wrongly.
+    """
+
+    def matches(self, subject):
+        return bool(commit_suite.MAINTENANCE.search(subject))
+
+    def test_the_classes_that_describe_no_behaviour(self):
+        for subject in ("Bump com.google.errorprone:error_prone_core from 2.20.0 to 2.21.1",
+                        "chore: tidy imports", "Suppress serialization warnings.",
+                        "Update sources to satisfy a new Error Prone check.",
+                        "Migrate all tests to Truth & use `assertThrows`",
+                        "Add build config for Gson subset"):
+            self.assertTrue(self.matches(subject), subject)
+
+    def test_a_behavioural_subject_survives(self):
+        for subject in ("Fix duplicate key detection when first value is null",
+                        "Reject non-ASCII digits in the integer parser",
+                        "Throw JsonSyntaxException instead of NPE for a null element",
+                        "Use LinkedHashMap as the default Map."):
+            self.assertFalse(self.matches(subject), subject)
+
+    def test_it_reads_the_subject_not_the_body(self):
+        """Matching the body cut 131 of 395 commits: a body mentioning a README is not a
+        maintenance commit."""
+        body = "Fix a real bug\n\nThe README describes the old behaviour; javadoc updated too."
+        self.assertFalse(self.matches(body.splitlines()[0]))
+        self.assertTrue(commit_suite.MAINTENANCE.search(body))
+
+
+class PathLeak(unittest.TestCase):
+    def test_naming_the_gold_s_own_file_is_a_leak(self):
+        """A subject naming RuntimeTypeAdapterFactory leaves only "which method", and arms
+        answered it with zero retrieval calls."""
+        self.assertTrue(commit_suite.leaks(
+            "Fix `RuntimeTypeAdapterFactory` depending on internal `Streams` class",
+            ["extras/src/main/java/com/google/gson/typeadapters/RuntimeTypeAdapterFactory.java"
+             "::create"]))
+
+    def test_an_unrelated_file_name_is_not_a_leak(self):
+        self.assertFalse(commit_suite.leaks(
+            "Reject unpaired surrogates in strict mode",
+            ["gson/src/main/java/com/google/gson/stream/JsonReader.java::nextQuotedValue"]))
+
+
+class Until(unittest.TestCase):
+    def test_the_range_end_is_selectable_without_checking_it_out(self):
+        """Mining forward from an older pin must not require moving the corpus checkout."""
+        with tempfile.TemporaryDirectory() as raw:
+            repo, pinned = make_repo(raw)
+            head = run(repo, "rev-parse", "HEAD").strip()
+            everything = commit_suite.commits_after(repo, pinned, 0)
+            self.assertEqual(commit_suite.commits_after(repo, pinned, 0, until=head), everything)
+            first = everything[0]
+            self.assertEqual(commit_suite.commits_after(repo, pinned, 0, until=first), [first])
+
+
 class MessageCleaning(unittest.TestCase):
     def test_trailers_and_urls_go(self):
         cleaned = commit_suite.clean_message(
