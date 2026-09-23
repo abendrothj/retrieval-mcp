@@ -1360,3 +1360,69 @@ async fn an_explicit_root_is_neither_asked_about_nor_overridden() {
     assert_eq!(client.asked, 0, "a pinned session never asks for roots");
     client.stop().await;
 }
+
+/// The CLI transport arm must be the same retriever, not a second one that shares a name.
+///
+/// `runs/cli-transport-20260924` compares MCP against a command over one index, and its whole
+/// claim to be a one-variable comparison is that only the channel differs. Both routes go through
+/// `RetrievalServer::execute`, so this asserts the property that keeps them honest: for the same
+/// query, `retrieval --json` emits exactly the payload the MCP tool call returns. If a renderer,
+/// an argument name or a default ever drifts, the run stops being about transport.
+#[tokio::test]
+async fn the_cli_and_the_mcp_tool_return_the_same_payload() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(
+        root.path().join("sample.rs"),
+        "fn needle() {}\nfn caller() { needle(); }\nfn outer() { caller(); }\n",
+    )
+    .unwrap();
+
+    let cases: [(&str, Value, &[&str]); 3] = [
+        (
+            "search_exact",
+            json!({"query":"needle","limit":5}),
+            &["search", "needle", "--limit", "5"],
+        ),
+        (
+            "read_source",
+            json!({"path":"sample.rs","start_line":2,"end_line":2}),
+            &["read", "sample.rs", "--start-line", "2", "--end-line", "2"],
+        ),
+        (
+            "find_callers",
+            json!({"name":"caller","limit":5}),
+            &["callers", "caller", "--limit", "5"],
+        ),
+    ];
+
+    let mut client = Client::start(root.path(), "D").await;
+    for (tool, args, argv) in cases {
+        let over_mcp = client.tool(tool, args.clone()).await;
+        assert_ne!(over_mcp["isError"], true, "{tool} failed over MCP: {over_mcp}");
+
+        let run = std::process::Command::new(env!("CARGO_BIN_EXE_retrieval"))
+            .args(["--root", root.path().to_str().unwrap(), "--json"])
+            .args(argv)
+            .output()
+            .unwrap();
+        assert!(
+            run.status.success(),
+            "{tool} failed over the CLI: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        let over_cli: Value = serde_json::from_slice(&run.stdout).unwrap();
+
+        // `coverage` carries a wall-clock snapshot id and timestamp, which differ between two
+        // index builds of the same tree and say nothing about the retriever.
+        let mut expected = over_mcp["structuredContent"].clone();
+        let mut actual = over_cli;
+        for payload in [&mut expected, &mut actual] {
+            if let Some(coverage) = payload.get_mut("coverage").and_then(Value::as_object_mut) {
+                coverage.remove("indexed_at_ms");
+                coverage.remove("snapshot_id");
+            }
+        }
+        assert_eq!(actual, expected, "{tool} differs between channels");
+    }
+    client.stop().await;
+}

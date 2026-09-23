@@ -26,7 +26,7 @@ use rmcp::{
 };
 use schemars::JsonSchema;
 use serde_json::{Value, json};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -280,6 +280,24 @@ impl RetrievalServer {
         ];
         catalogue.retain(|tool| self.config.enabled(&tool.name));
         catalogue
+    }
+
+    /// Run one tool against one root, outside any MCP session, for the CLI transport arm.
+    ///
+    /// It goes through the same `execute` as a tool call, so argument validation, the tool-enabled
+    /// check and the result shape are one implementation rather than two that can drift. A
+    /// differential test asserts both channels return the same payload for the same query; that
+    /// test is what makes `runs/cli-transport-20260924` a one-variable comparison rather than a
+    /// comparison of two retrievers that happen to share a name.
+    ///
+    /// The index is built here and dropped when the process exits: this crate persists nothing,
+    /// and an MCP session amortises one build over every call while a command amortises it over
+    /// one. That is wall-clock rather than tokens, and it bounds the corpora a CLI arm can be
+    /// tested on until an on-disk index exists.
+    pub async fn run_once(config: Config, root: &Path, name: &str, args: Value) -> Result<Value> {
+        let server = Self::new(config)?;
+        let session = Session::new(Workspace::new(root)?);
+        server.execute(&session, name, args).await
     }
 
     async fn execute(&self, session: &Session, name: &str, args: Value) -> Result<Value> {
