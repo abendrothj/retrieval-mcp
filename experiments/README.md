@@ -2283,6 +2283,23 @@ each arm the larger half of tool results is followed by no more requests than th
 (−0.26, +0.18, −0.08), and matched on result size between 2 and 8 KB the MCP arm deliberates
 *least* of the three at 1.16 requests a result. Payload size does not buy deliberation here.
 
+**Sizing the discovery tax, offline, on the same run.** A discovery call returns **22,675 bytes**
+against a retrieval call's 15,077, so searching the catalogue costs more per call than reading
+the repository does, and **67.1% of every byte the MCP arm gets back from a tool is catalogue
+rather than code**. It is an entry fee rather than a slope: 19 of 30 trials make exactly three
+discovery calls, and all 30 begin with one. That near-constancy is also the honest limit on the
+evidence — within the arm, retrieval operations predict a trial's token count better than
+discovery calls do, r **+0.873** against **+0.514**, because something that barely varies cannot
+explain variance. Discovery moves the level, and only the between-arm contrast sees it: 2.93
+calls a trial against the CLI arm's zero. The searches are also not all well aimed. Three of
+them hunt `trace_dependencies`, which this surface does not expose, using vocabulary lifted from
+the question — `/dependenc|blast|hop|callee|caller/` against a `transitive_blast_radius`
+question — so part of the fee is the model looking for a capability that is not there.
+
+What none of this can settle offline is whether the fee scales with the catalogue. A run varying
+`--tools` would say, and it is the obvious next registration: if three tools cost what seven
+cost, the fee is the search itself and a server cannot shrink it by exposing less.
+
 **The announcement is measured, not assumed.** A command is announced by nothing, so the arm
 needs a prompt fragment, and that fragment is the most dangerous object in the study given what
 `~/.agents/skills/retrieval-mcp/SKILL.md` did to 2,109 archived trials. It is therefore
