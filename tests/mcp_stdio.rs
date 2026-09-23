@@ -1426,3 +1426,49 @@ async fn the_cli_and_the_mcp_tool_return_the_same_payload() {
     }
     client.stop().await;
 }
+
+/// `retrieval callers X | head` must show callers, not coverage prose.
+///
+/// The first renderer printed every scalar field to stdout before the rows. A `find_callers`
+/// payload carries about thirty of them, several being multi-sentence `coverage.*` text, so the
+/// most natural pipe an agent writes returned no rows at all. The arm that change belongs to
+/// measures whether a pipeable surface costs fewer round trips; shipping this would have
+/// measured a broken renderer and called it a fact about transport.
+#[test]
+fn rows_go_to_stdout_and_coverage_prose_stays_out_of_the_pipe() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(
+        root.path().join("sample.rs"),
+        "fn needle() {}\nfn caller() { needle(); }\nfn outer() { caller(); }\n",
+    )
+    .unwrap();
+
+    let run = std::process::Command::new(env!("CARGO_BIN_EXE_retrieval"))
+        .args(["--root", root.path().to_str().unwrap(), "callers", "caller"])
+        .output()
+        .unwrap();
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let stdout = String::from_utf8(run.stdout).unwrap();
+    let stderr = String::from_utf8(run.stderr).unwrap();
+
+    // Nothing is hidden: the coverage fields are still emitted, on the diagnostic stream.
+    assert!(stderr.contains("# coverage."), "coverage must still be reported: {stderr}");
+    assert!(
+        !stdout.contains("# coverage."),
+        "coverage prose must not sit in the pipe: {stdout}"
+    );
+
+    // The first thing `| head` would show must be data, not preamble.
+    let first_data = stdout
+        .lines()
+        .find(|line| !line.starts_with('#') && !line.trim().is_empty())
+        .expect("stdout carries at least one row");
+    assert!(
+        first_data.contains("sample.rs"),
+        "the first non-header line should be a caller row: {first_data}"
+    );
+    assert!(
+        stdout.lines().take(5).any(|line| line.contains("sample.rs")),
+        "a caller must appear within the first five lines, or `| head` is useless: {stdout}"
+    );
+}

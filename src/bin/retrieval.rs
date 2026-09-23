@@ -12,10 +12,15 @@
 //! call uses. There is no second implementation to drift, and a differential test asserts both
 //! channels answer identically.
 //!
-//! Default output is tab-separated rows, one per line, and it is *lossless*: every field the MCP
-//! payload carries is emitted, scalars as `# key=value` preamble and rows as columns. A lossy
-//! projection would make the arm a comparison of two payloads as well as two channels. `--json`
-//! emits the MCP payload verbatim.
+//! Output is *lossless* - every field the MCP payload carries is emitted - but split by stream:
+//! tab-separated rows on stdout, coverage and counts on stderr as `# key=value`. Lossless because
+//! a trimmed projection would make the arm a comparison of two payloads as well as two channels.
+//! Split because with the scalars printed first on stdout, `retrieval callers X | head` returned
+//! 41 lines of which the first 31 were coverage prose: the most natural pipe an agent writes
+//! produced no rows, and an arm measured that way would have reported a broken renderer as a fact
+//! about transport. Codex's aggregated_output captures both streams, verified against the
+//! archive, so nothing is hidden from the model - it can now choose not to pipe it. `--json`
+//! emits the payload verbatim on stdout.
 //!
 //! Exit status follows grep, because that is what `&&` chaining and the model's priors expect:
 //! 0 rows found, 1 none found, 2 error.
@@ -37,7 +42,8 @@ retrieval [--root PATH] [--json] <command> [options]
                         [--path P] [--include-references] [--limit N] [--offset N]
   concept <query>       Find code by described behaviour. [--path P] [--limit N] [--offset N] [--excerpt]
 
-Rows are tab-separated, one per line; `# key=value` lines carry the scalar fields. --json emits
+Rows go to stdout, tab-separated, one per line, so they pipe. Coverage and counts go to stderr
+as `# key=value`, visible in a terminal and out of the way of a pipe. --json emits
 the payload unchanged. Exit status: 0 rows found, 1 none found, 2 error.
 Paths are relative to --root, which defaults to the working directory.";
 
@@ -212,10 +218,20 @@ fn rows(payload: &Value) -> Vec<(&String, &Vec<Value>)> {
         .collect()
 }
 
-/// Lossless tab-separated rendering. Returns false when the payload carried no rows.
-fn render(payload: &Value) -> (String, bool) {
+/// Lossless rendering, split by stream: rows for stdout, everything else for stderr.
+///
+/// The split is not cosmetic. With the scalar fields printed first on stdout,
+/// `retrieval callers X | head` returned 41 lines of which the first 31 were `# coverage.*`
+/// prose - the most natural pipe an agent writes produced no rows at all, and an arm measured
+/// that way would have reported a broken renderer as a fact about transport. Data on stdout and
+/// diagnostics on stderr is also just what every other command does, so it costs the agent no
+/// new convention. Nothing is dropped: Codex's aggregated_output captures both streams, verified
+/// against the archive, so the model still sees the coverage fields - it can now choose not to
+/// pipe them.
+fn render(payload: &Value) -> (String, String, bool) {
+    let mut notes = Vec::new();
+    preamble("", payload, &mut notes);
     let mut lines = Vec::new();
-    preamble("", payload, &mut lines);
     let sets = rows(payload);
     for (name, items) in &sets {
         let mut columns: Vec<String> = Vec::new();
@@ -238,7 +254,7 @@ fn render(payload: &Value) -> (String, bool) {
             );
         }
     }
-    (lines.join("\n"), !sets.is_empty())
+    (lines.join("\n"), notes.join("\n"), !sets.is_empty())
 }
 
 #[tokio::main]
@@ -282,7 +298,10 @@ async fn run() -> Result<std::process::ExitCode> {
             std::process::ExitCode::from(1)
         });
     }
-    let (text, found) = render(&payload);
+    let (text, notes, found) = render(&payload);
+    if !notes.is_empty() {
+        eprintln!("{notes}");
+    }
     if !text.is_empty() {
         println!("{text}");
     }
