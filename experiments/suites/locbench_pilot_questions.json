@@ -19,7 +19,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11751 (yt-dlp/yt-dlp @ fca3eb5f8), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11751",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/yt-dlp__yt-dlp-11751",
   "covariates": {
    "repo": "yt-dlp/yt-dlp",
    "base_commit": "fca3eb5f8be08d5fab2e18b45b7281a12e566725",
@@ -53,7 +53,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11438 (yt-dlp/yt-dlp @ a6783a3b9), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11438",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/yt-dlp__yt-dlp-11438",
   "covariates": {
    "repo": "yt-dlp/yt-dlp",
    "base_commit": "a6783a3b9905e547f6c1d4df9d7c7999feda8afa",
@@ -87,7 +87,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-4480 (tobymao/sqlglot @ 41c6d24c9), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-4480",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/tobymao__sqlglot-4480",
   "covariates": {
    "repo": "tobymao/sqlglot",
    "base_commit": "41c6d24c99e130b3c8e35e348a25a59e9e3d5553",
@@ -121,7 +121,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-4415 (tobymao/sqlglot @ 122ef5f41), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-4415",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/tobymao__sqlglot-4415",
   "covariates": {
    "repo": "tobymao/sqlglot",
    "base_commit": "122ef5f41c4e29347026a81e6f6460ccf8e910ed",
@@ -155,7 +155,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-4390 (tobymao/sqlglot @ e7b67e0c2), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-4390",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/tobymao__sqlglot-4390",
   "covariates": {
    "repo": "tobymao/sqlglot",
    "base_commit": "e7b67e0c280179188ce1bca650735978b758dca1",
@@ -189,7 +189,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-4366 (tobymao/sqlglot @ 79c675a49), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-4366",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/tobymao__sqlglot-4366",
   "covariates": {
    "repo": "tobymao/sqlglot",
    "base_commit": "79c675a49fb44a6a7a97ea0de79822d8571724be",
@@ -223,7 +223,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-3901 (tobymao/sqlglot @ e0cd7e202), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-3901",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/tobymao__sqlglot-3901",
   "covariates": {
    "repo": "tobymao/sqlglot",
    "base_commit": "e0cd7e20298f84dc245676ecded6f174cf1c9c3e",
@@ -257,7 +257,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-3436 (tobymao/sqlglot @ 30f9d30d8), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-3436",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/tobymao__sqlglot-3436",
   "covariates": {
    "repo": "tobymao/sqlglot",
    "base_commit": "30f9d30d8ab3727a43b1e6f363f28631cbfa7f92",
@@ -291,7 +291,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-3417 (tobymao/sqlglot @ e1b6483d5), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-3417",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/tobymao__sqlglot-3417",
   "covariates": {
    "repo": "tobymao/sqlglot",
    "base_commit": "e1b6483d5e26d556f6a3dd82c6d35f475c189c2b",
@@ -325,7 +325,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance tobymao__sqlglot-3167 (tobymao/sqlglot @ df4ce17f2), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/tobymao__sqlglot-3167",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/tobymao__sqlglot-3167",
   "covariates": {
    "repo": "tobymao/sqlglot",
    "base_commit": "df4ce17f24bbb16a64172e351f4e27ac74de668a",
@@ -359,7 +359,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11821 (yt-dlp/yt-dlp @ 2037a6414), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11821",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/yt-dlp__yt-dlp-11821",
   "covariates": {
    "repo": "yt-dlp/yt-dlp",
    "base_commit": "2037a6414f81db8080ca724dca506fde91974c5d",
@@ -393,7 +393,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11782 (yt-dlp/yt-dlp @ 6fef82402), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11782",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/yt-dlp__yt-dlp-11782",
   "covariates": {
    "repo": "yt-dlp/yt-dlp",
    "base_commit": "6fef824025b3c2f0ca8af7ac9fa04b10d09a3591",
@@ -427,7 +427,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11734 (yt-dlp/yt-dlp @ 354cb4026), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11734",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/yt-dlp__yt-dlp-11734",
   "covariates": {
    "repo": "yt-dlp/yt-dlp",
    "base_commit": "354cb4026cf2191e1a130ec2a627b95cabfbc60a",
@@ -460,7 +460,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11636 (yt-dlp/yt-dlp @ 4b5eec0aa), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11636",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/yt-dlp__yt-dlp-11636",
   "covariates": {
    "repo": "yt-dlp/yt-dlp",
    "base_commit": "4b5eec0aaa7c02627f27a386591b735b90e681a8",
@@ -494,7 +494,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11542 (yt-dlp/yt-dlp @ f2a4983df), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11542",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/yt-dlp__yt-dlp-11542",
   "covariates": {
    "repo": "yt-dlp/yt-dlp",
    "base_commit": "f2a4983df7a64c4e93b56f79dbd16a781bd90206",
@@ -528,7 +528,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11513 (yt-dlp/yt-dlp @ a9f85670d), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11513",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/yt-dlp__yt-dlp-11513",
   "covariates": {
    "repo": "yt-dlp/yt-dlp",
    "base_commit": "a9f85670d03ab993dc589f21a9ffffcad61392d5",
@@ -560,7 +560,7 @@
    }
   ],
   "author_notes": "LOC-BENCH V1 instance yt-dlp__yt-dlp-11478 (yt-dlp/yt-dlp @ be3579aaf), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
-  "corpus": "/Users/ja/.claude/jobs/f3de7b43/tmp/lb-corpora/yt-dlp__yt-dlp-11478",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/yt-dlp__yt-dlp-11478",
   "covariates": {
    "repo": "yt-dlp/yt-dlp",
    "base_commit": "be3579aaf0c3b71a0a3195e1955415d5e4d6b3d8",
