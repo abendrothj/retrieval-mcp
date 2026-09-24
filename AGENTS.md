@@ -273,6 +273,22 @@ Open threads:
   client the MCP surface costs **+71.0%** against native, where the published figure says
   −42.4%. The published result does not survive on its own client once the document is
   removed.
+- **Confirmed over three repetitions, and two registered criteria failed.**
+  `runs/cli-confirm-20260924`, 360 trials, four arms, same etcd corpus: native 80,331 input
+  tokens a trial at 86/90, bare MCP 151,486 at 89/90, **MCP with a skill document shipped
+  beside it 106,481 at 87/90**, and the four operations as a command **62,519 at 88/90**. The
+  registered primary - the command at least 20% under the shell agent - is **met at −22.2%**,
+  but thinner every repetition: −26.2, −24.7, −22.2. Quoting the single run's −30.9% would
+  have been quoting the high-water mark. The product question is met decisively: shipping a
+  skill document recovers a third of the MCP arm's cost and the command is still **41% cheaper
+  than MCP-as-shipped**. Two criteria failed and are published as failures: the quality bar,
+  missed **by the control arm** at three answers below the best while every retrieval arm sat
+  within two; and the mechanism registered in advance, −21.6% round trips × −11.9% context,
+  measured at **−10.3% × −13.2%** with the round-trip term shrinking at every repetition. The
+  qualitative mechanism survives - fewer round trips *and* lighter context - and the split does
+  not. Evidence volume is the stable figure: **−66.9%** against the control, −66.8% in the
+  first run. The `read_outside_corpus` detector fired in 89 of 90 seeded trials and none of the
+  other 270, which is the accidental-contamination detector catching the deliberate condition.
 - **Deliberation did not respond to better evidence on the page.** `runs/linux-relations-20260922`
   stated which candidate calls which - 10 of 21 pages, no byte cost, offline-proven - and under a
   model it missed every registered criterion: idle requests 1.95 to 2.03, quality 59 to 56 of 63,
