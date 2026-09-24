@@ -1,0 +1,308 @@
+[
+ {
+  "id": "django__django-18435",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "Add warning to runserver that it should not be used for production\nDescription\n\t \nAs per this discussion on the \u200bforum, I think adding a warning to the start of runserver would be valuable to those new to Django and a healthy reminder to those coming back to Django. \nThe wording of the warning is:\nWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.\nFor more information on production servers see the documentation: https://docs.djangoproject.com/en/5.0/howto/deployment/\nAdditionally a flag should be added to optionally hide the warning. --hide-unsuitable-for-production was a suggestion.\nFinally the following 2 pages of the documentation should have add some wording to highlight that a deployed project should not use runserver.\n\u200bhttps://docs.djangoproject.com/en/5.0/howto/deployment/ (Add a warning or paragraph that mentions switching)\n\u200bhttps://docs.djangoproject.com/en/5.0/howto/deployment/checklist/ (Add a section to switch away from runserver)\nAdd warning to runserver that it should not be used for production\nDescription\n\t \nAs per this discussion on the \u200bforum, I think adding a warning to the start of runserver would be valuable to those new to Django and a healthy reminder to those coming back to Django. \nThe wording of the warning is:\nWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.\nFor more information on production servers see the documentation: https://docs.djangoproject.com/en/5.0/howto/deployment/\nAdditionally a flag should be added to optionally hide the warning. --hide-unsuitable-for-production was a suggestion.\nFinally the following 2 pages of the documentation should have add some wording to highlight that a deployed project should not use runserver.\n\u200bhttps://docs.djangoproject.com/en/5.0/howto/deployment/ (Add a warning or paragraph that mentions switching)\n\u200bhttps://docs.djangoproject.com/en/5.0/howto/deployment/checklist/ (Add a section to switch away from runserver)\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/core/management/commands/runserver.py::Command::on_bind"
+  },
+  "rejected_alternates": [
+   "django/core/management/commands/runserver.py::Command",
+   "django/core/management/commands/runserver.py::add_arguments",
+   "django/core/management/commands/runserver.py::execute"
+  ],
+  "evidence": [
+   {
+    "path": "django/core/management/commands/runserver.py",
+    "contains": "def on_bind(self, server_port):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18435 (django/django @ 958274525), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18435",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "95827452571eb976c4f0d5e9ac46843948dd5fe6",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": false,
+   "statement_chars": 2049,
+   "corpus_fingerprint": {
+    "sha256": "0582ae9917343d19ae8599874b8f5fd82006eb04ea1c2cdeba50ca82bf15a427",
+    "files": 6822
+   }
+  }
+ },
+ {
+  "id": "django__django-18986",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "Add support for CompositePrimaryKey in inspectdb\nDescription\n\t \nWe can now replace the \u200bhalf-measure created when introspecting a composite primary key with the actual field.\n\u200bPR\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/core/management/commands/inspectdb.py::Command::handle_inspection"
+  },
+  "rejected_alternates": [
+   "django/core/management/commands/inspectdb.py::Command",
+   "django/core/management/commands/inspectdb.py::add_arguments",
+   "django/core/management/commands/inspectdb.py::handle"
+  ],
+  "evidence": [
+   {
+    "path": "django/core/management/commands/inspectdb.py",
+    "contains": "def handle_inspection(self, options):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18986 (django/django @ 987854ba4), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18986",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "987854ba44b497b195536199f8f6d1dc440a43ca",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": false,
+   "statement_chars": 178,
+   "corpus_fingerprint": {
+    "sha256": "bcc705a4c139fee8c27c3a72fbcd5753c40a342841ee054abca6187ec5c08cab",
+    "files": 6864
+   }
+  }
+ },
+ {
+  "id": "django__django-18941",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "Urlize incorrectly handles punctuation in email addresses\nDescription\n\t \nSeveral punctuation characters (%, &, +, !, etc.) can\u2014and sometimes do\u2014appear in the local part of an email address (before the @). The urlize template filter doesn't correctly encode them, which can result in broken mailto links.\nExample (Django 5.1.4):\nfrom django.template.defaultfilters import urlize\nurlize(\"it%dept@example.org\")\n# '<a href=\"mailto:it%dept@example.org\">it%dept@example.org</a>'\n# Expected:\n# '<a href=\"mailto:it%25dept@example.org\">it%dept@example.org</a>'\nClicking the resulting mailto link might work as expected, or do nothing, or could launch a mail composer with a missing or incorrect email address, depending on the specific address, browser and email app. Sequences that could also be percent-encoded characters (like \"%de\" in the example) are especially prone to unpredictable results.\nThe mailto URI spec \u200bRFC 6068 requires percent encoding most punctuation in this situation (section 2, item 1; also see section 5, Encoding).\nProposed fix: apply urllib.parse.quote() to local where the \u200bmailto link is constructed in django.utils.html.Urlizer. (Although not strictly necessary, it wouldn't hurt to also quote domain there.)\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/utils/html.py::Urlizer::handle_word"
+  },
+  "rejected_alternates": [
+   "django/utils/html.py::escape",
+   "django/utils/html.py::escapejs",
+   "django/utils/html.py::json_script"
+  ],
+  "evidence": [
+   {
+    "path": "django/utils/html.py",
+    "contains": "def handle_word("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18941 (django/django @ 94436dee5), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18941",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "94436dee57ce677e6ffcbb0438e0441d5c261d62",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": false,
+   "statement_chars": 1229,
+   "corpus_fingerprint": {
+    "sha256": "fe4442a486a2c27d66a1b6db038b7d48dfd7afd9c6b6f3f8c90604a4e1c86255",
+    "files": 6864
+   }
+  }
+ },
+ {
+  "id": "django__django-18911",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "Changing output_field for GeneratedField leads to ProgrammingError with Postgres 16.5+\nDescription\n\t \nConsider the following model and assume the initial migration has been applied:\nclass Order(models.Model): \n\torder_no = models.IntegerField() \n\titem_no = models.CharField(max_length=25) \n\tqty = models.IntegerField() \n\tcost = models.DecimalField(max_digits=10, decimal_places=2) \n\ttotal_cost = models.GeneratedField( \n\t\texpression=F(\"cost\") * F(\"qty\"), \n\t\toutput_field=models.BigIntegerField(), \n\t\tdb_persist=True, \n\t)\nDuring a code review we determined the output field should be a Decimal field and the field was modified as follows:\ntotal_cost = models.GeneratedField( \n\texpression=F(\"cost\") * F(\"qty\"), \n\toutput_field=models.DecimalField(decimal_places=2, max_digits=16), \n\tdb_persist=True, \n)\nAnd a new migration was generated:\nmigrations.AlterField( \n\tmodel_name='order', \n\tname='total_cost', \n\tfield=models.GeneratedField(db_persist=True, expression=django.db.models.expressions.CombinedExpression(models.F('cost'), '*', models.F('qty')), output_field=models.DecimalField(decimal_places=2, max_digits=16)), \n),\nIn Postgres 16.4 and earlier, this migration is applied without error. (I'm aware that the value of the total_cost field is not recomputed for existing records when this migration is applied.).\nStarting with Postgres 16.5 and up, this migration fails with the following error:\npsycopg2.errors.InvalidColumnDefinition: cannot specify USING when altering type of generated column\nDETAIL: Column \"total_cost\" is a generated column.\n...\ndjango.db.utils.ProgrammingError: cannot specify USING when altering type of generated column\nThis appears to be a result of the following change in Postgres 16.5 (\u200brelease notes): \nDisallow a\u00a0USING\u00a0clause when altering the type of a generated column (Peter Eisentraut)\u00a0[\u00a7](\u200bhttps://postgr.es/c/5867ee005)\nA generated column already has an expression specifying the column contents, so including\u00a0USING\u00a0doesn't make sense.\nThe Django \u200bdocumentation for GeneratedField makes it clear that \nThere are many database-specific restrictions on generated fields that Django doesn\u2019t validate and the database may raise an error\nFor this reason, I almost didn't open a ticket. However, there is logic in db/backends/base/schema.py that checks if the expression of a GeneratedField changed. Consider this migration (which changes the expression from multiplication to addition):\nmigrations.AlterField( \n\tmodel_name='order', \n\tname='total_cost', \n\tfield=models.GeneratedField(db_persist=True, expression=django.db.models.expressions.CombinedExpression(models.F('cost'), '+', models.F('qty')), output_field=models.BigIntegerField()), \n),\nAttempting to apply this migration will raise the following error (even in Postgres 16.4):\nValueError: Modifying GeneratedFields is not supported - the field sales.Order.total_cost must be removed and re-added with the new definition.\nThis error is more helpful. It explains the problem better and even suggests a workaround.\nShould we throw a similar error if the output_field of a GeneratedField is changed? Or add a tip to the documentation?\nThe above was tested with:\nDjango version 5.1.3\npsycopg2 version 2.9.10\nPostgres versions: 16.4, 16.5, 16.6, 17.0, and 17.2\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/db/backends/postgresql/schema.py::DatabaseSchemaEditor::_using_sql"
+  },
+  "rejected_alternates": [
+   "django/db/backends/postgresql/schema.py::DatabaseSchemaEditor",
+   "django/db/backends/postgresql/schema.py::execute",
+   "django/db/backends/postgresql/schema.py::quote_value"
+  ],
+  "evidence": [
+   {
+    "path": "django/db/backends/postgresql/schema.py",
+    "contains": "def _using_sql(self, new_field, old_field):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18911 (django/django @ 5e998d717), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18911",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "5e998d717f7b4220a1728bd49b66ca0162e2a6cb",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 3245,
+   "corpus_fingerprint": {
+    "sha256": "425120e328b1737e5b2d24a2e5fe521a81764ae68fe0e8953d92f3461fd7fb2b",
+    "files": 6860
+   }
+  }
+ },
+ {
+  "id": "django__django-18846",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "sqlmigrate prevents normal colorization of system checks\nDescription\n\t \nsqlmigrate forces no_color=True for the sake of not colorizing the sql keywords BEGIN; and COMMIT;, but this has the side effect of preventing system check output from being colorized.\n(To reproduce, begin with a project that will emit a system check, and run sqlmigrate.)\nSuggesting a small \u200bPR to preserve the non-colorization of BEGIN; and COMMIT; while still colorizing system checks.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/core/management/commands/sqlmigrate.py::Command::execute"
+  },
+  "rejected_alternates": [
+   "django/core/management/commands/sqlmigrate.py::Command",
+   "django/core/management/commands/sqlmigrate.py::add_arguments",
+   "django/core/management/commands/sqlmigrate.py::handle"
+  ],
+  "evidence": [
+   {
+    "path": "django/core/management/commands/sqlmigrate.py",
+    "contains": "def execute(self, *args, **options):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18846 (django/django @ 857b1048d), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18846",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "857b1048d53ebf5fc5581c110e85c212b81ca83a",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": false,
+   "statement_chars": 460,
+   "corpus_fingerprint": {
+    "sha256": "03f28240612dee0ff156fe4c48a2bf9c39455e0565bd4f653cb286aedfe1af61",
+    "files": 6836
+   }
+  }
+ },
+ {
+  "id": "django__django-18796",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "\"view on site\" URL doesn't accept non-integer ContentType pks\nDescription\n\t \nMost admin URL paths use the path converter to allow any type of ID, however, the \"view on site\" uses the int converter for content_type_id.\nThis doesn't work on MongoDB which uses ObjectIdAutoField (bson.ObjectId) for all models since AutoField isn't supported.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/contrib/admin/sites.py::AdminSite::get_urls"
+  },
+  "rejected_alternates": [
+   "django/contrib/admin/sites.py::AdminSite",
+   "django/contrib/admin/sites.py::__init__",
+   "django/contrib/admin/sites.py::__repr__"
+  ],
+  "evidence": [
+   {
+    "path": "django/contrib/admin/sites.py",
+    "contains": "def get_urls(self):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18796 (django/django @ 63dbe30d3), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18796",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "63dbe30d3363715deaf280214d75b03f6d65a571",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": false,
+   "statement_chars": 339,
+   "corpus_fingerprint": {
+    "sha256": "0959696a5978e190577d258291bb41acb16df44fab100bf2d03fcec3457e6c50",
+    "files": 6836
+   }
+  }
+ },
+ {
+  "id": "django__django-18795",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "System check for default database values with expressions prohibits non-expressions\nDescription\n\t \nSince its introduction in Django 5.0, \u200bthe fields.E011 system check for database backends that have DatabaseFeatures.supports_expression_defaults = False \u200brequires literal defaults to be wrapped in Value.\nThere are a number of test models that have \u200bint, float and \u200bstring db_defaults that will raise a system check error if DatabaseFeatures.supports_expression_defaults = False\nsince these models don't have required_db_features = {\"supports_expression_defaults\"}.\nI'm working on MongoDB which doesn't support any database defaults, literal or expressions.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/db/models/fields/__init__.py::Field::_check_db_default"
+  },
+  "rejected_alternates": [
+   "django/db/models/fields/__init__.py::Empty",
+   "django/db/models/fields/__init__.py::NOT_PROVIDED",
+   "django/db/models/fields/__init__.py::_load_field"
+  ],
+  "evidence": [
+   {
+    "path": "django/db/models/fields/__init__.py",
+    "contains": "def _check_db_default(self, databases=None, **kwargs):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18795 (django/django @ 2bc43ccbd), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18795",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "2bc43ccbdb28b9d87da172ef119ff3b48e6ff71a",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 656,
+   "corpus_fingerprint": {
+    "sha256": "f236e37e979e615c94c2bae72d127920312b966a274ca47d6d1de2ecfd5e35b3",
+    "files": 6836
+   }
+  }
+ },
+ {
+  "id": "django__django-18653",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "Improve non-first {% extends %} error message\nDescription\n\t \nCurrently if you put {% extends %} after another tag, the error looks like:\nTemplateSyntaxError: <ExtendsNode: extends 'base.html'> must be the first tag in the template.\nExtendsNode is a leaked internal detail. Showing its repr() is a bit confusing, especially for a beginner programmer.\nThe message would be clearer if it showed the actual text of the tag:\nTemplateSyntaxError: {% extends 'base.html' %} must be the first tag in the template.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/template/base.py::Parser::extend_nodelist"
+  },
+  "rejected_alternates": [
+   "django/template/base.py::TokenType",
+   "django/template/base.py::VariableDoesNotExist",
+   "django/template/base.py::__init__"
+  ],
+  "evidence": [
+   {
+    "path": "django/template/base.py",
+    "contains": "def extend_nodelist(self, nodelist, node, token):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18653 (django/django @ e970bb7ca), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18653",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "e970bb7ca71c00594b42a024a15a8ac007cc2c7a",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": false,
+   "statement_chars": 505,
+   "corpus_fingerprint": {
+    "sha256": "a2fa07bbc1ebdbd57565456e0a9bc76476d8413e52ffe89fcdfe7f691cf9261c",
+    "files": 6831
+   }
+  }
+ },
+ {
+  "id": "django__django-17885",
+  "category": "Performance Issue",
+  "set": "holdout",
+  "question": "Make ModelAdmin.search_fields raise data errors on __exact lookups for non-string fields.\nDescription\n\t \nCurrently, \u200ball queries are done as string lookups which gives something like this on PostgreSQL, for example: (\"admin_views_pluggablesearchperson\".\"age\"::text) = UPPER(20)). It would be more efficient if the admin cast the search value to an integer and used that for the query.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/contrib/admin/options.py::ModelAdmin::get_search_results"
+  },
+  "rejected_alternates": [
+   "django/contrib/admin/options.py::ShowFacets",
+   "django/contrib/admin/options.py::get_content_type_for_model",
+   "django/contrib/admin/options.py::get_ul_class"
+  ],
+  "evidence": [
+   {
+    "path": "django/contrib/admin/options.py",
+    "contains": "def get_search_results(self, request, queryset, search_term):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-17885 (django/django @ 03c0a3de7), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-17885",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "03c0a3de722c4a7de9f3edfeb26417ebc8b90fe9",
+   "gold_cardinality": 1,
+   "locbench_category": "Performance Issue",
+   "names_target": true,
+   "statement_chars": 384,
+   "corpus_fingerprint": {
+    "sha256": "3c9634815a1c4aed47578a76730f0bceb5ae95003d44939094253ce4b2bd0e32",
+    "files": 6835
+   }
+  }
+ }
+]

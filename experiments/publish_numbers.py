@@ -353,6 +353,16 @@ def build(repo):
                          "the archived arm's 111,389. The document accounts for the published "
                          "result rather than contributing to it, so the figure is withdrawn "
                          "rather than corrected.",
+                "-22.2": "runs/cli-confirm-20260924, 360 trials over three repetitions on "
+                         "the etcd corpus: the four operations as a command against the "
+                         "client's own shell tools, 62,519 input tokens a trial against 80,331. "
+                         "Not a comparison of this server against a control in the sense the "
+                         "studies block carries, and corpus- or suite-bound - see -0.2%.",
+                "-0.2": "runs/cli-locbench-20260924, 100 trials on 25 LOC-BENCH instances over "
+                        "django, vllm and prowler: the same command against the same shell "
+                        "tools, 147,070 input tokens a trial against 147,358. The registered "
+                        "bar was -10% and it was missed, which is what says the -22.2% above "
+                        "does not generalise to questions this project did not write.",
                 "-26.8": "Withdrawn 2026-09-23 alongside the -42.4% it accompanied. The etcd "
                          "study's zvec-grep comparison was measured under the same uncontrolled "
                          "document, in the same trials.",

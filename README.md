@@ -145,9 +145,15 @@ not in the prompt, so the model spends round trips searching a catalogue to find
 touches the repository. That cost is not removable by configuration and it is not specific to one
 client version. Two of the run's own registered criteria were missed, including the mechanism
 predicted in advance for the command's advantage, which was refuted in the form it was registered.
-This is one corpus of a few hundred files on one client and one model, and the command rebuilds
-its index on every invocation, so it is not usable at scale as it stands. It is recorded as an
-open line of work rather than a recommendation.
+The first test of it on questions this project did not write then split it in two. On 25
+LOC-BENCH instances over django, vllm and prowler — curated from real GitHub issues by people
+unconnected to this project — the MCP finding reproduced and the command's advantage over the
+shell did not: the catalogue search appeared in 21 of 25 trials and the command still cost about
+half what the MCP surface did, but against the client's own shell tools it came out level, −0.2%
+where the first corpus had said −22.2%. So what travels is that this channel is expensive, not
+that the index beats grep. The command also rebuilds its index on every invocation, so it is not
+usable at scale as it stands. All of it is recorded as an open line of work rather than a
+recommendation.
 [The runs, their registrations and their misses](experiments/README.md#the-same-four-operations-as-a-command-and-the-deliberation-thread-reopening).
 
 Everything else — why the surface is four tools and not seven, why the ranker is BM25 and not
