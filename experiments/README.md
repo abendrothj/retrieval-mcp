@@ -260,6 +260,37 @@ differences were marginal in a tool-rich agent; corpus naming conventions domina
 from an offline ranker bake-off do not survive contact with a different model's habits, which is
 why every finding in this record names the model it came from.
 
+### Revisited: what the bake-off assumed, and two things that were never checked
+
+Two findings from 2026-09-24 bear on the paragraph above, and neither overturns it - they narrow
+what it licenses.
+
+**The reformulation assumption was validated on friendlier questions than real usage.** The
+bake-off's conclusion is that the semantic win lives in query formation, so the server instructs
+the model to write code vocabulary rather than the question's own words. `lexical_oracle.py` prices
+how much that assumption is doing: over 30 in-loop etcd questions a bounded lexical crawl dissolves
+**11 of 30 (37%)**, and over 25 externally curated LOC-BENCH instances it dissolves **4 of 25 (16%)
+at budget 8 and 5 of 25 (20%) at 25**. Budget barely moves either number, so these are stable
+properties of the question sets. Our own questions are about **twice** as tractable to a purely
+lexical crawl as real issue prose. The one number in this record pointing the other way is the
+bake-off's own raw-question row - dense 12/18 against lexical 6/18 at recall@5 - and it has never
+been re-measured out of loop.
+
+**And the optional backend cannot run on a real repository, so "optional" overstates it.**
+`examples/ollama_backend.rs` failed two ways on LOC-BENCH corpora. A single line past the 2,000-byte
+chunk budget aborted the whole request: Django ships `xregexp.min.js` as one 153 KB line, and three
+more minified vendor assets do the same, so the semantic ranker could not answer a query on that
+corpus at all. That was a defect in the adapter and it is fixed - the file is skipped and counted
+in `index_note` rather than failing the request, with a regression test. What remains is
+architectural: linear cosine ranking is capped at 20,000 chunks, and a 6,822-file Django tree
+exceeds it. Only 7 of the 20 crawl-resistant LOC-BENCH corpora are even under 1,500 source files.
+
+So every semantic figure in this record was measured at the only scale its reference backend
+supports - a few hundred files - which is also the scale of every corpus the project chose. A fair
+lexical-against-semantic comparison at realistic scale needs an ANN or vector store, which is
+infrastructure to build rather than an experiment to run, and until it exists **the semantic
+question is open rather than settled**.
+
 ### The `inspect_symbol` A/B
 
 The primitive in the server exists because of this contrast. Identical corpus, chunks, gold, ranker,
