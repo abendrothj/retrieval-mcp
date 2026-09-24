@@ -50,6 +50,40 @@ class CorpusRoot(unittest.TestCase):
         self.assertNotIn("/c/q2", seen[("q1", "native")])
 
 
+class ServedRoot(unittest.TestCase):
+    """The tree the retrieval server is rooted at must be the tree the trial is about.
+
+    This is the defect that voided runs/client-cell-20260924 and the MCP arms of every LOC-BENCH
+    study before it: the gate was handed the question's own tree and the upstream command was
+    expanded with the arm-wide placeholder copy, so the server indexed one repository while the
+    agent's shell read another. It fails silently - the arm still answers, out of the wrong
+    codebase - so it is asserted here rather than left to a payload audit.
+    """
+
+    SYSTEM = {"id": "mcp", "prompt_policy": "", "mcp_enabled": True, "environment": {},
+              "upstreams": [{"id": "retrieval", "command": ["/bin/server", "--root", "{root}"],
+                             "environment": {}, "visible_tools": ["search_exact"],
+                             "expected_upstream_tools": ["search_exact"]}]}
+
+    def mapping(self, root=None):
+        return comparison_runner.placeholders(
+            Path("/w"), self.SYSTEM, Path("/bin/server"), ["/usr/bin/true"], root=root)
+
+    def test_a_pinned_trial_root_is_what_the_command_gets(self):
+        expanded = comparison_runner.expand(self.SYSTEM["upstreams"][0]["command"],
+                                            self.mapping(Path("/c/q2")))
+        self.assertEqual(expanded[expanded.index("--root") + 1], "/c/q2")
+
+    def test_without_an_override_the_arm_copy_is_still_used(self):
+        expanded = comparison_runner.expand(self.SYSTEM["upstreams"][0]["command"], self.mapping())
+        self.assertEqual(expanded[expanded.index("--root") + 1], "/w/systems/mcp/corpus")
+
+    def test_the_arm_wide_copy_is_never_served_for_a_pinned_question(self):
+        arm_copy = self.mapping()["{root}"]
+        served = self.mapping(Path("/c/q2"))["{root}"]
+        self.assertNotEqual(served, arm_copy)
+
+
 class OracleArm(unittest.TestCase):
     def plan(self, answer):
         roots = {"native": "/d", "oracle": "/d"}

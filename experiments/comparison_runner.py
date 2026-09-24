@@ -253,12 +253,22 @@ def system_server(system, server):
     return path
 
 
-def placeholders(workspace, system, server, semantic_command, attempt=None, listen=None):
+def placeholders(workspace, system, server, semantic_command, attempt=None, listen=None,
+                 root=None):
+    """`{root}` is the corpus a command should read.
+
+    For a single-corpus run that is the arm's own copy. For a suite whose questions pin their own
+    tree it is the TRIAL's tree, and the caller must pass it: the arm-wide copy still exists, is
+    a placeholder nothing searches, and a server rooted there answers every question from the
+    wrong repository while the agent's shell reads the right one. That is exactly what happened in
+    runs/client-cell-20260924 and the LOC-BENCH studies before it - 69 `path is missing or
+    inaccessible` errors in one run, and a vLLM question answered out of Django source.
+    """
     system_root = workspace / "systems" / system["id"]
     return {
         "{workspace}": str(workspace),
         "{shared}": str(workspace / "shared"),
-        "{root}": str(system_root / "corpus"),
+        "{root}": str(root or (system_root / "corpus")),
         "{state}": str(system_root / "state"),
         "{project}": system["id"],
         "{attempt}": str(attempt) if attempt else "",
@@ -575,7 +585,7 @@ def run(args):
         attempt = output / f"trial-{index:04d}"
         attempt.mkdir()
         root = Path(corpus_root(roots, system["id"], trial["task_id"]))
-        mapping = placeholders(workspace, system, server, args.semantic_command, attempt)
+        mapping = placeholders(workspace, system, server, args.semantic_command, attempt, root=root)
         if system["mcp_enabled"]:
             upstreams = []
             for upstream in system["upstreams"]:
@@ -584,7 +594,7 @@ def run(args):
                     listen_addresses[key] = free_loopback_address()
                 upstream_mapping = placeholders(
                     workspace, system, server, args.semantic_command, attempt,
-                    listen=listen_addresses.get(key))
+                    listen=listen_addresses.get(key), root=root)
                 upstreams.append({
                     "id": upstream["id"],
                     "command": expand(upstream["command"], upstream_mapping),
