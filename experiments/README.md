@@ -2418,6 +2418,333 @@ zero format errors, zero MCP failures, zero budget exhaustion, zero contaminatio
 and the control's chaining unchanged across client versions at 2.11 sub-commands a shell call
 against the archived 2.03, counted identically.
 
+### The client version is not the culprit
+
+The baseline break left one live alternative: the archived study ran on codex-cli 0.154.0 and
+every clean re-run on 0.155.1, and that version was twice recorded here as unobtainable. It is
+published at `rust-v0.154.0` and runs through this harness unmodified. `runs/client-version-20260924`
+puts both clients on the same ten questions, the same corpus and the same server binary, with no
+document anywhere: four arms, 40 trials, the only variable the client.
+
+| | resolved | discovery | repository calls | requests | input tokens |
+|---|---:|---:|---:|---:|---:|
+| native-0154 | 9/10 | 0.00 | 2.90 | 3.90 | 80,320 |
+| native-0155 | 10/10 | 0.00 | 2.90 | 3.90 | 78,671 |
+| mcp-0154 | 9/10 | 2.20 | 2.00 | 5.20 | 137,348 |
+| mcp-0155 | 9/10 | 2.80 | 2.00 | 5.80 | 155,689 |
+
+**The control arm does not move: +2.1%, against a registered bar of +40% for blaming the client.**
+Repository calls and requests are identical to two decimals. So the explanation this project had
+been reaching for since the baseline broke is wrong, and the 57% fall in the archived control has
+to be accounted for by the two documents the archived trials carried and today's do not.
+
+The client is worth about 12%, and only to the MCP arm — 137,348 against 155,689 — through how
+much catalogue searching the model does. **And discovery is not new to 0.155.x**: the old client
+does it too, 2.20 calls a trial in 7 of 10 trials. That was declared unknowable twice, on the
+grounds that discovery emits no event-stream item and the archived run kept no rollouts. It was
+unknowable from the archive and always knowable by running the old client.
+
+The number that settles the baseline: clean, on the archived study's own client, the four-tool
+MCP surface costs **+71.0%** input tokens against a shell agent, where the published figure says
+−42.4%. The published result does not survive on its own client once the document is removed.
+
+### Confirmed over three repetitions, with two registered criteria published as misses
+
+`runs/cli-confirm-20260924`, 360 trials, four arms, three repetitions, the same etcd corpus and
+suite. The fourth arm is the one that could have refuted the recommendation: the MCP surface with
+a skill document shipped beside it, which is how an operator would actually ship it.
+
+| arm | resolved | input tokens | requests | repository calls | discovery | evidence bytes |
+|---|---:|---:|---:|---:|---:|---:|
+| native-control | 86/90 | 80,331 | 3.99 | 2.98 | 0.01 | 38,751 |
+| retrieval-mcp | 89/90 | 151,486 | 5.87 | 1.96 | 2.91 | 92,876 |
+| retrieval-mcp-shipped-skill | 87/90 | 106,481 | 5.62 | 3.57 | 1.06 | 56,466 |
+| retrieval-cli | 88/90 | **62,519** | 3.58 | 2.58 | 0.00 | **12,845** |
+
+**The registered primary is met at −22.2%, and thinner every repetition** — −26.2%, −24.7%,
+−22.2%, with the CLI arm itself drifting 60,238 to 61,327 to 65,992. The bar was set at −20%
+against a single repetition's −30.9% precisely to allow for this, and the effect cleared it.
+Anyone quoting −30.9% would have been quoting the high-water mark.
+
+**The product question is met decisively.** Shipping a skill document recovers a third of the MCP
+arm's cost, 151,486 to 106,481, and leaves the command still 41.3% cheaper than that.
+
+**Two registered criteria were missed and are published as misses.** The quality bar — no arm
+more than two answers below the best — is missed **by the control arm**, three below, while every
+retrieval arm sits within two. The criterion was written to catch a retrieval arm degrading and no
+retrieval arm did; it is reported as failed rather than reinterpreted. And the mechanism
+registered in advance, −21.6% round trips × −11.9% context per request, measured at **−10.3% ×
+−13.2%**, with the round-trip term falling steadily as repetitions accumulated: −21.6, −14.0,
+−12.1, −10.3. The product tracks the total and both terms stay negative every repetition, so the
+qualitative mechanism survives — fewer round trips *and* lighter context — and the split does not.
+The one figure that replicates tightly is evidence volume, **−66.9%** against the control here
+and −66.8% in the original run.
+
+The document effect has now replicated four times, at 104,200 on ten questions and 103,598,
+108,517 and 107,327 across three repetitions of thirty, with discovery at 1.0–1.1 against bare
+MCP's 2.9–3.1 every time. And `read_outside_corpus` fired in 89 of 90 shipped-skill trials and in
+none of the other 270 — the detector built for accidental contamination catching the deliberate
+condition, which is the strongest available check that the arm did what it was declared to do.
+
+### The first externally authored test splits the finding in two
+
+Every suite this repository publishes was written in-loop, by an agent session holding `AGENTS.md`
+and the operator's routing guide. Law 8 admits it and no study had escaped it. `runs/cli-locbench-20260924`
+repeats the four-arm comparison on LOC-BENCH V1: 25 instances over django, vllm and prowler,
+curated from real GitHub issues by people unconnected to this project, with hints, patches and
+leaked identifiers removed by `locbench_suite.py`, one corpus per question pinned at the
+instance's base commit.
+
+| arm | resolved | input tokens | requests | repository calls | discovery | evidence bytes |
+|---|---:|---:|---:|---:|---:|---:|
+| native-control | 19/25 | 147,358 | 5.40 | 4.40 | 0.00 | 65,651 |
+| retrieval-cli | 18/25 | 147,070 | 6.00 | 5.00 | 0.00 | 30,624 |
+| ~~retrieval-mcp~~ | ~~17/25~~ | ~~344,067~~ | ~~9.28~~ | ~~5.88~~ | ~~2.40~~ | ~~115,181~~ |
+| ~~retrieval-mcp-shipped-skill~~ | ~~19/25~~ | ~~293,421~~ | ~~9.60~~ | ~~7.60~~ | ~~1.00~~ | ~~93,727~~ |
+
+**Both MCP rows are withdrawn.** Their servers were rooted at the arm-wide placeholder corpus
+instead of each question's own repository, so they searched an unrelated codebase for 25 questions
+over three projects ([ledger](#harness-defect-ledger)). The two shell-bearing arms were correctly
+configured - the agent's working directory was always its question's tree - so everything below
+that compares `native-control` with `retrieval-cli` stands, and everything that compared against
+the MCP arms is gone, including this section's original bar 2 (−49.9% and −57.3% against them) and
+its discovery counts.
+
+**Bar 1 is missed at −0.2%** where the bar was −10% and where etcd said −22.2% over 360 trials.
+The registration said in advance what that means and it is the reading: the command-beats-shell
+result is corpus- or suite-bound and does not transfer to questions this project did not write.
+That is now the only finding this run supports.
+
+**The mechanism of the failure is legible.** The command does not lose on payload — 30,624
+evidence bytes a trial against the control's 65,651, less than half, the same ratio as everywhere
+else. It loses on steps: 6.00 requests and 5.00 repository calls against 5.40 and 4.40. On etcd
+the index found things in fewer steps than grep *and* carried lighter evidence, and the two terms
+compounded; here the lighter evidence survives, the step advantage inverts, and they cancel. On
+issue-derived questions this index needs more hops than ripgrep, not fewer.
+
+So what generalises is that this channel is expensive, and why. What does not generalise is the
+index beating grep. Quality is reported and not claimed — `runs/locbench-hard-20260923` was
+published as a miss because this suite's oracle sits too close to its control to demonstrate a
+margin, and one repetition of 25 questions separates nothing — but it is worth noting that no
+retrieval arm leads. The recommendation narrows to the smaller, better-supported form: if these
+four operations are going to be exposed to an agent on this client, a command costs far less than
+MCP; an agent that already has a shell gains nothing measurable from this index on these questions.
+
+### VOID: the cell that was meant to test whether the Django leg transfers
+
+`runs/client-cell-20260924`, 50 trials, 25 LOC-BENCH questions, run and scored 2026-09-24 and
+**voided the same day**. It is kept here because a withdrawal with its reason is worth more than a
+deletion.
+
+The design was sound and is worth repeating: the held-out −33.5% confounds a Claude client with a
+suite this project wrote, so the cell put the same four-tool surface, the same client and the
+archived study's own `claude-sonnet-4-6` on questions curated upstream, leaving suite authorship as
+the only variable. It measured +29.8% input tokens against a registered −15% bar, 10 of 25 correct
+against the control's 17, and quality separating for the first time in the record.
+
+**None of that is a measurement of retrieval.** The MCP arm's server was rooted at the arm-wide
+placeholder corpus — a Django tree — while the question's own repository sat beside it unread, so
+for 25 questions over django, vllm and prowler the arm searched Django source. The tell was in the
+payloads all along: a vLLM question returned `tests/gis_tests/geo3d/tests.py`, and **76 of the
+arm's 243 calls errored**, 69 of them `path is missing or inaccessible` — including `read_source`
+on a file that a replay finds at rank 1 in the correct tree. The control's `Read`/`Grep`/`Glob` ran
+in the right repository throughout, because the agent's working directory was correct; only the
+MCP upstream command was wrong. So the comparison was a correctly-rooted shell agent against a
+retrieval arm reading an unrelated codebase.
+
+The defect, its one-line cause and its blast radius across the LOC-BENCH studies are in the
+[ledger](#harness-defect-ledger). What this cell cost: $5.13, and a day of conclusions that had to
+be withdrawn from three documents — including, briefly, the claim that no leg of the headline
+survives out-of-loop questions. That claim is unmeasured, not true and not false.
+
+**Three interpretive errors were made on top of the defect, before it was found**, and they are
+recorded because each was avoidable. The loss classes were first read from `unretrieved_identities`
+as "13 of 15 losses never had the gold identity delivered" — which was true and meant nothing,
+because the arm was searching the wrong repository. Then a follow-up script scanned tool *requests*
+alongside result bodies and counted paths the agent had typed itself as evidence that retrieval had
+delivered the file, producing a "6 of 15 are a fixable selection failure" reading that survived one
+message. Correcting that produced "12 of 15 are candidate-set recall", also wrong for the same
+underlying reason. The lesson is the project's own law in a costume: **audit the instrument before
+interpreting the arms**, and a payload is the instrument.
+
+### A shuffled page changes no answer, and why this is not the positive control it was registered as
+
+`runs/degrade-control-20260924`, 58 trials, 29 questions, one repetition. Every number this project
+publishes compares HEAD against a shell agent or another channel, and nothing had ever measured
+what happens when the page is *wrong*. Five of the eight published studies cannot separate their
+arms on quality at all, and the record leans on those ties. This is the missing control.
+
+`experiments/degrade_server.py` is a stdio proxy rather than a fork: it speaks JSON-RPC to the
+client, runs the real binary underneath, and damages one property of the answer on the way back.
+`initialize` and `tools/list` pass through untouched, so the tool surface and the prompt prefix
+stay byte-identical and a token comparison against the damaged arm stays honest. `read_source` is
+left alone, because it is how an agent verifies evidence and damaging it would confound retrieval
+with verification. Three knobs, one arm each, because a bundled degradation cannot be attributed.
+
+The arm here is `--shuffle`: a seeded permutation of the result rows. **Ranking is destroyed and
+the bytes are not**, so only quality can move, and a token difference would be a defect in the
+proxy rather than a finding. Both arms are the same binary on the held-out Django corpus, with the
+four-tool surface and no shell, which is the archived design that produced the 29 of 30.
+
+| | resolved | credit | input tokens | calls | evidence bytes | unevidenced |
+|---|---:|---:|---:|---:|---:|---:|
+| retrieval-mcp | **29/29** | 1.000 | 22,834 | 2.10 | 6,112 | 0 |
+| retrieval-mcp-shuffled | **29/29** | 1.000 | 23,934 | 2.10 | 5,972 | 0 |
+
+**The registered bar was a four-answer gap and the gap is zero** — not one discordant question in
+29. The secondary check passed, which is what says the cell is real: tokens +4.8%, evidence bytes
+−2.3%, calls identical.
+
+**The damage was verified live, not assumed.** Offline first: four tools identical, the same eight
+rows, order changed, byte delta 0. Then in-run, across every ranked page the arms received, HEAD's
+rows are in descending score order **46 of 46** times and the shuffled arm's **0 of 46**. And the
+gold row itself moved exactly as intended:
+
+| | gold at rank 1 | gold at rank ≥3 | gold at rank 10 |
+|---|---:|---:|---:|
+| retrieval-mcp | 7 of 15 | 5 | 0 |
+| retrieval-mcp-shuffled | 1 of 16 | 14 | 6 |
+
+**Shuffling destroys order, not information.** The pages are 7.8 rows on average, the gold identity
+reached the model in 29 of 29 trials in *both* arms, and an agent that reads the whole page never
+needed the ranking. The answers are invariant to where on the page the answer sits.
+
+**What that costs the record.** The ties this project has leaned on — "quality has never separated
+in either direction across 468 scored trials", and the held-out 29 of 30 in particular — measure
+whether the gold was **on the page**, which a ranked server and a scrambled one both achieve here.
+They cannot be quoted as evidence that the four-tool surface loses nothing in retrieval quality,
+because a server with its ranking destroyed loses nothing either. The `quality_separation` field
+already recorded five of eight studies as an absence of power; that label now has a demonstrated
+cause on one of them instead of a statistical caveat.
+
+**And it retires an open thread.** [Top-1 precision](#where-the-gold-sits-when-it-is-not-rank-1)
+was named as the thing to attack, with three failed mechanisms behind it. On this suite it is worth
+nothing: the gold went from rank 1 to rank 10 and no answer changed. Precision can only pay where
+the page does **not** already contain the answer — the kernel regime, where the gold never enters
+the candidate set at all — and not the few-hundred-file regime the ties come from.
+
+**What this does not say.** That the grader is broken: it scored both arms 1.000 on questions both
+answered correctly. (An earlier draft of this paragraph also cited a 17-against-10 separation on
+LOC-BENCH; that run was voided by the root defect in the ledger and cannot be used as evidence of
+anything.) What this suite shows is that its questions are solvable from any page containing the
+gold, which is a property of the questions rather than the scorer. And it is one knob on one suite: `--page-fraction` removes
+information rather than order and is the arm that can separate, while `--blind-attribution` strips
+the enclosing-definition identity and doubles as the transport placebo. Neither has been run.
+
+**Two defects in this cell, both recorded rather than smoothed over.** The run used a superseded
+*draft* of `degrade_server.py`: the script and its test were already committed, a stale copy was
+moved over them before the run, and the draft's bytes are now gone — the `/tmp` binary trap again,
+self-inflicted. The shuffle verification above stands on its own evidence rather than on the
+script's identity, but the instrument cannot be reproduced, so this is a mechanism observation and
+not a scored control.
+
+And the design question had already been answered offline, for free.
+[`runs/page-position-20260922`](#where-the-gold-sits-when-it-is-not-rank-1) asked, for each
+archived suite and from the archived payloads, how many questions a knob could actually cost:
+**Django held-out puts 3 of 30 at risk against its own five-question bar and is underpowered**,
+while etcd-mixed clears it at 12 and 9 of 30. Its central finding also predicts this result —
+single-identity golds sit in the *top decile* of the page that served them, so a shuffle moves such
+a gold down the page and never off it. Choosing this suite on resolved-answer headroom was the
+wrong criterion; the right one is whether the damage can reach the gold at all.
+
+So the real control is the committed proxy on **etcd-mixed**, and `--blind-attribution` has to be
+paired with `--force-excerpt`: without it the blinded arm removes content as well as structure by
+an amount set by client behaviour — 11% of concept pages carry an excerpt on the Claude Django
+study, 54–58% on the kernel studies, 100% on etcd — which confounds the alternative that arm exists
+to separate.
+
+The run is not in `published_results.json`: that extract compares this server against a control,
+and this compares the server against a damaged copy of itself.
+
+### Composition as the unit of the interface, and the model that would not compose
+
+`runs/compose-20260924`, 30 trials, 10 questions, three arms on the etcd client corpus. The whole
+measured gap against a shell agent is composition: a dependent hop is ~15,000 input tokens against
+~2,400 for a 20 KB payload, and a shell agent chains 2.03 operations per repository call where this
+surface gets 1.02. Putting the same four operations in a shell as subcommands did not fix it, so
+this made composition the *unit*: `experiments/compose_server.py` is a stdio proxy exposing one
+tool, `retrieve`, taking a list of steps executed in one round trip, with `$N.field` references
+resolved from rows the index returned. The model still writes every step, so unlike
+[`composed-callers`](#collapsing-the-two-hop-and-what-it-reveals-about-all-of-this) nothing removes
+its judgement - only the round trip between steps.
+
+| arm | resolved | input tokens | calls | evidence bytes | ops/plan |
+|---|---:|---:|---:|---:|---:|
+| native-control | 8/10 | **75,687** | 2.80 | 49,064 | 1.86 shell ops/call |
+| retrieval-compose | 8/10 | 151,918 | 3.40 | 18,700 | **1.13** |
+| retrieval-compose-noshell | 9/10 | 162,065 | 3.20 | 29,633 | **1.12** |
+
+**The mechanism bar was 2.03 operations per call and the measurement is 1.13.** Of 31 plans the
+shell-bearing arm wrote, **29 held one step and 2 held three**; the no-shell arm, which cannot fall
+back and must use the tool, wrote 30 and 2. The arm was documented to chain - the tool description
+says to put dependent steps in one plan, which is what a shipped product would say - so this is the
+upper bound on the interface, not a strawman. Cost missed too, at **+100.7%** against the shell
+agent, which is indistinguishable from the four-tool surface's +88.6% on this corpus: composition
+changed nothing because no composition happened. And the byte story repeats - a third of the
+control's evidence, twice its tokens.
+
+**It was not the test material.** The control chains **1.86** sub-commands per shell call on these
+same ten questions, reproducing the archive's 2.03 within the run, so the questions support
+chaining at the rate the bar came from.
+
+So the round trips are the model's reasoning rather than the channel's shape, and an interface
+cannot take away a hop the model wants. With `composed-callers` failing from the opposite direction
+- the server resolving a description cost 5 of 8 answers - the two bracket one fact and the
+composition lever is closed.
+
+**Three wiring defects preceded the readable cell, and each one first looked like a result.** The
+arm made 0 MCP calls in 7 trials because the server's `initialize` instructions route the model to
+four tool *names* that this arm does not expose, and Codex prefixes those instructions to every
+tool description - so it was told to call tools it could not see and went to the shell. Then the
+corpus was the wrong etcd (`validate_suite.py` caught it: golds naming `client/v3/leasing/kv.go`
+against the server corpus). Then every call was refused with `MCP tool call requires approval, but
+approval policy is never`, because the synthesized tool declared no `readOnlyHint` and the real
+four do. Two of the three were caught by an instrument rather than by reading a plausible number,
+and the cheap fix for the pattern is now the rule: a two-trial smoke test asserting the arm makes a
+call at all, before any priced attempt.
+
+### The semantic question, asked properly for the first time
+
+`runs/semantic-resistant-20260924`: 12 crawl-resistant LOC-BENCH questions, two rankers, two query
+conditions, 48 pages, offline. The [bake-off](#the-ranker-bake-off-and-where-the-semantic-win-actually-lives)
+concluded that the semantic win lives in query formation; this tests that claim out of loop, on
+questions nobody here wrote, with the arms differing in one flag.
+
+A rank maps to round trips in three tiers rather than linearly: the identity on the page costs no
+extra hop (and *where* on the page is nearly free - the shuffle control scored 29/29 against
+29/29), the right file without the identity costs one recovery hop, and neither costs a re-query.
+
+| condition | ranker | identity on page | file only | neither | right file on page |
+|---|---|---:|---:|---:|---:|
+| agent queries (code vocabulary) | lexical | 2 | 7 | 3 | **9/12** |
+| agent queries | semantic | 2 | 6 | 4 | 8/12 |
+| issue title (question vocabulary) | lexical | 0 | 2 | 10 | 2/12 |
+| issue title | semantic | 1 | 3 | 8 | **4/12** |
+
+**The registered primary missed: the ranker is not the lever.** Three identity-on-page against two
+across both conditions, and inside one question on every tier.
+
+**What it established instead is stronger than what it set out to test.** Query formulation
+dominates: reformulated queries reach the right file 9 and 8 times in 12, the issue title 2 and 4 -
+worth five to seven questions where the ranker choice is worth at most one. That is the bake-off's
+headline **confirmed out of loop, the first out-of-loop confirmation of anything in this record**,
+and the direction matches too: semantic is better on question vocabulary and slightly worse on
+reformulated code vocabulary.
+
+**And the binding constraint is now unambiguous.** With reformulated queries the right *file* is on
+the page 9 times in 12 and the right *definition* twice. Seven questions sit one recovery hop from
+the answer, for both rankers, because both rank definitions by query match and neither exposes a
+matched file's other definitions. The change that points at is payload shape rather than ranking -
+when a file matches, expose its definitions - and two independent measurements converge on it: this
+gap, and `runs/client-cell-20260924`'s `django__django-18435`, where the page named `inner_run` and
+`run` in the right file and never `Command::on_bind`.
+
+One defect was found mid-study and is why it was restarted: the adapter reported a symbol chunk's
+range as the definition's full span, the server bounds a hit at 500 lines and **refuses the whole
+page** for one row outside it, and a refused page is indistinguishable from a ranker that found
+nothing - it had flipped the sign of the partial tally. `examples/ollama_backend.rs` now clamps the
+reported range, with a regression test.
+
 ## Answering a repository you cannot index
 
 The kernel probe left one fact that no ranking change could address: a whole-repository snapshot
