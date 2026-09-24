@@ -2952,6 +2952,37 @@ the model will not compose; quality, because neither ranker puts the definition 
 scale, which a daemon-and-graph design already does better than a snapshot that truncates at 8,500
 of 60,283 files.
 
+### Correction: the configuration file delivers the weaker of the two levers
+
+The paragraph above is right that this is a flag and not a server, and wrong about which flag. It
+names `-t py` and `-g '!**/locale/**'` because both take the translation-catalogue call under the
+ceiling, and treats `RIPGREP_CONFIG_PATH` as the delivery mechanism because it keeps the corpus
+fingerprint intact. Both of those still hold. What it missed is that the two flags it names are
+**file-removing**, so their recall cost is exactly the thing this evidence base cannot price - and a
+third class of lever exists whose recall cost is zero.
+
+Measured on the same dragnet, same corpus, same pattern:
+
+| | delivered bytes | files named | files dropped |
+|---|---:|---:|---:|
+| `rg -n "view on site\|view_on_site\|content_type_id\|content type" .` | 57,362 | 360 | 0, capped at 40,104 |
+| the same with `-m 3` | 47,264 | 360 | 0, capped |
+| the same with `--trim` | 55,432 | 360 | 0, capped |
+| the same with `--max-columns=200` | 57,362 | 360 | 0, capped |
+| the same with `-m 1` | 31,027 | 360 | 0 |
+| the same with `-c` | 19,676 | 360 | 0 |
+| the same with `-l` | **18,952** | **360** | **0** |
+| the same with `-t py` | 16,661 | 43 | **317, silently** |
+
+`-l` costs within 14% of what `-t py` costs and names every matching file; `-t py` buys its bytes by
+discarding 317 files without saying so. Volume-capping flags (`-m 3`, `--trim`, `--max-columns`) do
+not reach the ceiling at all on a pattern this broad, because the breadth is in the file count and
+not the line length. So the evidenced lever is **report at a coarser granularity**, not **search
+fewer files** - and granularity is conditional on the output size, which no static configuration
+file can express. A config can only be unconditional, which restricts it to the exclusion lever
+whose cost is unmeasurable here. The architecture therefore splits: a config that delivers only the
+risky half, or a pipeline stage that can see the size before it chooses the rendering.
+
 ## Answering a repository you cannot index
 
 The kernel probe left one fact that no ranking change could address: a whole-repository snapshot
