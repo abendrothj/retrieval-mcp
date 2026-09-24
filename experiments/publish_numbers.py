@@ -340,6 +340,22 @@ def build(repo):
                          "figure is -33.5%. Named in the README so the correction is legible.",
                 "-44.6": "Withdrawn 2026-09-22. The etcd study was published at this figure from "
                          "the same double count; the measured figure is -42.4%.",
+                "-42.4": "Withdrawn 2026-09-23, and not to a corrected number. Every trial of "
+                         "the etcd study, in all three arms, fetched "
+                         "~/.agents/skills/retrieval-mcp/SKILL.md - a routing document naming "
+                         "these four tools and calling them cheaper and more precise than "
+                         "reading files at random. runs/cli-transport-20260924 re-ran the same "
+                         "corpus fingerprint, suite sha and client with the document absent and "
+                         "measured +96.3%; runs/client-version-20260924 repeated it on the "
+                         "study's own client version and measured +71.0%; "
+                         "runs/leak-price-20260924 seeded the document back into one arm and "
+                         "moved it from 166,988 input tokens a trial to 104,200, within 7% of "
+                         "the archived arm's 111,389. The document accounts for the published "
+                         "result rather than contributing to it, so the figure is withdrawn "
+                         "rather than corrected.",
+                "-26.8": "Withdrawn 2026-09-23 alongside the -42.4% it accompanied. The etcd "
+                         "study's zvec-grep comparison was measured under the same uncontrolled "
+                         "document, in the same trials.",
             },
             "studies": {name: study(repo, name, spec) for name, spec in STUDIES.items()}}
 

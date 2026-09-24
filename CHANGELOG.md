@@ -6,6 +6,32 @@ releases only.
 
 ## Unreleased
 
+**A second binary, `retrieval`, exposing the same four operations as subcommands.** `retrieval
+search | read | callers | concept`, over the same index from the same build, reached through one
+new public entry point rather than a second implementation - a differential test asserts both
+channels return identical payloads for the same query, which is what keeps the comparison below
+honest. Rows go to stdout, tab-separated; coverage and counts go to stderr, so `| head` shows
+data rather than preamble. Exit status follows grep: 0 rows, 1 none, 2 error. The MCP server's
+entry point is untouched.
+
+It exists because of what it measures. On codex-cli 0.155.1 an MCP arm spends about 2.9 calls a
+trial searching the tool catalogue for its own tools before it touches the repository, and two
+thirds of everything it reads back is catalogue rather than code. That cost is not configurable -
+disabling `code_mode` and `tool_search` changes nothing - and it is not new to that client
+version. Over 360 trials on an etcd corpus the command costs **−22.2% input tokens against a
+shell agent** and **−41.3% against the same operations behind MCP with a skill document shipped
+beside it**, with quality separating no retrieval arm. `runs/cli-confirm-20260924`; two of its
+registered criteria are published as misses, including the mechanism this entry does not claim.
+
+The CLI rebuilds its index on every invocation, because this crate persists nothing: 375 ms on a
+311-file corpus, 2.7 s on 6,853 files. It is not usable at kernel scale without an on-disk index
+that does not exist.
+
+**A published figure is withdrawn.** The etcd study's −42.4% does not survive re-measurement:
+every one of its 270 trials fetched an operator routing document that accounts for the whole
+effect. See `README.md` and `published_results.json`, where the withdrawal is recorded rather
+than the number quietly deleted.
+
 **A ranked page saying which candidate calls which was measured under a model and rejected.**
 `runs/linux-relations-20260922`, 126 trials: requests-that-call-nothing 1.95 to 2.03 against a
 1.40 bar, the four targeted questions 8 of 12 to 5, quality 59 to 56 of 63, unevidenced answers 2

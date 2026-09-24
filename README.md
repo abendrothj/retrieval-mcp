@@ -4,13 +4,15 @@
 Four tools over stdio, for Claude Code, Codex, or anything else that speaks MCP. No index to build,
 no database, no daemon, no API key, no embedding service unless you want one.
 
-**What you get, in one paragraph.** Your agent answers the same repository questions it already
-answers, using 34–42% fewer input tokens and 22–47% fewer tool calls depending on the corpus, and
-it reaches its first piece of real evidence sooner. It does **not** answer better: across 468
-scored trials on two corpora, answer quality has never separated from your client's own
-grep-and-read in either direction, and in one of the two studies the native tools were one answer
-ahead. Install it to spend less context per answer, not to get better answers.
-[The numbers](#the-result), and the boundary they hold inside.
+**What you get, in one paragraph.** On the one study that survives audit, your agent answers the
+same repository questions it already answers using **33.5% fewer input tokens** and 47% fewer tool
+calls, reaching its first piece of real evidence sooner. It does **not** answer better: quality has
+never separated from your client's own grep-and-read in either direction, and the native tools were
+one answer ahead there. That figure is 90 trials on one corpus with one model — a second corpus was
+published as a replication and has since been **withdrawn**, because every trial in it fetched a
+routing document that turned out to account for the whole effect. Install it to spend less context
+per answer, not to get better answers, and read the boundary before you rely on the number.
+[The numbers](#the-result), including the withdrawal.
 
 ## Contents
 
@@ -89,15 +91,23 @@ Every number came from one model, and none of the findings in this project trans
 between models, so that is the claim's boundary.
 [Paired analysis, the post-hoc sensitivity row, and what the set cost to seal](experiments/README.md#the-held-out-comparison).
 
-**Replicated on a second corpus, with a different model.** 30 mixed-shape questions over an etcd
-client corpus, three repetitions, 270 trials, `gpt-5.6-luna`: quality 87 / 89 / 89 of 90 for
-retrieval-mcp, native and zvec-grep, on 10.0 M input tokens against native's 17.4 M —
-**−42.4%** — with 320 tool calls against 409 and less carried context. This study was published at
-−44.6% until 2026-09-22, when the cached prefix turned out to have been counted twice; the
-corrected figure is measured from the same three archived reports. That study **missed its
-registered quality criterion by one answer and is published as a miss**; across 468 scored trials
-on the two corpora quality has never separated in either direction, and the token gap has never
-failed to replicate. [Both studies, with their criteria](experiments/README.md#the-rerun-on-head-the-repaired-suite-and-a-miss-by-one-answer).
+**The second corpus is withdrawn, and this is the most important paragraph on this page.** An etcd
+study over 270 trials was published here as a replication at **−42.4%** against native. It does not
+survive re-measurement. Every one of those trials, in all three arms, fetched an operator skill
+document from outside the corpus that named these four tools and called them cheaper and more
+precise than reading files at random — an uncontrolled condition nobody had looked for, because
+this project's contamination work had chased what a *client* puts into a prompt and not what an
+*agent* goes and reads. Re-run on the same corpus fingerprint, the same question set and the same
+client version, with that document absent, the four-tool surface costs **+71.0% input tokens
+against native** rather than 42.4% fewer. The document alone accounts for it: seeding it back into
+one arm moves that arm from 151 k input tokens a trial to 106 k, and the effect replicated four
+times. The withdrawn figure is recorded in `published_results.json` rather than quietly deleted.
+[What the audit found, and what it cost](experiments/README.md#the-same-four-operations-as-a-command-and-the-deliberation-thread-reopening).
+
+What that leaves is one clean corpus, not two: the held-out Django study above, on a Claude client
+with project documents excluded and 0 of 90 trials touching anything outside the corpus. Treat
+the token claim as measured **once**, on 90 trials, and awaiting an independent replication that
+this project has not yet produced.
 
 **And it stops at a scale.** The same two arms, the same client, on Linux 6.12 — 86,602 files, 21
 questions, three repetitions, 126 trials: **56 correct against native's 62, and +16.4% input
