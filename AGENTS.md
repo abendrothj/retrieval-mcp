@@ -254,7 +254,11 @@ retrieval server, `command_execution` sees only shell, and on this client every 
 - **Payload weight per call, not payload size, was the deficit.** A dependent hop is ~15,000
   tokens and a 20 KB payload ~2,400, and this client truncates shell output on the way in while
   forwarding MCP results whole — so any payload we do not trim ourselves is paid for again on
-  every later request of the session.
+  every later request of the session. **The truncation is a fixed cap near 40.1 KB, not the
+  proportional 0.09 the record fitted**: 7 of 110 archived delivered outputs land on exactly
+  40,104 bytes, a call under the cap loses nothing, and the trimming is confined to 9.1% of calls
+  carrying 25.2% of delivered bytes. Quoting 0.09 as a rule overstates the asymmetry everywhere
+  except the tail.
   [record](experiments/README.md#where-the-tokens-actually-go-per-request-accounting)
 - **Seven post-freeze optimisations have been rejected by their own runs.** Plausible accounting
   is not evidence. [record](experiments/README.md#findings-at-a-glance)

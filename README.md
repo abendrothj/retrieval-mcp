@@ -117,7 +117,7 @@ between models, so that is the claim's boundary.
 questions, three repetitions, 126 trials: **56 correct against native's 62, and +16.4% input
 tokens where the registration asked for a fifth fewer.** All three registered criteria missed, published
 here for the same reason the misses above are. The mechanism was measured rather than reasoned
-about: attaching the four-tool surface costs zero prompt tokens, about 9% of what ripgrep prints
+about: attaching the four-tool surface costs zero prompt tokens, a fraction of what ripgrep prints
 locally ever reaches the model while an MCP payload is delivered whole and re-sent, and a shell
 call on a tree that size chains a mean of 1.95 sub-commands where this server answers one question
 per round trip. On a few hundred files, grep is a poor summary of the tree; on the kernel, a

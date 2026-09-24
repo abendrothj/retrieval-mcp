@@ -1622,10 +1622,20 @@ answers, not grading artifacts.
    attached to nine sessions against a no-MCP control: 13,802 input tokens either way, to the
    token. Whatever costs more here, it is not the shape of `tools/list`.
 2. *The shell arm's bytes are not the shell arm's context.* Fitting input tokens on calls and
-   payload per arm gives a payload coefficient of **0.09** for native and **3.97** for this server:
-   about nine percent of what ripgrep printed locally ever reaches the model, while an MCP payload
-   is delivered whole and re-sent on roughly four later requests. The byte columns above — 1.06 MB
-   against 23.9 KB — describe what each tool produced, not what each model read.
+   payload per arm gives a payload coefficient of **0.09** for native and **3.97** for this server,
+   while an MCP payload is delivered whole and re-sent on roughly four later requests. The byte
+   columns above — 1.06 MB against 23.9 KB — describe what each tool produced, not what each model
+   read.
+
+   **The 0.09 is a fitted average, not a proportional rule, and reading it as one is wrong.**
+   Measured on the archived control's delivered payloads 2026-09-24, the client applies a **fixed
+   cap of about 40.1 KB**: of 110 delivered shell outputs, 7 land on exactly 40,104 bytes and 3
+   more within 34 bytes of it, and a ratio cannot produce seven identical byte counts. So a call
+   under the cap loses **nothing** — the median delivered output is 57 bytes — and only the heaviest
+   calls are trimmed at all: 10 of 110 calls, 9.1%, carrying **25.2%** of all delivered bytes. The
+   0.09 is what a cap produces when averaged over a size mix in which most calls are tiny and a few
+   are megabytes. The asymmetry against an MCP payload is real, because a cap still truncates and
+   MCP results are forwarded whole; its magnitude is confined to the tail.
 3. *A shell call is not one retrieval.* Native commands chain a mean of **1.95** sub-commands and
    21% of them cap their own output with `head` or `-m`. So 3.9 native calls buy about 7.5
    retrieval operations per trial against this server's 3.2, in fewer round trips, and a round trip
@@ -1836,9 +1846,12 @@ completeness work did what it was built to do.
 
 **The entire deficit is weight per call: 6,042 tokens against 4,378.** Every later request
 re-reads the conversation, so that difference compounds. And the asymmetry belongs to the client,
-not the corpus: **Codex truncates shell output before it enters context — the fitted coefficient
-is 0.09 — and forwards MCP results whole.** A shell agent's megabytes arrive as ~17 KB of context
-per call; this server's disciplined payloads arrive as ~24 KB. We were losing the axis we thought
+not the corpus: **Codex truncates shell output before it enters context and forwards MCP results
+whole.** A shell agent's megabytes arrive as ~17 KB of context per call; this server's disciplined
+payloads arrive as ~24 KB. The fitted coefficient of 0.09 quoted here is an average over a size
+mix, not a proportional rule - the client's actual behaviour is a fixed cap near 40.1 KB, so calls
+under it lose nothing and only the heaviest are trimmed
+([measured](#composition-as-the-unit-of-the-interface-and-the-model-that-would-not-compose)). We were losing the axis we thought
 we owned because the client trims for the competitor and not for us.
 
 That also retires "payload is a second-order term", which came from a stub whose payload was
