@@ -7,9 +7,8 @@ description: "Use when locating code in a repository: who calls a function, wher
 
 Four MCP tools from the `retrieval-mcp` server (registered as `retrieval` in
 client configuration): `search_exact`, `search_concept`, `find_callers`,
-`read_source`. They are cheaper and more precise than reading files at random,
-and they are the first thing to reach for on any "where is this / who uses
-this / how does this work" question.
+`read_source`. They are the first thing to reach for on any "where is this /
+who uses this / how does this work" question.
 
 Only these four tools exist. If a plan calls for a call graph, dead-code
 sweep, impact analysis, or a query language, that capability is not available

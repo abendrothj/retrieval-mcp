@@ -4,6 +4,13 @@ What shipped in each release of the `retrieval-mcp` binary. The findings behind 
 protocols and their caveats are in [experiments/README.md](experiments/README.md); this file records
 releases only.
 
+**Releases are paused as of 2026-09-23.** `v0.1.6` is the last one cut. A release carries a
+recommendation, and two of the three legs of the claim that motivated this one have since been
+withdrawn by this project's own audits - the etcd leg to a fetched routing document, the command
+leg to the first suite written outside this project. Nothing new is published until a claim
+survives outside the loop that produced it. This costs the research nothing: measurement pins a
+binary by sha256 inside each run directory, which never required a published release.
+
 ## Unreleased
 
 **A second binary, `retrieval`, exposing the same four operations as subcommands.** `retrieval

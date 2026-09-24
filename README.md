@@ -221,6 +221,9 @@ explanation was wrong for a few hours and the correction is in the record.
 
 ## Install
 
+**Releases are paused at `v0.1.6`.** The paths below work and the binary is unchanged; nothing new
+is published while the claim that motivated it is under re-measurement.
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/abendrothj/retrieval-mcp/main/install.sh | sh
 ```
