@@ -214,7 +214,7 @@ class PublishedNumberTests(unittest.TestCase):
              "| Answered without evidence | **0** | **0** | **0** |\n")
 
     def published(self, table=None, prose=""):
-        text = f"\n## The result\n\n{table if table is not None else self.TABLE}\n{prose}\n## Next\n"
+        text = f"\n## What has been measured\n\n{table if table is not None else self.TABLE}\n{prose}\n## Next\n"
         problems = []
         check_published(text, self.EXTRACT, problems)
         return [problem["detail"] for problem in problems]
@@ -286,7 +286,7 @@ class ShapeTests(unittest.TestCase):
     def test_procedure_before_proof_is_reported(self):
         reordered = list(README_SECTIONS)
         reordered.remove("Install")
-        reordered.insert(reordered.index("What it is"), "Install")
+        reordered.insert(reordered.index("What this is"), "Install")
         problems = self.shape(self.readme(reordered))
         self.assertEqual(len(problems), 1, problems)
         self.assertIn("out of contract order", problems[0])

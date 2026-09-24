@@ -26,7 +26,9 @@ change came to need edits in five places, and a reader who has to scroll past pr
 evidence is a reader who leaves. So:
 
   Sections      - README_SECTIONS appear exactly once each, in that order, with nothing else at
-                  `##` level. Proof (`What it is`, `The result`) precedes procedure (`Install`).
+                  `##` level. The record (`What this is`, `What has been measured`, `What has
+                  been withdrawn`) precedes procedure (`Install`), because this repository is a
+                  research journal first and a server second.
   Install size  - the install section stays within INSTALL_BUDGET lines; the detail belongs in
                   `Platforms, updating, and removal`.
   One of each   - no fenced block appears twice, and the client registration commands appear in
@@ -52,7 +54,7 @@ OUTSIDE_DOC = "../README.md"
 PATH_PATTERN = re.compile(r'`((?:experiments|src|tests|examples)/[A-Za-z0-9_./*-]+)`')
 PLACEHOLDER = re.compile(r'\*|\{|/path/to/|/absolute/')
 LINK_PATTERN = re.compile(r'\[[^\]]*\]\(([^)\s#]*)(#[A-Za-z0-9-]+)?\)')
-# The result section's figures are bound to `published_results.json`, which `publish_numbers.py`
+# The measured section's figures are bound to `published_results.json`, which `publish_numbers.py`
 # derives from the archived reports. Before this existed, nothing compared a published number with
 # its own evidence - `runs/` is gitignored, so CI never saw it - and the table drifted to 147 tool
 # calls where the report said 146, while the indexing counts outlived four new grammars.
@@ -81,8 +83,9 @@ PERCENT = re.compile(r'[-−]([0-9]+(?:\.[0-9]+)?)%')
 # install detail after the sections that say whether the thing is worth installing.
 README_SECTIONS = (
     "Contents",
-    "What it is",
-    "The result",
+    "What this is",
+    "What has been measured",
+    "What has been withdrawn",
     "Install",
     "Quickstart",
     "Connect a client",
@@ -315,11 +318,11 @@ def check_conditions(extract, problems):
 
 
 def check_published(text, extract, problems):
-    """Bind the result section's figures to the extract derived from the archived reports."""
+    """Bind the measured section's figures to the extract derived from the archived reports."""
     def report(detail):
         problems.append({"document": "README.md", "check": "published numbers", "detail": detail})
 
-    section = re.search(r'\n## The result\n(.*?)\n## ', text, re.S)
+    section = re.search(r'\n## What has been measured\n(.*?)\n## ', text, re.S)
     if not section:
         return report("no result section found")
     body = section.group(1)

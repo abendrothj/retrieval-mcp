@@ -1,22 +1,24 @@
 # retrieval-mcp
 
-**Code retrieval for coding agents, with the tool surface chosen by measurement instead of taste.**
-Four tools over stdio, for Claude Code, Codex, or anything else that speaks MCP. No index to build,
-no database, no daemon, no API key, no embedding service unless you want one.
+**A research journal about code retrieval for coding agents, and the server it has produced so
+far.** Four tools over stdio, for Claude Code, Codex, or anything else that speaks MCP. No index to
+build, no database, no daemon, no API key, no embedding service unless you want one.
 
-**What you get, in one paragraph.** On the one study that survives audit, your agent answers the
-same repository questions it already answers using **33.5% fewer input tokens** and 47% fewer tool
-calls, reaching its first piece of real evidence sooner. It does **not** answer better: quality has
-never separated from your client's own grep-and-read in either direction, and the native tools were
-one answer ahead there. That figure is 90 trials on one corpus with one model — a second corpus was
-published as a replication and has since been **withdrawn**, because every trial in it fetched a
-routing document that turned out to account for the whole effect. Install it to spend less context
-per answer, not to get better answers, and read the boundary before you rely on the number.
-[The numbers](#the-result), including the withdrawal.
+**What this repository is, in one paragraph.** It asks a narrow question — what does a coding agent
+actually need in order to find code, and what does each part of it cost — and answers by running
+pre-registered comparisons and publishing the misses beside the hits. The server is the residue of
+that process rather than its point. It works and you can install it, but it is deliberately not
+offered here with a headline performance number attached, because this project's own audits keep
+dismantling those: the most recent one dismantled its own, and that figure is
+[withdrawn below](#what-has-been-withdrawn). Findings come with the conditions they were measured
+under, and [what has been measured](#what-has-been-measured) and
+[what has been withdrawn](#what-has-been-withdrawn) are meant to be read together. Neither is
+meaningful alone.
 
 ## Contents
 
-[What it is](#what-it-is) · [The result](#the-result) · [Install](#install) ·
+[What this is](#what-this-is) · [What has been measured](#what-has-been-measured) ·
+[What has been withdrawn](#what-has-been-withdrawn) · [Install](#install) ·
 [Quickstart](#quickstart) · [Connect a client](#connect-a-client) · [Tools](#tools) ·
 [Limits that change your answer](#limits-that-change-your-answer) ·
 [Troubleshooting](#troubleshooting) ·
@@ -24,10 +26,16 @@ per answer, not to get better answers, and read the boundary before you rely on 
 [Build, test, and code layout](#build-test-and-code-layout) ·
 [Research options](#research-options--not-needed-to-use-the-server)
 
-## What it is
+## What this is
 
-A small Rust MCP server, and the experiment that chose its shape. It can expose seven tools and
-defaults to the four that measurably repaid the schema cost of advertising them. There is no LLM
+A record of experiments about agent code retrieval, and the small Rust MCP server that record has
+converged on. The experiments are the durable part: forty-odd instruments under `experiments/`, a
+pre-registration beside every run, and a ledger of the measurement defects found along the way —
+several of which had already produced believable findings before anyone checked. The server is what
+survived.
+
+It can expose seven tools and defaults to the four that measurably repaid the schema cost of
+advertising them. There is no LLM
 router, no combined search tool, and no automatic fallback: tool descriptions say which tool suits
 which question shape, and the model does all the routing.
 
@@ -62,9 +70,16 @@ corpus copy or run artifact is published: [`experiments/reproduce_heldout.py`](e
 rebuilds the pinned corpus from upstream and fails on any mismatch. Release-by-release changes are in
 [CHANGELOG.md](CHANGELOG.md).
 
-## The result
+## What has been measured
 
-Measured once on a sealed held-out set and not tuned against afterwards — 30 questions × 3 arms ×
+Entries here are studies, not features. Each names the conditions it holds inside, and each is
+cited from [experiments/README.md](experiments/README.md), which carries the protocol, the
+pre-registration and the criteria that were missed. Nothing in this section should be read as a
+general claim about MCP retrieval; the project has one clean corpus and a short history of
+watching its own numbers move under audit.
+
+**The held-out comparison.** Measured once on a sealed held-out set and not tuned against
+afterwards — 30 questions × 3 arms ×
 `claude-sonnet-4-6`, 90 trials, none aborted, frozen four-tool surface, frozen grader:
 
 | | native `Read`/`Grep`/`Glob` | zvec-grep 0.2.2 | **retrieval-mcp** |
@@ -90,24 +105,6 @@ each way — and the context saving is the result: equal quality, fewer turns, l
 Every number came from one model, and none of the findings in this project transferred cleanly
 between models, so that is the claim's boundary.
 [Paired analysis, the post-hoc sensitivity row, and what the set cost to seal](experiments/README.md#the-held-out-comparison).
-
-**The second corpus is withdrawn, and this is the most important paragraph on this page.** An etcd
-study over 270 trials was published here as a replication at **−42.4%** against native. It does not
-survive re-measurement. Every one of those trials, in all three arms, fetched an operator skill
-document from outside the corpus that named these four tools and called them cheaper and more
-precise than reading files at random — an uncontrolled condition nobody had looked for, because
-this project's contamination work had chased what a *client* puts into a prompt and not what an
-*agent* goes and reads. Re-run on the same corpus fingerprint, the same question set and the same
-client version, with that document absent, the four-tool surface costs **+71.0% input tokens
-against native** rather than 42.4% fewer. The document alone accounts for it: seeding it back into
-one arm moves that arm from 151 k input tokens a trial to 106 k, and the effect replicated four
-times. The withdrawn figure is recorded in `published_results.json` rather than quietly deleted.
-[What the audit found, and what it cost](experiments/README.md#the-same-four-operations-as-a-command-and-the-deliberation-thread-reopening).
-
-What that leaves is one clean corpus, not two: the held-out Django study above, on a Claude client
-with project documents excluded and 0 of 90 trials touching anything outside the corpus. Treat
-the token claim as measured **once**, on 90 trials, and awaiting an independent replication that
-this project has not yet produced.
 
 **And it stops at a scale.** The same two arms, the same client, on Linux 6.12 — 86,602 files, 21
 questions, three repetitions, 126 trials: **56 correct against native's 62, and +16.4% input
@@ -139,6 +136,20 @@ neither carries a `go.mod`, the optional `--root` path is not exercised by a ben
 `--root`, and strict `search_concept` arguments cost a recovery turn on about 1.4% of concept calls.
 Each is stated that way in [CHANGELOG.md](CHANGELOG.md) rather than folded into the numbers above.
 
+**The transport question, opened 2026-09-23 and not settled.** The same four operations were run
+two ways on one etcd corpus — as MCP tools, and as subcommands of a command the agent invokes in
+its shell — over 360 pre-registered trials. The command was cheaper than both the MCP surface and
+the client's own shell tools, at quality that separated no retrieval arm, and the mechanism behind
+the MCP surface's cost was measured rather than guessed: on this client an MCP server's tools are
+not in the prompt, so the model spends round trips searching a catalogue to find them before it
+touches the repository. That cost is not removable by configuration and it is not specific to one
+client version. Two of the run's own registered criteria were missed, including the mechanism
+predicted in advance for the command's advantage, which was refuted in the form it was registered.
+This is one corpus of a few hundred files on one client and one model, and the command rebuilds
+its index on every invocation, so it is not usable at scale as it stands. It is recorded as an
+open line of work rather than a recommendation.
+[The runs, their registrations and their misses](experiments/README.md#the-same-four-operations-as-a-command-and-the-deliberation-thread-reopening).
+
 Everything else — why the surface is four tools and not seven, why the ranker is BM25 and not
 embeddings, why a stopping rule was worth more than any retrieval change, and the four post-freeze
 optimisations that were measured and rejected — is in
@@ -146,6 +157,45 @@ optimisations that were measured and rejected — is in
 of it: **correct evidence reduces recovery turns.** The largest efficiency win measured after the
 freeze came from a caller row that started telling the truth about a call site, not from a smaller
 payload, a richer result, or more retrieval machinery.
+
+## What has been withdrawn
+
+A finding is withdrawn here when later work shows the conditions were not what the finding assumed.
+Withdrawals are kept rather than deleted, with the reason, because a record that only accumulates
+confirmations is not a record.
+
+**The etcd replication, −42.4%, withdrawn 2026-09-23 — and not to a corrected number.** An etcd
+study over 270 trials was published on this page as a replication of the Django result. It does not
+survive re-measurement. Every one of those trials, in all three arms, fetched an operator skill
+document from outside the corpus that named these four tools and called them cheaper and more
+precise than reading files at random. Nobody had looked for it, because this project's
+contamination work had chased what a *client* puts into a prompt and not what an *agent* goes and
+reads. Re-run on the same corpus fingerprint, the same question set and the same client version
+with that document absent, the four-tool surface costs **+71.0% input tokens against native**
+rather than 42.4% fewer — and seeding the document back into one arm moves it from 151 k input
+tokens a trial to 106 k, an effect that replicated four times. The document accounts for the
+published result rather than contributing to it. The accompanying −26.8% against zvec-grep goes
+with it, measured in the same trials under the same condition.
+
+That leaves **one** clean corpus rather than two. The Django study was run on a Claude client with
+project documents excluded and 0 of 90 trials touching anything outside its corpus, so it stands —
+but it is 90 trials, one corpus, one model, and this project has not independently replicated it.
+
+**Two token figures withdrawn 2026-09-22 as arithmetic, −44.6% and −36.2%.** A second token column
+added cache reads to a total that already contained them. Those are corrections rather than
+retractions: the same archived reports yield −42.4% and −33.5% under the one definition the kernel
+studies always used.
+
+**Three registered criteria missed at kernel scale, published as misses.** On Linux 6.12 the same
+two arms missed all three: 56 correct against native's 62, +16.4% input tokens where the
+registration asked for a fifth fewer, and seven answers whose gold no payload contained. Later work
+closed the token gap to +1.0% and lifted quality to 59, and those runs missed criteria of their own.
+
+**A mechanism withdrawn the same day it was published, 2026-09-23.** A transport comparison was
+first read as showing the MCP arm spending its excess on deliberation. Two harness counters were
+blind to the client's code-mode tool, and counted from the rollout instead the excess is tool
+discovery — the model searching for its own tools. The outcome of that run did not move; its
+explanation was wrong for a few hours and the correction is in the record.
 
 ## Install
 
