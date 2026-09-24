@@ -80,17 +80,26 @@ fn symbol_chunks(path: &str, text: &str, lines: &[&str]) -> Option<Vec<Chunk>> {
         }
         chunks.push(Chunk {
             path: path.to_owned(),
+            // The protocol bounds a hit's range at 500 lines, and the server rejects the WHOLE page
+            // for one row outside it - measured: two semantic pages in
+            // runs/semantic-resistant-20260924 came back as
+            // "semantic backend returned an invalid line range", which reads exactly like the
+            // ranker finding nothing. A definition longer than that is real (vLLM and prowler both
+            // have them), and the body above is already truncated to the byte budget, so the range
+            // was claiming more than was ever embedded. Clamping makes it honest and compliant; the
+            // row still names the right definition and read_source can fetch the rest.
             start: symbol.line,
-            end,
+            end: end.min(symbol.line + 499),
             text,
         });
     }
     (!chunks.is_empty()).then_some(chunks)
 }
 
-fn chunks(workspace: &Workspace, files: Vec<String>) -> Result<(Vec<Chunk>, usize)> {
+fn chunks(workspace: &Workspace, files: Vec<String>) -> Result<(Vec<Chunk>, usize, usize)> {
     let mut chunks = Vec::new();
     let mut skipped = 0;
+    let mut unembeddable = 0;
     for path in files {
         if !matches!(
             Path::new(&path).extension().and_then(|s| s.to_str()),
@@ -107,6 +116,16 @@ fn chunks(workspace: &Workspace, files: Vec<String>) -> Result<(Vec<Chunk>, usiz
             }
         };
         let lines: Vec<_> = text.lines().collect();
+        // A single line past the chunk budget cannot be embedded, and shrinking the window cannot
+        // help once the window is one line. Minified vendor assets are the real case - Django ships
+        // `xregexp.min.js` as one 153 KB line - and they are not retrieval targets. Skipping the
+        // file and reporting it keeps the design's rule that nothing is silently truncated, while
+        // letting the rest of a real repository be indexed: before this, one bundle failed the whole
+        // request and the semantic ranker could not run on any corpus containing one.
+        if lines.iter().any(|line| line.len() > MAX_CHUNK_BYTES) {
+            unembeddable += 1;
+            continue;
+        }
         if let Some(symbols) = symbol_chunks(&path, &text, &lines) {
             chunks.extend(symbols);
             ensure!(
@@ -144,7 +163,7 @@ fn chunks(workspace: &Workspace, files: Vec<String>) -> Result<(Vec<Chunk>, usiz
             );
         }
     }
-    Ok((chunks, skipped))
+    Ok((chunks, skipped, unembeddable))
 }
 
 #[derive(Deserialize)]
@@ -247,7 +266,7 @@ async fn main() -> Result<()> {
     let endpoint = format!("{}/api/embed", host.trim_end_matches('/'));
     let digest = model_digest(&model, &host).await?;
     // Enumeration and reads happen under the cache lock.
-    let (chunks, skipped) = chunks(&workspace, files)?;
+    let (chunks, skipped, unembeddable) = chunks(&workspace, files)?;
     let identity = json!({"version":1,"root":workspace.root(),"model":model,"digest":digest,"endpoint":endpoint,"chunker":"symbols-rs-py-else-lines-32-stride-24-max2000b-v3"});
     let previous = cache::Snapshot::load(&cache_path)?;
     let mut vectors = cache::reuse(previous.as_ref(), &identity, &chunks);
@@ -312,7 +331,7 @@ async fn main() -> Result<()> {
         protocol_version: 1,
         backend: format!("ollama/{model}"),
         index_note: format!(
-            "Persistent index: {} chunks, {} document embeddings reused, {} embedded; {skipped} files skipped. Model digest {digest}. Source scanned this request; cosine ranking.",
+            "Persistent index: {} chunks, {} document embeddings reused, {} embedded; {skipped} files skipped, {unembeddable} skipped for a line past the chunk budget. Model digest {digest}. Source scanned this request; cosine ranking.",
             chunks.len(),
             chunks.len() - missing.len(),
             missing.len()
@@ -366,6 +385,51 @@ async fn model_digest(model: &str, host: &str) -> Result<String> {
 mod tests {
     use super::*;
     #[test]
+    fn a_definition_longer_than_the_protocol_range_is_clamped_not_rejected() {
+        // `src/search/semantic.rs` requires end_line - start_line < 500 and rejects the entire
+        // page for one row outside it, so an unclamped range silenced the semantic ranker on any
+        // corpus holding a 500-line definition - and looked like a ranking failure.
+        let root = tempfile::tempdir().unwrap();
+        let workspace = Workspace::new(root.path()).unwrap();
+        let mut body = String::from("def wide():\n");
+        for i in 0..900 {
+            body.push_str(&format!("    x{i} = {i}\n"));
+        }
+        std::fs::write(root.path().join("wide.py"), body).unwrap();
+        let (chunks, _, _) = chunks(&workspace, vec!["wide.py".into()]).unwrap();
+        assert!(!chunks.is_empty(), "the definition is still indexed");
+        for chunk in &chunks {
+            assert!(
+                chunk.end - chunk.start < 500,
+                "chunk {}..{} exceeds the protocol's range bound",
+                chunk.start,
+                chunk.end
+            );
+        }
+    }
+
+    #[test]
+    fn a_line_past_the_chunk_budget_skips_its_file_instead_of_failing_the_request() {
+        // Django ships `xregexp.min.js` as one 153 KB line, and before this the whole request
+        // failed with "one line exceeds the embedding chunk budget" - so the semantic ranker could
+        // not run on any real repository carrying a minified asset. The file is skipped and
+        // counted; every other file still indexes.
+        let root = tempfile::tempdir().unwrap();
+        let workspace = Workspace::new(root.path()).unwrap();
+        std::fs::write(root.path().join("min.js"), format!("var a={};\n", "x".repeat(3000))).unwrap();
+        std::fs::write(root.path().join("ok.py"), "def wrap(width):\n    return width\n").unwrap();
+        let (chunks, skipped, unembeddable) =
+            chunks(&workspace, vec!["min.js".into(), "ok.py".into()]).unwrap();
+        assert_eq!(unembeddable, 1, "the minified file is reported, not silently dropped");
+        assert_eq!(skipped, 0, "and not conflated with an unsupported extension");
+        assert!(
+            chunks.iter().all(|c| c.path == "ok.py"),
+            "every chunk comes from the file that could be embedded"
+        );
+        assert!(!chunks.is_empty(), "the rest of the repository still indexes");
+    }
+
+    #[test]
     fn cosine_and_chunk_ranges() {
         assert!((cosine(&[1.0, 0.0], &[1.0, 0.0]).unwrap() - 1.0).abs() < 1e-12);
         assert!(cosine(&[0.0], &[0.0]).is_err());
@@ -377,7 +441,7 @@ mod tests {
             "/// Wrap lines to a width.\nfn wrap(width: usize) {}\nstruct Held;\nimpl Held {\n    fn run(&self) {}\n}\n",
         )
         .unwrap();
-        let (symbols, _) = chunks(&workspace, vec!["a.rs".into()]).unwrap();
+        let (symbols, _, _) = chunks(&workspace, vec!["a.rs".into()]).unwrap();
         // One chunk per definition, spanning the whole definition, named and carrying its doc.
         assert_eq!(
             symbols
@@ -392,7 +456,7 @@ mod tests {
         assert!(symbols[2].text.starts_with("a.rs :: Held :: run\n"));
         // A language the parser does not cover keeps the line-window chunker.
         std::fs::write(root.path().join("b.go"), "func x() {}\n".repeat(40)).unwrap();
-        let (windows, _) = chunks(&workspace, vec!["b.go".into()]).unwrap();
+        let (windows, _, _) = chunks(&workspace, vec!["b.go".into()]).unwrap();
         assert_eq!((windows[0].start, windows[0].end), (1, 32));
         assert_eq!((windows[1].start, windows[1].end), (25, 40));
     }
