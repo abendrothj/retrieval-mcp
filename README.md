@@ -100,6 +100,13 @@ Against the native control specifically: **−33.5% input tokens, −47% tool ca
 context, one more correct answer.** Against zvec-grep: −24% input tokens, −34% context, the same
 number of calls, the same quality.
 
+**That control had no shell, and this project now holds the bar higher than that.** It had `Read`,
+`Grep` and `Glob`, so it could not chain operations — and chaining is the term that decides these
+comparisons, at roughly 15,000 tokens a dependent round trip against a shell agent's 2.03
+operations per call. Measured against a control that *does* have a shell, this server has not won at
+any scale: **+96.3% and +71.0% input tokens on an etcd corpus, and +1.0% at kernel scale on its best
+of four runs.** The figure above is reported as what it is rather than as a headline.
+
 **Quality is a tie with zvec-grep and is reported as one** — the arms are discordant on one question
 each way — and the context saving is the result: equal quality, fewer turns, less carried context.
 Every number came from one model, and none of the findings in this project transferred cleanly
