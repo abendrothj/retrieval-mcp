@@ -145,15 +145,19 @@ not in the prompt, so the model spends round trips searching a catalogue to find
 touches the repository. That cost is not removable by configuration and it is not specific to one
 client version. Two of the run's own registered criteria were missed, including the mechanism
 predicted in advance for the command's advantage, which was refuted in the form it was registered.
-The first test of it on questions this project did not write then split it in two. On 25
+The first test of it on questions this project did not write cost it its advantage. On 25
 LOC-BENCH instances over django, vllm and prowler — curated from real GitHub issues by people
-unconnected to this project — the MCP finding reproduced and the command's advantage over the
-shell did not: the catalogue search appeared in 21 of 25 trials and the command still cost about
-half what the MCP surface did, but against the client's own shell tools it came out level, −0.2%
-where the first corpus had said −22.2%. So what travels is that this channel is expensive, not
-that the index beats grep. The command also rebuilds its index on every invocation, so it is not
-usable at scale as it stands. All of it is recorded as an open line of work rather than a
-recommendation.
+unconnected to this project — the command came out **level with the client's own shell tools,
+−0.2%, where the first corpus had said −22.2%**. That comparison stands: both of those arms were
+correctly configured. The same run's two MCP arms are **withdrawn** — a harness defect rooted
+their retrieval server at a placeholder corpus instead of each question's own repository, so they
+searched an unrelated codebase, and nothing that compares against them survives. The defect, its
+one-line cause and its blast radius are in the
+[ledger](experiments/README.md#harness-defect-ledger).
+
+So what travels is narrower than it looked: putting these operations in a shell does not beat the
+shell. The command also rebuilds its index on every invocation, so it is not usable at scale as it
+stands. All of it is recorded as an open line of work rather than a recommendation.
 [The runs, their registrations and their misses](experiments/README.md#the-same-four-operations-as-a-command-and-the-deliberation-thread-reopening).
 
 Everything else — why the surface is four tools and not seven, why the ranker is BM25 and not
@@ -186,6 +190,11 @@ with it, measured in the same trials under the same condition.
 That leaves **one** clean corpus rather than two. The Django study was run on a Claude client with
 project documents excluded and 0 of 90 trials touching anything outside its corpus, so it stands —
 but it is 90 trials, one corpus, one model, and this project has not independently replicated it.
+Its questions were also written inside this project, and **the attempt to test whether the figure
+survives questions curated outside it has not produced a usable answer**: the run that tried,
+`client-cell-20260924`, was voided by a harness defect that rooted its retrieval server at the
+wrong repository. That defect and its blast radius are in the
+[ledger](experiments/README.md#harness-defect-ledger).
 
 **Two token figures withdrawn 2026-09-22 as arithmetic, −44.6% and −36.2%.** A second token column
 added cache reads to a total that already contained them. Those are corrections rather than

@@ -129,6 +129,7 @@ ordinals.
 | A caller set named identities its own grader cannot distinguish | Four Go methods called `GetRequestMetadata` on four receivers in one file collapse to one `path::name` gold entry, so all three arms enumerated them correctly and all three scored 0.571 — every arm docked for being right |
 | Grader read `Server.method` but not `(*Server).method` | A Go caller list spelled the way Go spells it scored 0.33 - two misses and two extras - and the arm that wrote the source's own notation lost two trials to notation, not retrieval |
 | Oracle counted a helper named inside a format string as a call | An exhaustive gold demanding `server.go::register` as a caller of `RegisterService`, when the line is `s.printf("RegisterService(%q)", …)` |
+| The retrieval server was rooted at the arm-wide placeholder corpus, not the question's own tree | Every MCP arm of every per-question-corpus study searched one unrelated repository: a vLLM question answered out of Django source, 69 `path is missing or inaccessible` errors in 243 calls, and a −33.5%-does-not-transfer conclusion published for a day. `comparison_runner.placeholders` now takes the trial's root and `test_per_question_corpus.ServedRoot` asserts it |
 | Oracle refused any definition whose name is a control word in another language | `func (tw *storeTxnWrite) delete(...)` owned nothing, so every call inside a Go method named `delete` disappeared from the gold and the arms that found it were scored as inventing it |
 | Two-hop gold expanded through a namesake on the first hop | The leasing `acquire` pulled a rate limiter's callers into the gold; all three arms scored 0.60 on a question they answered as asked |
 | Two-hop question left it open whether a direct caller counts as reached in two hops | The gold took the union, one arm read the difference, and two cells moved on a reading rather than on retrieval |
@@ -2340,8 +2341,10 @@ study, 3.00 and 3.10 over ten each on a separate launch — so it is stable rath
 artifact of one run. And it is **not avoidable by configuration**: whatever those flags govern,
 the model keeps the `ALL_TOOLS` idiom without them, which points at the `exec` sandbox itself
 rather than at a toggle above it. The only lever left is `unified_exec`, which removes the tool
-altogether, and that condition is already measured and bad — `runs/locbench-noshell-20260923`
-scored 10 of 25 against its shell-bearing twin's 19. On this client an MCP server pays the
+altogether, and the run that measured it - `runs/locbench-noshell-20260923`, 10 of 25 against a
+shell-bearing twin's 19 - is **withdrawn**: both of its MCP arms were rooted at a placeholder
+corpus rather than each question's own repository
+([ledger](#harness-defect-ledger)), so that condition is now unmeasured rather than bad. On this client an MCP server pays the
 discovery tax and cannot configure its way out.
 
 **But a document can pay it, and that is what the leak was buying.** Five things differ between

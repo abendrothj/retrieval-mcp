@@ -103,10 +103,12 @@ CONTEXT = ("input",)
 # declaration the archive contradicts; `check_docs.py` refuses a study that omits one. Declared
 # and unflattering publishes. Undeclared does not.
 #
-# `suite_authored` records law 7, and it reads "in-loop" everywhere: every suite in
+# `suite_authored` records law 8, and it reads "in-loop" everywhere: every suite in
 # `experiments/suites/` was written by an agent session inside this repository, holding these
-# working notes and a routing guide for the four tools under test. It is declared rather than
-# derived because no run directory records who wrote the questions.
+# working notes and a routing guide for the four tools under test. One out-of-loop study was
+# published here briefly - `client-cell`, on upstream-curated LOC-BENCH questions - and it was
+# voided by the root defect in the ledger, so no published study has escaped law 8 yet. The field
+# is declared rather than derived because no run directory records who wrote the questions.
 CONDITIONS = {
     "heldout": {
         "client": "claude 2.1.261",
@@ -362,7 +364,12 @@ def build(repo):
                         "django, vllm and prowler: the same command against the same shell "
                         "tools, 147,070 input tokens a trial against 147,358. The registered "
                         "bar was -10% and it was missed, which is what says the -22.2% above "
-                        "does not generalise to questions this project did not write.",
+                        "does not generalise to questions this project did not write. The same "
+                        "run's two MCP arms are withdrawn 2026-09-24 - their servers were rooted "
+                        "at the arm-wide placeholder corpus rather than each question's own "
+                        "repository - so the two shell-bearing arms behind this figure are all "
+                        "that survives from it. They were correctly configured, because the "
+                        "agent's working directory was always its question's tree.",
                 "-26.8": "Withdrawn 2026-09-23 alongside the -42.4% it accompanied. The etcd "
                          "study's zvec-grep comparison was measured under the same uncontrolled "
                          "document, in the same trials.",
