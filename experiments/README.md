@@ -3070,6 +3070,99 @@ configuration-file recommendation above is withdrawn rather than refined.
 environment has zero engagement risk, because it captures the idiom the agent already uses, and is a
 confound that renders a result uninterpretable rather than merely caveated. It stays out.
 
+### Sizing the stage killed it, on both axes
+
+The stage looked like the live lever and it does not survive its own arithmetic. By bytes its
+addressable population is 5 of 773 calls, 0.65%, carrying ~200,520 of 7,753,911 delivered bytes,
+**2.6%** - on the payload axis this record prices at r = 0.09 against 0.74 for turns, and zero of it
+on etcd. A perfect stage that reduced those deliveries to nothing would move total delivered bytes
+by less than the **8.6% drift already documented in a control between two runs of an identical
+configuration**. The effect is below the noise floor of the instrument that would measure it, so a
+null would be uninterpretable and a hit indistinguishable from drift.
+
+The one counter-argument worth testing is that capped calls are disproportionately the ones that
+lose cells, so the stage should be sized quality-weighted rather than byte-weighted. Tested across
+all three runs' capped `native-control` deliveries, re-running each command locally and asking
+whether the gold file was in the full output but not in the delivered prefix:
+
+| | |
+|---|---:|
+| capped deliveries analysed | 59 |
+| gold present in the full local output | 44 |
+| **gold thrown away by the cap** | **19 events, 9 distinct questions** |
+| those events occurring in an unresolved trial | 7 events, 3 distinct questions |
+| addressable by the stage (single-stage and piped) | 7 events |
+| **lost *and* addressable** | **1** |
+
+So the counter-argument fails, and it fails informatively: **18 of the 19 lost-gold events are on
+bare, unpiped commands**, which is the habit sentence's population and not the stage's. Quality
+weighting does not rescue the stage; it transfers the whole case to the other lever.
+
+**The 19 then partitions, and only 11 of it is the cap's doing.** Ripgrep searches in parallel and
+none of these commands pass `--sort path`, so whether the gold landed inside the first 40,104 bytes
+was partly scheduling. Re-running each command five times and recording the byte offset of the first
+gold-path occurrence:
+
+| | |
+|---|---:|
+| capped deliveries whose delivered prefix lacked the gold | 34 |
+| gold absent from the full local output too - the command never matched it | **15** |
+| gold in the full output but not delivered - truncation discarded it | 19 |
+| of those, gold never inside the cap in 5 re-runs - **structural volume** | **11** |
+| of those, gold sometimes inside the cap - **scheduling** | **8** |
+
+So two separations matter more than the headline. **15 of 34 misses are not truncation at all** - the
+agent's pattern simply did not match the gold file, which is a query problem and the habit sentence
+does not touch it either. And of the truncation cases, **8 of 19 were within reach of a different
+thread schedule**: the same command on the same tree could have delivered the gold. Offsets range
+from 6 KB to 4,361 KB, and one command returned 108 KB on its first re-run and 2,855-4,361 KB on the
+next four, so the variance is large where it exists. Where it does not - `prowler-5933` sits at
+~2,770 KB on all five runs, 70x the ceiling - the loss is volume and nothing else.
+
+**The defensible figure is therefore 11 of 59 capped deliveries, 19%, deterministically discarded by
+the cap**, with a further 8 discarded on those runs by scheduling that a rerun would redistribute.
+"the cap discards the gold on about a third of capped calls" reads as a property of the cap and is
+not one.
+
+Three further cautions on the 19 and its subsets. "In an unresolved trial" is not "caused the loss" -
+three distinct questions account for all seven such events, and eight of the etcd events resolved
+correctly, so re-querying after a truncation is the usual outcome rather than the exception. The
+figure is events, not questions; `prowler-5933` alone contributes five. And roughly a sixth of the
+events rest on per-question corpora re-cut from immutable base commits rather than on the trees the
+archived run searched, byte-verified for one of 25; the etcd component and the rerun component
+verify directly against their manifests, 311 files at `ffe2bf07c5c0` and 25 of 25 respectively.
+
+**What is registerable is the habit sentence, and the stage is a recorded mechanism rather than a
+build.** "Start a broad search at `-c` or `-l`, then read what matters" addresses all 33 of etcd's
+single-stage capped commands, the bare broad alternations on full checkouts, and 18 of the 19
+lost-gold events - an order of magnitude more of the population than the stage, and the only one of
+the two whose addressable share the instrument can see. Its prior is poor and belongs in the
+registration rather than after the number: two handshake sentences over 351 trials both came in at
+**+0** against a registered +3 bar.
+
+The stage's mechanism stays in the record as a characterisation of how a shell agent fails at the
+ceiling - it occupies the downstream pipeline position and fills it with a byte-blind stage, `head
+-200` to `-260`, which bounds lines while the ceiling bounds bytes - with no cell attached. If it is
+ever revisited it needs a corpus where the piped-and-capped population exceeds five calls, and the
+arm that isolates it is **binary present, no sentence**, which separates election by the agent from
+election by the instruction. A sentence-only arm does not isolate it, because it carries a
+*different* sentence and is therefore a second lever rather than the same lever at lower strength.
+
+**A model as the ranker was considered and declined.** Jev, the classifier and choice-ranker
+released 2026-09-15, was raised as the tier-3 ranker and is ruled out by the measurement above
+before cost enters. Two structural objections apply to putting it anywhere else. A reranker inside
+the pipe spends money that leaves the agent's token ledger, which is the same shape of
+self-favouring accounting as the routing document that cost this project the -42.4%; any arm
+containing one reports its spend alongside or the comparison is rigged by construction. And
+`rg -l 'pat' . | jev rank` is a shell one-liner, so law 7 obliges the control to get the same
+reranker - it cannot be a moat, unlike index amortization across a session, which remains the one
+advantage grep cannot copy and has never been measured here. The place it could earn a registered
+cell is the within-file top-1 problem - gold at rank 1 for 8 of 21, and 10 of 21 where the right
+file is on the page and the right definition is not at the top of it - as a reranker whose page the
+agent still verifies, never as the resolver, because
+[a model resolving a description](#collapsing-the-two-hop-and-what-it-reveals-about-all-of-this)
+already scored 3 of 8 against a near-ceiling two-hop.
+
 ## Answering a repository you cannot index
 
 The kernel probe left one fact that no ranking change could address: a whole-repository snapshot
