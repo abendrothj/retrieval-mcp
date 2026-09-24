@@ -2983,6 +2983,41 @@ file can express. A config can only be unconditional, which restricts it to the 
 whose cost is unmeasurable here. The architecture therefore splits: a config that delivers only the
 risky half, or a pipeline stage that can see the size before it chooses the rendering.
 
+### What the ceiling costs in answers, and what the stage would buy back
+
+The cap truncates *delivery*, not the pipe: on one `prowler-5930` call 7,698,842 bytes reached the
+shell and 40,104 reached the model. A stage inside the agent's own pipeline sees the whole stream and
+chooses what the 40 KB buys. Two measurements bound what that is worth.
+
+**The quality mechanism is real and it fired once in 75 trials.** Of the 10 capped control calls in
+`runs/cli-locbench-20260924`, the gold file was present in the full local output for 5 and truncation
+threw it away for **2**. The agent re-queried and recovered one of those (`prowler-5930`, scored
+correct); `prowler-5933` is a lost cell with the cap as proximate cause. Degrading that call to
+`path:count` would have named the gold in 3,289 bytes against the 40,100 delivered. One trial, so
+this is a mechanism demonstration and not a quality claim - and law 9 blocks the claim
+independently, since no suite here has yet shown it can discriminate a file-set difference.
+
+**The ranking tier is unmotivated.** Exactly one capped call in the archive overruns at counts
+granularity: `prowler-5930`'s widest dragnet, 2,661 matching files, 302,798 bytes, 7.5x over the
+ceiling. The budget admits 340-630 `path:count` lines there, so the bar is top-13% rather than
+rank-1, and the gold survives under six of seven candidate orderings - `files_about` rarity x count
+at rank 2 of 2,661, rarest-matched-alternative at 7, non-test-first at 36, and **walk order, which
+is what ships today, at 189 of 432 kept**. Only count-ascending loses it, at 2,432. The whole rescue
+is the granularity change; ranking contributes nothing on the single call that reaches it. n=1
+dragnet and one gold, but a ranker cannot beat an ordering that already suffices, and each candidate
+ordering is one line.
+
+So the stage's *content* is settled at two tiers, carrying no ranker, no index and no model: pass
+the stream through unchanged under the ceiling, collapse it to paths-and-counts over it. Its
+*delivery* is what fails, and the next section is why.
+
+**Pooled frequency, because the two readings are the same corpus.** Tier 3 fires on 2 of 24
+capped control calls - 1 of 10 in `cli-locbench-20260924` and 1 of 14 in its rerun. The file-count
+distributions behind those, median 46 / max 2,661 against median 18 / p90 185 / max 922, are
+**run-to-run variation on the same suite and the same corpora, not corpus-specificity**, which is
+worse for either figure alone than corpus-specificity would have been and is why they are pooled
+rather than reported side by side.
+
 ## Answering a repository you cannot index
 
 The kernel probe left one fact that no ranking change could address: a whole-repository snapshot
