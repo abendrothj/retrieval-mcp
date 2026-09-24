@@ -2757,6 +2757,15 @@ questions nobody here wrote, with the arms differing in one flag.
 A rank maps to round trips in three tiers rather than linearly: the identity on the page costs no
 extra hop (and *where* on the page is nearly free - the shuffle control scored 29/29 against
 29/29), the right file without the identity costs one recovery hop, and neither costs a re-query.
+
+**The hop mapping is a carried assumption, not an established one.** It was tested in
+`runs/cli-locbench-rerun-20260924` and came back **NOT ESTABLISHED**: pooled unpaired cleared its
+floor but was mute (+0.19 post-anchor calls where the scheme predicts +1.00, observed sd 2.5 against
+the 1.0 the floor assumed), and the two tests that control for the question - paired by question and
+paired by question-and-arm - gave **+0.83 and +1.12** on 3 and 4 discordant units against a
+pre-registered floor of 8. So the underpowered hint points at the prediction and is not support.
+Everything below that counts tiers is therefore a count of page contents, which is measured; the
+inference from a tier to a round trip is the part being assumed.
 The instrument is `ranker_tiers.py`, and its matching is exact and structural - a row's identity
 against the gold's full `path::Name`, a row's path against the gold's path, both from
 `structuredContent`. `end_to_end.unretrieved` is deliberately not used: it is conjunctive over a
@@ -2794,6 +2803,154 @@ range as the definition's full span, the server bounds a hit at 500 lines and **
 page** for one row outside it, and a refused page is indistinguishable from a ranker that found
 nothing - it had flipped the sign of the partial tally. `examples/ollama_backend.rs` now clamps the
 reported range, with a regression test.
+
+### The rerun on correctly rooted arms, and what a shell agent's ceiling is spent on
+
+`runs/cli-locbench-rerun-20260924`, 299 of 300 trials, four arms, 25 LOC-BENCH instances over
+three repetitions, on the commit that fixed the rooting defect. This is the study the archived
+`cli-locbench` run was meant to be: the two MCP arms were void there and are recovered here, and
+the two shell arms were correct there and are replicated here.
+
+| arm | resolved | credit | input tokens | median | calls | unevidenced | discovery |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| native-control | 53/75 | 0.707 | 161,775 | 91,541 | 4.70 | 14 | 0.03 |
+| retrieval-cli | 54/75 | 0.720 | 171,458 | 94,339 | 5.70 | 11 | 0.00 |
+| retrieval-mcp | 56/75 | 0.747 | 232,160 | 174,800 | 3.70 | 11 | **2.65** |
+| retrieval-mcp-shipped-skill | 54/75 | 0.720 | 196,323 | 109,089 | 5.50 | 15 | **0.99** |
+
+**The transport gap reproduces out of loop, and this is the first time it has been measured on
+arms that were searching the right repository.** MCP against native: **+43.5% mean, +91.0%
+median**. Nothing in this record previously had that.
+
+**Bar 1 missed in the wrong direction.** The command was registered to come in at least 10% under
+the shell agent and lands **+6.0% above it** on means, +3.1% on medians. The archived single cell
+said −0.2%; three repetitions put it on the wrong side of zero. So the reading is stronger than
+"does not transfer": on questions this project did not write, the four operations as a command cost
+*more* than the shell they were built to beat. Bar 2 is met at −12.7% against the shipped-skill arm
+rather than the −49.9% it replaces, and that figure was never a comparison - it was measured
+against a void arm.
+
+**Bar 3 is met, and its instrument had to be recovered first.** Discovery is 2.65 catalogue scripts
+a trial in 69 of 75 bare-MCP trials, 0.99 in 74 of 75 with a skill document beside the server, and
+0.00 in both shell arms. It was first reported NOT MEASURABLE: the column had no committed
+instrument, the published 2.40 came from a lost pass, and a re-implementation counting
+`tool_search` invocations returned 0.00 for every arm of both runs - including the archived arm
+whose published figure is 2.40, which proved the method blind rather than the run empty.
+`discovery_calls.py` now holds the predicate and reproduces the archived 2.40 and 1.00 exactly.
+
+**And the document's mechanism is settled, by elimination.** Its effect here is −15.4% mean and
+−37.6% median input tokens, replicating the ~30-38% measured on etcd. Two of the three candidate
+mechanisms were measured and failed:
+
+- *Query vocabulary, null.* Symbol-table membership of `search_concept` queries: bare median
+  0.125, skill 0.143, quartiles overlapping, and `search_exact` moving the other way. The document
+  does not measurably change how the model words a query.
+- *Tool routing, marginal.* `find_callers` goes from 1 call to 5 across 246 and 284 calls.
+  Directionally what the routing guidance predicts, far too small to claim.
+
+What remains is discovery: the document works by telling the agent its tools exist, not by teaching
+it to use them better or to word queries differently.
+
+**The baseline from that null is worth more than the comparison.** Concept queries carry a median
+**0.125** symbol-table membership - mostly ordinary English with a minority of code tokens - where
+the server's own handshake instructions ask for identifier-dense queries. Against the offline cell
+where reformulated queries reached the right file 9 of 12 and raw issue titles 2 of 12, the agent
+sits much nearer the title end unprompted, and the document does not move it.
+
+**An incidental finding bounds finding 9.** `find_callers` is essentially unused in *both* MCP arms
+- 1 call in 246 and 5 in 284, under 2% either way. It is the one structural tool that ever returned
+a positive ledger, +234.8k tokens on exhaustive caller questions. On issue-derived localisation
+questions the agent barely reaches for it. That does not retract the finding; it bounds it to the
+question class that produced it, which is the same lesson bar 1 delivers one tool down.
+
+**One registered proxy failed and was replaced rather than reinterpreted.** The rooting assertion
+was written as zero path errors in MCP arms and came in at 1 of 150. The audit: that trial's gate
+root matched its question exactly, the agent guessed a path absent from the correct tree, and it
+answered correctly. The direct check the proxy stood in for - server root against question tree -
+is 150 of 150. Recorded as a badly chosen proxy replaced by a strictly stronger direct check, with
+the note that the direct check was computable in advance and was not registered. One cell was lost
+to a 300-second timeout.
+
+### What a shell agent's ceiling is spent on, and the design that follows
+
+The question behind this section is whether a retrieval tool can beat a shell agent on tokens, and
+the answer arrived through the client's truncation behaviour rather than through retrieval.
+
+**The client caps delivered shell output at about 40.1 KB. It is a fixed ceiling, not a
+proportion.** Of 110 delivered shell payloads in the archived run, 7 land on exactly 40,104 bytes
+and 3 more within 34 of it; a ratio cannot produce seven identical byte counts. The client reports
+what it cut in its own warning text, which gives the true denominator: across the capped calls it
+cut from **3,749,200 original tokens and delivered 100,249 - 2.7%**. The record's fitted 0.09
+payload coefficient is a different measurement on a different channel (MCP output in a Django
+pilot) and must not be read as a proportional rule for shell output.
+
+**The delivered bytes are chosen by directory walk order, and they are visibly wasted.** Every
+capped call is a scattergun - `rg -n "awslambda|lambda|service|--service|service.*alias|aliases" .`
+and eight more like it - and one delivery's last bytes are
+`django/contrib/contenttypes/locale/my/LC_MESSAGES/django.po:26:msgid "content type"`. Burmese
+translation catalogues consumed a ceiling that a one-line filter would have freed.
+
+**The population, sized on 300 trials rather than one repetition.** Of 773 delivered shell
+payloads, **32 sit at the ceiling - 4.1% of calls carrying ~17% of delivered bytes**. Attributing
+each capped delivery to its command through the call structure: **21 are bare `.` searches with no
+type or glob filter, 9 to 10 carried a filter and capped anyway, 2 were not `rg` at all.** Three
+methods gave three answers on that split - 5:4 on one repetition, 31:1 by searching the delivered
+text for a command echo, and 21:9 by call-structure attribution - and the echo method failed
+toward its author's preferred conclusion because a capped delivery can truncate the echo of its own
+command. The call-structure figure is the one to use.
+
+**So the order of work is a native flag first, and a tool second.** Measured on the call whose
+ceiling went to translation catalogues, on the same corpus and pattern:
+
+| | delivered bytes |
+|---|---:|
+| `rg -n "view on site\|view_on_site\|content_type_id\|content type" .` | 57,362 |
+| the same with `-t py` | **16,661** |
+| the same with `-g '!**/locale/**'` | 24,443 |
+
+Both take it under the ceiling with a flag of a tool the agent already drives - and already uses a
+filter on in 21 of 80 commands, so the capability is known and inconsistently applied rather than
+absent. The delivery mechanism matters: an `.rgignore` planted in the corpus changes its
+fingerprint and breaks the prepare-time assertion that every arm searches byte-identical trees, so
+the intervention belongs in `RIPGREP_CONFIG_PATH` through a system's `agent_environment`, which
+keeps the corpus untouched and makes it a one-variable arm.
+
+**And this evidence base cannot price what that flag costs in recall.** Every question set in this
+repository - 29 suites, archives included - has golds in exactly one file extension, across six
+languages, never mixed. Two causes: `cut_corpora.py` keeps one suffix per scope by construction, so
+a cut corpus holds no templates at all, and a gold must be an indexable definition, so a `.po` file
+or a template can never *be* a gold in a full checkout either. Consequently a type filter comes out
+free on every suite here, and so would extension ranking, test down-ranking and generated-file
+exclusion. The record already has a near-miss of this shape: test down-ranking "helps inside the
+suites and hurts outside them".
+
+That generalises law 9 one axis over. A suite's null is quotable only after a targeted degradation
+has scored worse *on that suite* - a shuffled page for ranking, a deliberately over-narrow filter
+for file sets - and the degradation has to be able to reach what the intervention removes. For file
+sets that needs questions whose **gold is code and whose evidence is not**, which the schema
+already admits: `validate_suite` requires an evidence anchor's path to exist and its snippet to be
+present, and never requires the path to hold a definition. Such a suite needs full checkouts rather
+than cut corpora, a necessity gate run as two oracle passes - the full tree against a filtered copy,
+keeping only questions the filtered crawl fails - and a two-sided bar on tokens and resolved plus
+the unevidenced-answer column, because a filter can leave a gold findable while narrowing the
+reasoning path to it.
+
+**The design that survives, and its measured ceiling.** A pipeline stage in append form, self-capped
+at the client's own ceiling, whose job is deciding which 40 KB of a 794 KB local stream reaches the
+model. Append rather than substitute, because the model appends stages to pipelines it already
+writes at 1.86-2.05 operations per call and has refused every surface that asked it to substitute:
+MCP tools at 1.02, subcommands at 1.16, a plan DSL at 1.13. Its addressable share is the third of
+the capped population that filtered and capped anyway - breadth rather than file type, which no flag
+fixes - so roughly 5-6% of delivered bytes on about 1.4% of calls, on the payload axis, which this
+record prices at r = 0.09 against 0.74 for turns. Enrichment with a matched file's sibling
+definitions is one candidate selection criterion inside it, justified by a break-even of 4-8%
+against a ~15,000-token round trip rather than by the tier construct.
+
+**The honest conclusion is that the architecture with the best evidence is a configuration file
+rather than a server**, and that the three things which would matter more are closed: turns, because
+the model will not compose; quality, because neither ranker puts the definition on the page; and
+scale, which a daemon-and-graph design already does better than a snapshot that truncates at 8,500
+of 60,283 files.
 
 ## Answering a repository you cannot index
 

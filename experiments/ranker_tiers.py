@@ -21,6 +21,10 @@ A dependent hop is ~15,000 input tokens against ~2,400 for a 20 KB payload
 (`runs/token-metric-20260921`), which is why the tier split and not top-1 rank is the readout that
 maps to cost.
 
+**Two input formats.** `structuredContent.results` is what a direct stdio probe receives; an
+archived run's payload carries a tab-separated table in `content[0].text` and no structured field.
+Both are parsed, and the identity is read from the server either way.
+
 **Matching is exact and structural, never substring over concatenated text.** A row's identity is
 compared to the gold's full `path::Name`, and a row's path to the gold's path, both by equality,
 both read from `structuredContent.results`. `end_to_end.unretrieved` is deliberately not used
@@ -69,11 +73,52 @@ def page(server, corpus, ranker, semantic_command, query, limit, timeout):
         text = ((result.get("content") or [{}])[0].get("text") or "")
         if result.get("isError") or text.startswith("error:"):
             error = text[:200]
-        for row in (result.get("structuredContent") or {}).get("results") or []:
-            symbol = row.get("symbol")
-            identity = symbol.get("symbol") if isinstance(symbol, dict) else symbol
-            rows.append({"path": row.get("path"), "identity": identity})
+        rows.extend(structured_rows(result) or rendered_rows(text))
     return rows, error
+
+
+def structured_rows(result):
+    """Rows from `structuredContent`, which is what a direct stdio probe receives."""
+    found = []
+    for row in (result.get("structuredContent") or {}).get("results") or []:
+        symbol = row.get("symbol")
+        identity = symbol.get("symbol") if isinstance(symbol, dict) else symbol
+        found.append({"path": row.get("path"), "identity": identity})
+    return found
+
+
+def rendered_rows(text):
+    """Rows from the tab-separated table in `content[0].text`.
+
+    A run's archived payload carries the rendered table and no `structuredContent` - the server
+    stopped paying for JSON - so an instrument that reads only the structured field returns
+    "neither" for every trial of a real run while working perfectly against a live probe. That
+    failure was found by a sibling session applying this file to 150 trials and getting 150
+    "neither" beside 56 of 75 resolving, which is impossible. The identity is still read from the
+    server rather than reconstructed: the `symbol` column holds JSON whose own `symbol` key is the
+    full `path::Name`.
+    """
+    lines = text.split("\n")
+    for index, line in enumerate(lines):
+        if not line.startswith("results["):
+            continue
+        count = int(line[len("results["):line.index("]")])
+        columns = line[line.index("]") + 2:].split("\t")
+        found = []
+        for raw in lines[index + 1:index + 1 + count]:
+            cells = raw.split("\t")
+            if len(cells) < len(columns):
+                continue
+            field = dict(zip(columns, cells))
+            identity = field.get("symbol") or field.get("caller")
+            if isinstance(identity, str) and identity.startswith("{"):
+                try:
+                    identity = (json.loads(identity) or {}).get("symbol")
+                except json.JSONDecodeError:
+                    identity = None
+            found.append({"path": field.get("path"), "identity": identity})
+        return found
+    return []
 
 
 def positions(rows, gold):

@@ -1,0 +1,847 @@
+[
+ {
+  "id": "django__django-18435",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "Add warning to runserver that it should not be used for production\nDescription\n\t \nAs per this discussion on the \u200bforum, I think adding a warning to the start of runserver would be valuable to those new to Django and a healthy reminder to those coming back to Django. \nThe wording of the warning is:\nWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.\nFor more information on production servers see the documentation: https://docs.djangoproject.com/en/5.0/howto/deployment/\nAdditionally a flag should be added to optionally hide the warning. --hide-unsuitable-for-production was a suggestion.\nFinally the following 2 pages of the documentation should have add some wording to highlight that a deployed project should not use runserver.\n\u200bhttps://docs.djangoproject.com/en/5.0/howto/deployment/ (Add a warning or paragraph that mentions switching)\n\u200bhttps://docs.djangoproject.com/en/5.0/howto/deployment/checklist/ (Add a section to switch away from runserver)\nAdd warning to runserver that it should not be used for production\nDescription\n\t \nAs per this discussion on the \u200bforum, I think adding a warning to the start of runserver would be valuable to those new to Django and a healthy reminder to those coming back to Django. \nThe wording of the warning is:\nWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.\nFor more information on production servers see the documentation: https://docs.djangoproject.com/en/5.0/howto/deployment/\nAdditionally a flag should be added to optionally hide the warning. --hide-unsuitable-for-production was a suggestion.\nFinally the following 2 pages of the documentation should have add some wording to highlight that a deployed project should not use runserver.\n\u200bhttps://docs.djangoproject.com/en/5.0/howto/deployment/ (Add a warning or paragraph that mentions switching)\n\u200bhttps://docs.djangoproject.com/en/5.0/howto/deployment/checklist/ (Add a section to switch away from runserver)\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/core/management/commands/runserver.py::Command::on_bind"
+  },
+  "rejected_alternates": [
+   "django/core/management/commands/runserver.py::Command",
+   "django/core/management/commands/runserver.py::add_arguments",
+   "django/core/management/commands/runserver.py::execute"
+  ],
+  "evidence": [
+   {
+    "path": "django/core/management/commands/runserver.py",
+    "contains": "def on_bind(self, server_port):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18435 (django/django @ 958274525), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18435",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "95827452571eb976c4f0d5e9ac46843948dd5fe6",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": false,
+   "statement_chars": 2049,
+   "corpus_fingerprint": {
+    "sha256": "d38eb82febe31eac70a04401ab5dbd379bd91b151560c82dfd785b05f190ff10",
+    "files": 6823
+   }
+  }
+ },
+ {
+  "id": "vllm-project__vllm-7874",
+  "category": "Performance Issue",
+  "set": "holdout",
+  "question": "[Performance]: vllm 0.5.4 with enable_chunked_prefill =True, throughput is slightly lower than 0.5.3~0.5.0.\n### Your current environment\n\n<details>\r\n<summary>environment</summary>\r\n\r\n# Hardware & Nvidia driver & OS\r\nGPU models and configuration: GPU 0: NVIDIA GeForce RTX 4090       \r\n\r\nNvidia driver version: 550.107.02 \r\n\r\nOS: Ubuntu 22.04.4 LTS (x86_64) \r\n\r\n# conda env create -f environment_linux.yml\r\n```\r\nname: vllm_xxx\r\nchannels:\r\n  - conda-forge\r\n  - pytorch\r\n  - nvidia\r\n  - defaults\r\ndependencies:\r\n  - python=3.11\r\n  - anaconda\r\n  - pip\r\n  - pip:\r\n      - easydict\r\n  \r\npip install vllm==v0.5.4 / v0.5.3.post1 / v0.5.2 / v0.5.1\r\n```\r\n\r\n</details>\r\n\n\n### \ud83d\udc1b Describe the bug\n\nThroughput and latency vary with max_num_seqs\u3002\r\n\r\nvllm 0.5.4 with enable_chunked_prefill =True, throughput is slightly lower than 0.5.3~0.5.1. very strange.\r\n\r\n![chunked_prefill](https://github.com/user-attachments/assets/0250456a-60b8-45e9-82ad-316204f6e778)\r\n\r\n| max_num_seqs | requests/s | disable 0.5.4 | requests/s | disable 0.5.3 | requests/s | disable 0.5.2 | requests/s | disable 0.5.1 | requests/s | enable 0.5.4 | requests/s | enable 0.5.3 | requests/s | enable 0.5.2 | requests/s | enable 0.5.1 |\r\n|--------------|------------|---------------|------------|---------------|------------|---------------|------------|---------------|------------|--------------|------------|--------------|------------|--------------|------------|--------------|\r\n| 1024         | 2.5115     | 36.1          | 2.4747     | 36.69         | 2.4878     | 36.82         | 2.4972     | 36.33         | 3.1797     | 39.72        | 3.1341     | 40.15        | 3.1696     | 39.67        | 3.1745     | 39.61        |\r\n| 768          | 3.2838     | 42.6          | 3.2242     | 43.48         | 3.2608     | 42.93         | 3.2648     | 42.88         | 4.1047     | 43.4         | 3.9708     | 44.42        | 4.0413     | 43.6         | 4.0439     | 43.57        |\r\n| 512          | 4.1063     | 51.93         | 4.0102     | 53.22         | 4.0966     | 52.07         | 4.0998     | 51.97         | 4.6486     | 46.79        | 4.6377     | 46.25        | 4.7419     | 45.15        | 4.747      | 45.13        |\r\n| 384          | 4.1705     | 54.83         | 4.0749     | 56.35         | 4.1538     | 55.07         | 4.1587     | 55            | 4.798      | 49.66        | 4.8605     | 45.93        | 4.9834     | 44.72        | 5.0019     | 44.61        |\r\n| 256          | 4.3613     | 59.37         | 4.2659     | 60.94         | 4.3586     | 59.44         | 4.3632     | 59.36         | 4.9096     | 48.27        | 5.4424     | 42.23        | 5.5876     | 41.1         | 5.5949     | 41.04        |\r\n| 128          | 4.7441     | 42.75         | 4.6511     | 43.76         | 4.7564     | 42.62         | 4.7583     | 42.58         | 4.2047     | 32.77        | 4.0718     | 29.7         | 4.1528     | 29.11        | 4.1544     | 29.1         |\r\n| 64           | 3.7161     | 29.56         | 3.6446     | 30.2          | 3.6972     | 29.71         | 3.7044     | 29.66         | 2.435      | 26.88        | 2.3879     | 25.74        | 2.4141     | 25.45        | 2.4175     | 25.41        |\r\n| 32           | 2.6923     | 20.76         | 2.6465     | 21.16         | 2.6702     | 20.94         | 2.6735     | 20.92         | 1.6103     | 19.83        | 1.5846     | 19.55        | 1.593      | 19.44        | 1.5942     | 19.43        |\r\n\r\n```\r\nimport os\r\nimport random\r\nimport numpy as np\r\nimport time\r\n\r\n\r\ndef benchmark(args):\r\n    random.seed(args.seed)\r\n\r\n    os.environ[\"VLLM_LOGGING_LEVEL\"] = \"ERROR\"\r\n    os.environ[\"VLLM_NO_USAGE_STATS\"] = \"True\"\r\n\r\n    import vllm\r\n    from vllm import LLMEngine, EngineArgs, SamplingParams, TextPrompt\r\n\r\n    print(vllm.__version__)\r\n\r\n    engine_args = EngineArgs(\r\n        model=args.model,\r\n        tokenizer=args.tokenizer,\r\n        quantization=args.quantization,\r\n        tensor_parallel_size=args.tensor_parallel_size,\r\n        seed=args.seed,\r\n        trust_remote_code=args.trust_remote_code,\r\n        dtype=args.dtype,\r\n        max_model_len=args.max_model_len,\r\n        gpu_memory_utilization=args.gpu_memory_utilization,\r\n        enforce_eager=args.enforce_eager,\r\n        kv_cache_dtype=args.kv_cache_dtype,\r\n        quantization_param_path=args.quantization_param_path,\r\n        device=args.device,\r\n        enable_prefix_caching=args.enable_prefix_caching,\r\n        download_dir=args.download_dir,\r\n        enable_chunked_prefill=args.enable_chunked_prefill,\r\n        max_num_batched_tokens=args.max_num_batched_tokens,\r\n        max_num_seqs=args.max_num_seqs,\r\n        distributed_executor_backend=args.distributed_executor_backend,\r\n        disable_log_stats=True\r\n    )\r\n    engine = LLMEngine.from_engine_args(engine_args)\r\n\r\n    prompt = \"hi\" * (args.input_len - 1)\r\n    requests = [(prompt, args.input_len, args.output_len)\r\n                for _ in range(args.num_prompts)]\r\n\r\n    start = time.perf_counter()\r\n    for request_id, (prompt, _, output_len) in enumerate(requests):\r\n        inputs = TextPrompt(prompt=prompt)\r\n        sampling_params = SamplingParams(\r\n            n=args.n,\r\n            temperature=0.0 if args.use_beam_search else 1.0,\r\n            top_p=1.0,\r\n            use_beam_search=args.use_beam_search,\r\n            ignore_eos=True,\r\n            max_tokens=output_len,\r\n        )\r\n        engine.add_request(str(request_id), inputs, sampling_params)\r\n\r\n    out = []\r\n    while engine.has_unfinished_requests():\r\n        request_outputs = engine.step()\r\n        out.append((time.perf_counter(), request_outputs))\r\n    end = time.perf_counter()\r\n\r\n    timestamp = {}\r\n    for t, rs in out:\r\n        for r in rs:\r\n            request_id = r.request_id\r\n            if request_id not in timestamp:\r\n                timestamp[request_id] = []\r\n            timestamp[request_id].append(t)\r\n\r\n    tpot = []\r\n    for v in timestamp.values():\r\n        dd = [v[i]-v[i-1] for i in range(1, len(v))]\r\n        tpot.extend(dd)\r\n\r\n    tpot = np.mean(tpot)\r\n    elapsed_time = end - start\r\n\r\n    total_num_tokens = sum(prompt_len + output_len\r\n                           for _, prompt_len, output_len in requests)\r\n\r\n    print(f\"Throughput: {len(requests) / elapsed_time:.4f} requests/s, \"\r\n          f\"{total_num_tokens / elapsed_time:.4f} tokens/s, \"\r\n          f\"Delay {tpot*1000:0.2f} ms\")\r\n\r\n\r\nif __name__ == '__main__':\r\n    from easydict import EasyDict as edict\r\n    args = edict()\r\n\r\n    args.dataset = None\r\n    args.input_len = 512\r\n    args.output_len = 512\r\n\r\n    args.model = \"Qwen/Qwen2-7B-Instruct\"\r\n    args.trust_remote_code = False\r\n    args.tokenizer = args.model\r\n    args.quantization = None\r\n    args.quantization_param_path = None\r\n    args.tensor_parallel_size = 1\r\n    args.seed = 0\r\n    args.n = 1\r\n    args.use_beam_search = False\r\n    args.num_prompts = 1000\r\n    args.dtype = 'auto'\r\n    args.max_model_len = 10000\r\n    args.enforce_eager = True\r\n    args.kv_cache_dtype = \"auto\"\r\n    args.device = \"cuda\"\r\n    args.enable_prefix_caching = False\r\n    args.gpu_memory_utilization = 0.9\r\n    args.output_json = None\r\n    args.distributed_executor_backend = None\r\n    args.download_dir = None\r\n\r\n    import sys\r\n    from concurrent.futures import ProcessPoolExecutor\r\n\r\n    def run(args):\r\n        with ProcessPoolExecutor(1) as executor:\r\n            f = executor.submit(benchmark, args)\r\n            f.result()\r\n\r\n    max_num_seqs_list = [1024, 768, 512, 384, 256, 128, 64, 32]\r\n\r\n    print()\r\n    print(\"enable_chunked_prefill = False\")\r\n    for max_num_seqs in max_num_seqs_list:\r\n        print(\"max_num_seqs\", max_num_seqs)\r\n        args.enable_chunked_prefill = False\r\n        args.max_num_batched_tokens = None\r\n        args.max_num_seqs = max_num_seqs\r\n        run(args)\r\n\r\n    print()\r\n    print(\"enable_chunked_prefill = True\")\r\n    for max_num_seqs in max_num_seqs_list:\r\n        print(\"max_num_seqs\", max_num_seqs)\r\n        args.enable_chunked_prefill = True\r\n        args.max_num_seqs = max_num_seqs\r\n        args.max_num_batched_tokens = args.max_num_seqs\r\n        run(args)\r\n```\r\n\r\n\r\n\n[Performance]: vllm 0.5.4 with enable_chunked_prefill =True, throughput is slightly lower than 0.5.3~0.5.0.\n### Your current environment\n\n<details>\r\n<summary>environment</summary>\r\n\r\n# Hardware & Nvidia driver & OS\r\nGPU models and configuration: GPU 0: NVIDIA GeForce RTX 4090       \r\n\r\nNvidia driver version: 550.107.02 \r\n\r\nOS: Ubuntu 22.04.4 LTS (x86_64) \r\n\r\n# conda env create -f environment_linux.yml\r\n```\r\nname: vllm_xxx\r\nchannels:\r\n  - conda-forge\r\n  - pytorch\r\n  - nvidia\r\n  - defaults\r\ndependencies:\r\n  - python=3.11\r\n  - anaconda\r\n  - pip\r\n  - pip:\r\n      - easydict\r\n  \r\npip install vllm==v0.5.4 / v0.5.3.post1 / v0.5.2 / v0.5.1\r\n```\r\n\r\n</details>\r\n\n\n### \ud83d\udc1b Describe the bug\n\nThroughput and latency vary with max_num_seqs\u3002\r\n\r\nvllm 0.5.4 with enable_chunked_prefill =True, throughput is slightly lower than 0.5.3~0.5.1. very strange.\r\n\r\n![chunked_prefill](https://github.com/user-attachments/assets/0250456a-60b8-45e9-82ad-316204f6e778)\r\n\r\n| max_num_seqs | requests/s | disable 0.5.4 | requests/s | disable 0.5.3 | requests/s | disable 0.5.2 | requests/s | disable 0.5.1 | requests/s | enable 0.5.4 | requests/s | enable 0.5.3 | requests/s | enable 0.5.2 | requests/s | enable 0.5.1 |\r\n|--------------|------------|---------------|------------|---------------|------------|---------------|------------|---------------|------------|--------------|------------|--------------|------------|--------------|------------|--------------|\r\n| 1024         | 2.5115     | 36.1          | 2.4747     | 36.69         | 2.4878     | 36.82         | 2.4972     | 36.33         | 3.1797     | 39.72        | 3.1341     | 40.15        | 3.1696     | 39.67        | 3.1745     | 39.61        |\r\n| 768          | 3.2838     | 42.6          | 3.2242     | 43.48         | 3.2608     | 42.93         | 3.2648     | 42.88         | 4.1047     | 43.4         | 3.9708     | 44.42        | 4.0413     | 43.6         | 4.0439     | 43.57        |\r\n| 512          | 4.1063     | 51.93         | 4.0102     | 53.22         | 4.0966     | 52.07         | 4.0998     | 51.97         | 4.6486     | 46.79        | 4.6377     | 46.25        | 4.7419     | 45.15        | 4.747      | 45.13        |\r\n| 384          | 4.1705     | 54.83         | 4.0749     | 56.35         | 4.1538     | 55.07         | 4.1587     | 55            | 4.798      | 49.66        | 4.8605     | 45.93        | 4.9834     | 44.72        | 5.0019     | 44.61        |\r\n| 256          | 4.3613     | 59.37         | 4.2659     | 60.94         | 4.3586     | 59.44         | 4.3632     | 59.36         | 4.9096     | 48.27        | 5.4424     | 42.23        | 5.5876     | 41.1         | 5.5949     | 41.04        |\r\n| 128          | 4.7441     | 42.75         | 4.6511     | 43.76         | 4.7564     | 42.62         | 4.7583     | 42.58         | 4.2047     | 32.77        | 4.0718     | 29.7         | 4.1528     | 29.11        | 4.1544     | 29.1         |\r\n| 64           | 3.7161     | 29.56         | 3.6446     | 30.2          | 3.6972     | 29.71         | 3.7044     | 29.66         | 2.435      | 26.88        | 2.3879     | 25.74        | 2.4141     | 25.45        | 2.4175     | 25.41        |\r\n| 32           | 2.6923     | 20.76         | 2.6465     | 21.16         | 2.6702     | 20.94         | 2.6735     | 20.92         | 1.6103     | 19.83        | 1.5846     | 19.55        | 1.593      | 19.44        | 1.5942     | 19.43        |\r\n\r\n```\r\nimport os\r\nimport random\r\nimport numpy as np\r\nimport time\r\n\r\n\r\ndef benchmark(args):\r\n    random.seed(args.seed)\r\n\r\n    os.environ[\"VLLM_LOGGING_LEVEL\"] = \"ERROR\"\r\n    os.environ[\"VLLM_NO_USAGE_STATS\"] = \"True\"\r\n\r\n    import vllm\r\n    from vllm import LLMEngine, EngineArgs, SamplingParams, TextPrompt\r\n\r\n    print(vllm.__version__)\r\n\r\n    engine_args = EngineArgs(\r\n        model=args.model,\r\n        tokenizer=args.tokenizer,\r\n        quantization=args.quantization,\r\n        tensor_parallel_size=args.tensor_parallel_size,\r\n        seed=args.seed,\r\n        trust_remote_code=args.trust_remote_code,\r\n        dtype=args.dtype,\r\n        max_model_len=args.max_model_len,\r\n        gpu_memory_utilization=args.gpu_memory_utilization,\r\n        enforce_eager=args.enforce_eager,\r\n        kv_cache_dtype=args.kv_cache_dtype,\r\n        quantization_param_path=args.quantization_param_path,\r\n        device=args.device,\r\n        enable_prefix_caching=args.enable_prefix_caching,\r\n        download_dir=args.download_dir,\r\n        enable_chunked_prefill=args.enable_chunked_prefill,\r\n        max_num_batched_tokens=args.max_num_batched_tokens,\r\n        max_num_seqs=args.max_num_seqs,\r\n        distributed_executor_backend=args.distributed_executor_backend,\r\n        disable_log_stats=True\r\n    )\r\n    engine = LLMEngine.from_engine_args(engine_args)\r\n\r\n    prompt = \"hi\" * (args.input_len - 1)\r\n    requests = [(prompt, args.input_len, args.output_len)\r\n                for _ in range(args.num_prompts)]\r\n\r\n    start = time.perf_counter()\r\n    for request_id, (prompt, _, output_len) in enumerate(requests):\r\n        inputs = TextPrompt(prompt=prompt)\r\n        sampling_params = SamplingParams(\r\n            n=args.n,\r\n            temperature=0.0 if args.use_beam_search else 1.0,\r\n            top_p=1.0,\r\n            use_beam_search=args.use_beam_search,\r\n            ignore_eos=True,\r\n            max_tokens=output_len,\r\n        )\r\n        engine.add_request(str(request_id), inputs, sampling_params)\r\n\r\n    out = []\r\n    while engine.has_unfinished_requests():\r\n        request_outputs = engine.step()\r\n        out.append((time.perf_counter(), request_outputs))\r\n    end = time.perf_counter()\r\n\r\n    timestamp = {}\r\n    for t, rs in out:\r\n        for r in rs:\r\n            request_id = r.request_id\r\n            if request_id not in timestamp:\r\n                timestamp[request_id] = []\r\n            timestamp[request_id].append(t)\r\n\r\n    tpot = []\r\n    for v in timestamp.values():\r\n        dd = [v[i]-v[i-1] for i in range(1, len(v))]\r\n        tpot.extend(dd)\r\n\r\n    tpot = np.mean(tpot)\r\n    elapsed_time = end - start\r\n\r\n    total_num_tokens = sum(prompt_len + output_len\r\n                           for _, prompt_len, output_len in requests)\r\n\r\n    print(f\"Throughput: {len(requests) / elapsed_time:.4f} requests/s, \"\r\n          f\"{total_num_tokens / elapsed_time:.4f} tokens/s, \"\r\n          f\"Delay {tpot*1000:0.2f} ms\")\r\n\r\n\r\nif __name__ == '__main__':\r\n    from easydict import EasyDict as edict\r\n    args = edict()\r\n\r\n    args.dataset = None\r\n    args.input_len = 512\r\n    args.output_len = 512\r\n\r\n    args.model = \"Qwen/Qwen2-7B-Instruct\"\r\n    args.trust_remote_code = False\r\n    args.tokenizer = args.model\r\n    args.quantization = None\r\n    args.quantization_param_path = None\r\n    args.tensor_parallel_size = 1\r\n    args.seed = 0\r\n    args.n = 1\r\n    args.use_beam_search = False\r\n    args.num_prompts = 1000\r\n    args.dtype = 'auto'\r\n    args.max_model_len = 10000\r\n    args.enforce_eager = True\r\n    args.kv_cache_dtype = \"auto\"\r\n    args.device = \"cuda\"\r\n    args.enable_prefix_caching = False\r\n    args.gpu_memory_utilization = 0.9\r\n    args.output_json = None\r\n    args.distributed_executor_backend = None\r\n    args.download_dir = None\r\n\r\n    import sys\r\n    from concurrent.futures import ProcessPoolExecutor\r\n\r\n    def run(args):\r\n        with ProcessPoolExecutor(1) as executor:\r\n            f = executor.submit(benchmark, args)\r\n            f.result()\r\n\r\n    max_num_seqs_list = [1024, 768, 512, 384, 256, 128, 64, 32]\r\n\r\n    print()\r\n    print(\"enable_chunked_prefill = False\")\r\n    for max_num_seqs in max_num_seqs_list:\r\n        print(\"max_num_seqs\", max_num_seqs)\r\n        args.enable_chunked_prefill = False\r\n        args.max_num_batched_tokens = None\r\n        args.max_num_seqs = max_num_seqs\r\n        run(args)\r\n\r\n    print()\r\n    print(\"enable_chunked_prefill = True\")\r\n    for max_num_seqs in max_num_seqs_list:\r\n        print(\"max_num_seqs\", max_num_seqs)\r\n        args.enable_chunked_prefill = True\r\n        args.max_num_seqs = max_num_seqs\r\n        args.max_num_batched_tokens = args.max_num_seqs\r\n        run(args)\r\n```\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "vllm/core/scheduler.py::Scheduler::_schedule_chunked_prefill"
+  },
+  "rejected_alternates": [
+   "vllm/core/scheduler.py::PreemptionMode",
+   "vllm/core/scheduler.py::SchedulingBudget",
+   "vllm/core/scheduler.py::can_schedule"
+  ],
+  "evidence": [
+   {
+    "path": "vllm/core/scheduler.py",
+    "contains": "def _schedule_chunked_prefill(self) -> SchedulerOutputs:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance vllm-project__vllm-7874 (vllm-project/vllm @ 1248e8506), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/vllm-project__vllm-7874",
+  "covariates": {
+   "repo": "vllm-project/vllm",
+   "base_commit": "1248e8506a4d98b4f15cbfe729cf2af42fb4223a",
+   "gold_cardinality": 1,
+   "locbench_category": "Performance Issue",
+   "names_target": true,
+   "statement_chars": 16133,
+   "corpus_fingerprint": {
+    "sha256": "7071c04faa9fddd76dcac9196ccc2055d3571d7796f37bdef2bc6a9b14418169",
+    "files": 1116
+   }
+  }
+ },
+ {
+  "id": "vllm-project__vllm-10198",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "[Bug]: Sampling parameter fixed issue while doing speculative sampling verification step\n### Your current environment\r\n\r\n<details>\r\n<summary>The output of `python collect_env.py`</summary>\r\n\r\n```text\r\nYour output of `python collect_env.py` here\r\n```\r\n\r\nPyTorch version: 2.4.0+cu121\r\nIs debug build: False\r\nCUDA used to build PyTorch: 12.1\r\nROCM used to build PyTorch: N/A\r\n\r\nOS: Ubuntu 22.04.3 LTS (x86_64)\r\nGCC version: (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0\r\nClang version: Could not collect\r\nCMake version: version 3.27.9\r\nLibc version: glibc-2.35\r\n\r\nPython version: 3.10.12 (main, Nov 20 2023, 15:14:05) [GCC 11.4.0] (64-bit runtime)\r\nPython platform: Linux-5.4.239-1.el7.elrepo.x86_64-x86_64-with-glibc2.35\r\nIs CUDA available: True\r\nCUDA runtime version: 12.3.107\r\nCUDA_MODULE_LOADING set to: LAZY\r\nGPU models and configuration: \r\nGPU 0: NVIDIA A100-SXM4-80GB\r\nGPU 1: NVIDIA A100-SXM4-80GB\r\nGPU 2: NVIDIA A100-SXM4-80GB\r\nGPU 3: NVIDIA A100-SXM4-80GB\r\nGPU 4: NVIDIA A100-SXM4-80GB\r\nGPU 5: NVIDIA A100-SXM4-80GB\r\nGPU 6: NVIDIA A100-SXM4-80GB\r\nGPU 7: NVIDIA A100-SXM4-80GB\r\n\r\nNvidia driver version: 535.54.03\r\ncuDNN version: Probably one of the following:\r\n/usr/lib/x86_64-linux-gnu/libcudnn.so.8.9.7\r\n/usr/lib/x86_64-linux-gnu/libcudnn_adv_infer.so.8.9.7\r\n/usr/lib/x86_64-linux-gnu/libcudnn_adv_train.so.8.9.7\r\n/usr/lib/x86_64-linux-gnu/libcudnn_cnn_infer.so.8.9.7\r\n/usr/lib/x86_64-linux-gnu/libcudnn_cnn_train.so.8.9.7\r\n/usr/lib/x86_64-linux-gnu/libcudnn_ops_infer.so.8.9.7\r\n/usr/lib/x86_64-linux-gnu/libcudnn_ops_train.so.8.9.7\r\nHIP runtime version: N/A\r\nMIOpen runtime version: N/A\r\nIs XNNPACK available: True\r\n\r\nCPU:\r\nArchitecture:                    x86_64\r\nCPU op-mode(s):                  32-bit, 64-bit\r\nAddress sizes:                   43 bits physical, 48 bits virtual\r\nByte Order:                      Little Endian\r\nCPU(s):                          64\r\nOn-line CPU(s) list:             0-63\r\nVendor ID:                       AuthenticAMD\r\nModel name:                      AMD EPYC 7302 16-Core Processor\r\nCPU family:                      23\r\nModel:                           49\r\nThread(s) per core:              2\r\nCore(s) per socket:              16\r\nSocket(s):                       2\r\nStepping:                        0\r\nBogoMIPS:                        5989.21\r\nFlags:                           fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl nonstop_tsc cpuid extd_apicid aperfmperf pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpb cat_l3 cdp_l3 hw_pstate sme ssbd mba sev ibrs ibpb stibp vmmcall fsgsbase bmi1 avx2 smep bmi2 cqm rdt_a rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local clzero irperf xsaveerptr wbnoinvd arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif umip rdpid overflow_recov succor smca\r\nVirtualization:                  AMD-V\r\nL1d cache:                       1 MiB (32 instances)\r\nL1i cache:                       1 MiB (32 instances)\r\nL2 cache:                        16 MiB (32 instances)\r\nL3 cache:                        256 MiB (16 instances)\r\nNUMA node(s):                    2\r\nNUMA node0 CPU(s):               0-15,32-47\r\nNUMA node1 CPU(s):               16-31,48-63\r\nVulnerability Itlb multihit:     Not affected\r\nVulnerability L1tf:              Not affected\r\nVulnerability Mds:               Not affected\r\nVulnerability Meltdown:          Not affected\r\nVulnerability Mmio stale data:   Not affected\r\nVulnerability Retbleed:          Vulnerable\r\nVulnerability Spec store bypass: Vulnerable\r\nVulnerability Spectre v1:        Vulnerable: __user pointer sanitization and usercopy barriers only; no swapgs barriers\r\nVulnerability Spectre v2:        Vulnerable, IBPB: disabled, STIBP: disabled, PBRSB-eIBRS: Not affected\r\nVulnerability Srbds:             Not affected\r\nVulnerability Tsx async abort:   Not affected\r\n\r\nVersions of relevant libraries:\r\n[pip3] numpy==1.24.4\r\n[pip3] nvidia-cublas-cu12==12.1.3.1\r\n[pip3] nvidia-cuda-cupti-cu12==12.1.105\r\n[pip3] nvidia-cuda-nvrtc-cu12==12.1.105\r\n[pip3] nvidia-cuda-runtime-cu12==12.1.105\r\n[pip3] nvidia-cudnn-cu12==9.1.0.70\r\n[pip3] nvidia-cufft-cu12==11.0.2.54\r\n[pip3] nvidia-curand-cu12==10.3.2.106\r\n[pip3] nvidia-cusolver-cu12==11.4.5.107\r\n[pip3] nvidia-cusparse-cu12==12.1.0.106\r\n[pip3] nvidia-dali-cuda120==1.32.0\r\n[pip3] nvidia-ml-py==12.560.30\r\n[pip3] nvidia-nccl-cu12==2.20.5\r\n[pip3] nvidia-nvjitlink-cu12==12.6.77\r\n[pip3] nvidia-nvtx-cu12==12.1.105\r\n[pip3] nvidia-pyindex==1.0.9\r\n[pip3] onnx==1.15.0rc2\r\n[pip3] optree==0.10.0\r\n[pip3] pynvml==11.4.1\r\n[pip3] pytorch-quantization==2.1.2\r\n[pip3] pyzmq==25.1.2\r\n[pip3] torch==2.4.0\r\n[pip3] torch-tensorrt==2.2.0a0\r\n[pip3] torchdata==0.7.0a0\r\n[pip3] torchtext==0.17.0a0\r\n[pip3] torchvision==0.19.0\r\n[pip3] transformers==4.39.3\r\n[pip3] triton==3.0.0\r\n[conda] Could not collect\r\nROCM Version: Could not collect\r\nNeuron SDK Version: N/A\r\nvLLM Version: 0.5.4\r\nvLLM Build Flags:\r\nCUDA Archs: 5.2 6.0 6.1 7.0 7.2 7.5 8.0 8.6 8.7 9.0+PTX; ROCm: Disabled; Neuron: Disabled\r\nGPU Topology:\r\nGPU0    GPU1    GPU2    GPU3    GPU4    GPU5    GPU6    GPU7    NIC0    CPU Affinity    NUMA Affinity   GPU NUMA ID\r\nGPU0     X      NV12    NV12    NV12    NV12    NV12    NV12    NV12    NODE    0-15,32-47      0         N/A\r\nGPU1    NV12     X      NV12    NV12    NV12    NV12    NV12    NV12    NODE    0-15,32-47      0         N/A\r\nGPU2    NV12    NV12     X      NV12    NV12    NV12    NV12    NV12    PXB     0-15,32-47      0         N/A\r\nGPU3    NV12    NV12    NV12     X      NV12    NV12    NV12    NV12    PXB     0-15,32-47      0         N/A\r\nGPU4    NV12    NV12    NV12    NV12     X      NV12    NV12    NV12    SYS     16-31,48-63     1         N/A\r\nGPU5    NV12    NV12    NV12    NV12    NV12     X      NV12    NV12    SYS     16-31,48-63     1         N/A\r\nGPU6    NV12    NV12    NV12    NV12    NV12    NV12     X      NV12    SYS     16-31,48-63     1         N/A\r\nGPU7    NV12    NV12    NV12    NV12    NV12    NV12    NV12     X      SYS     16-31,48-63     1         N/A\r\nNIC0    NODE    NODE    PXB     PXB     SYS     SYS     SYS     SYS      X \r\n\r\nLegend:\r\n\r\n  X    = Self\r\n  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)\r\n  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node\r\n  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)\r\n  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)\r\n  PIX  = Connection traversing at most a single PCIe bridge\r\n  NV#  = Connection traversing a bonded set of # NVLinks\r\n\r\nNIC Legend:\r\n\r\n  NIC0: mlx5_0\r\n\r\n</details>\r\n\r\n\r\n### Model Input Dumps\r\n\r\n_No response_\r\n\r\n### \ud83d\udc1b Describe the bug\r\n\r\n**Example code**\r\n\r\n1. server\r\n`python vllm/vllm/entrypoints/openai/api_server.py -tp 4 --model meta-llama/Llama-2-70b-hf --port 8000 --gpu-memory-utilization 0.8 --trust-remote-code --speculative-model meta-llama/Llama-2-7b-hf --use-v2-block-manager --num_speculative_tokens 1`\r\n\r\n2. completion\r\n```\r\nopenai_api_base = \"http://0.0.0.0:8041/v1\"\r\nclient = OpenAI(base_url=openai_api_base,)\r\n\r\nmodels = client.models.list()\r\nmodel = models.data[0].id\r\n\r\ncompletion = client.completions.create(\r\n        model=model,\r\n        prompt=\"Hello, my name is\",\r\n        echo=False,\r\n        n=1,\r\n        stream=False,\r\n        temperature=0.6,\r\n        top_p=0.6,\r\n        max_tokens=128,\r\n)\r\nprint(completion)\r\n```\r\n\r\n**Bug**\r\n- Setting\r\n  I am running **speculative sampling** with num_speculative_tokens = 1.\r\nIn this setting, verification with target model should sample two logits in parallel.\r\n\r\n- Problem\r\n  - The bug here is that when I print out the top_p value of sampling parameters, \r\n**the first top_p is always fixed to 1,** \r\nwhich affects the acceptance of the token.\r\n(FYI, same with the example above, I used top_p as 0.6)\r\n  - <img src=\"https://github.com/user-attachments/assets/cee62039-77bf-4af1-b795-41ad2610d9f6\" width=\"70%\" height=\"70%\">\r\n\r\n  -  It is also same when the num_speculative_tokens value is different.\r\n The first top_p value is always fixed to 1.\r\n \r\n - The first top_p value should also be set to the specific sampling parameter value that is given as input.\r\n\r\n\r\n- Test setting \r\n  - sampling param: top_p = 0.9 / temperature = 0.6\r\n  - Target model / Draft model : LLaMA3-70B / LLaMA3-8B\r\n\r\n- As-Is \r\n  - sampling param: top_p = 0.9\r\n  - Speculative metrics: Draft acceptance rate: 0.651, System efficiency: 0.825, Number of speculative tokens: 1, Number of accepted tokens: 13496, Number of draft tokens: 20747, Number of emitted tokens: 34243.     \r\n  - Draft probs are filtered, and target probs are not filtered when comparing the probabilities.  \r\n  - <img width=\"478\" alt=\"\u1109\u1173\u110f\u1173\u1105\u1175\u11ab\u1109\u1163\u11ba 2024-11-10 \u110b\u1169\u1112\u116e 8 54 56\" src=\"https://github.com/user-attachments/assets/2326722d-a648-480a-ba0c-de83bc2b0329\">\r\n\r\n- Modified \r\n  -  Speculative metrics: Draft acceptance rate: 0.819, System efficiency: 0.910, Number of speculative tokens: 1, Number of accepted tokens: 15311, Number of draft tokens: 18694, Number of emitted tokens: 34005.\r\n\r\n   - Both draft probs and target probs are filtered  \r\n   - <img width=\"436\" alt=\"\u1109\u1173\u110f\u1173\u1105\u1175\u11ab\u1109\u1163\u11ba 2024-11-10 \u110b\u1169\u1112\u116e 10 03 52\" src=\"https://github.com/user-attachments/assets/5d23c3a2-181e-4ee6-a5cd-fd281d12de57\">\r\n\r\n### Before submitting a new issue...\r\n\r\n- [X] Make sure you already searched for relevant issues, and asked the chatbot living at the bottom right corner of the [documentation page](https://docs.vllm.ai/en/latest/), which can answer lots of frequently asked questions.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "vllm/spec_decode/batch_expansion.py::BatchExpansionTop1Scorer::_create_target_seq_group_metadata"
+  },
+  "rejected_alternates": [
+   "vllm/spec_decode/batch_expansion.py::BatchExpansionTop1Scorer",
+   "vllm/spec_decode/batch_expansion.py::score_proposals",
+   "vllm/spec_decode/batch_expansion.py::_expand_batch"
+  ],
+  "evidence": [
+   {
+    "path": "vllm/spec_decode/batch_expansion.py",
+    "contains": "def _create_target_seq_group_metadata("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance vllm-project__vllm-10198 (vllm-project/vllm @ 0a4d96850), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/vllm-project__vllm-10198",
+  "covariates": {
+   "repo": "vllm-project/vllm",
+   "base_commit": "0a4d96850013eb2c295b25df53177ad2302110ca",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 9994,
+   "corpus_fingerprint": {
+    "sha256": "6e6a029d19222762b6250978a0381a80b175435c08b500dd6aa31754cebe8773",
+    "files": 1443
+   }
+  }
+ },
+ {
+  "id": "vllm-project__vllm-9846",
+  "category": "Performance Issue",
+  "set": "holdout",
+  "question": "[Feature]: CI - Split up \"Models Test\" and \"Vision Language Models Test\"\n### \ud83d\ude80 The feature, motivation and pitch\r\n\r\nTakes 1 hour+ on CI compared to others, which take <~30 min. Thus, ends up being a bottleneck\r\n\r\nSo, should be split up similar to kernels\r\n\r\nCC: @khluu\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "examples/offline_inference_vision_language.py::run_qwen2_vl"
+  },
+  "rejected_alternates": [
+   "examples/offline_inference_vision_language.py::run_llava",
+   "examples/offline_inference_vision_language.py::run_llava_next",
+   "examples/offline_inference_vision_language.py::run_llava_next_video"
+  ],
+  "evidence": [
+   {
+    "path": "examples/offline_inference_vision_language.py",
+    "contains": "def run_qwen2_vl(question: str, modality: str):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance vllm-project__vllm-9846 (vllm-project/vllm @ 5608e611c), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/vllm-project__vllm-9846",
+  "covariates": {
+   "repo": "vllm-project/vllm",
+   "base_commit": "5608e611c2116cc17c6808b2ae1ecb4a3e263493",
+   "gold_cardinality": 1,
+   "locbench_category": "Performance Issue",
+   "names_target": false,
+   "statement_chars": 268,
+   "corpus_fingerprint": {
+    "sha256": "b02d02a53b489614106b7d7889ff4eecd71557f8540cc041ed5a032e4143ce01",
+    "files": 1325
+   }
+  }
+ },
+ {
+  "id": "vllm-project__vllm-7783",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "[Feature]: phi-3.5 is a strong model for its size, including vision support.  Has multi-image support, but vllm does not support\n### \ud83d\ude80 The feature, motivation and pitch\n\nphi-3.5 is a strong model for its size, including strong multi-image vision support.   But vllm does not support the multi-image case.\r\n\r\nhttps://github.com/vllm-project/vllm/blob/03b7bfb79b1edf54511fd1b12acc9a875cee5656/vllm/model_executor/models/phi3v.py#L421-L425\n\n### Alternatives\n\nOnly other models\n\n### Additional context\n\n_No response_\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "vllm/model_executor/models/phi3v.py::input_processor_for_phi3v"
+  },
+  "rejected_alternates": [
+   "vllm/model_executor/models/phi3v.py::Phi3VImagePixelInputs",
+   "vllm/model_executor/models/phi3v.py::Phi3VImageEmbeddingInputs",
+   "vllm/model_executor/models/phi3v.py::Phi3ImageEmbeddingBase"
+  ],
+  "evidence": [
+   {
+    "path": "vllm/model_executor/models/phi3v.py",
+    "contains": "def input_processor_for_phi3v(ctx: InputContext, llm_inputs: LLMInputs):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance vllm-project__vllm-7783 (vllm-project/vllm @ 80162c44b), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/vllm-project__vllm-7783",
+  "covariates": {
+   "repo": "vllm-project/vllm",
+   "base_commit": "80162c44b1d1e59a2c10f65b6adb9b0407439b1f",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": true,
+   "statement_chars": 512,
+   "corpus_fingerprint": {
+    "sha256": "5ed67ffb1e452de3695889f8430b06f3086407cb8fb6da4a1b24f6627e426428",
+    "files": 1084
+   }
+  }
+ },
+ {
+  "id": "django__django-18986",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "Add support for CompositePrimaryKey in inspectdb\nDescription\n\t \nWe can now replace the \u200bhalf-measure created when introspecting a composite primary key with the actual field.\n\u200bPR\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/core/management/commands/inspectdb.py::Command::handle_inspection"
+  },
+  "rejected_alternates": [
+   "django/core/management/commands/inspectdb.py::Command",
+   "django/core/management/commands/inspectdb.py::add_arguments",
+   "django/core/management/commands/inspectdb.py::handle"
+  ],
+  "evidence": [
+   {
+    "path": "django/core/management/commands/inspectdb.py",
+    "contains": "def handle_inspection(self, options):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18986 (django/django @ 987854ba4), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18986",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "987854ba44b497b195536199f8f6d1dc440a43ca",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": false,
+   "statement_chars": 178,
+   "corpus_fingerprint": {
+    "sha256": "897a1ea61b533409e2bb70261b8843ed6bc29ef3abdf5e7c7a3260850ddf7039",
+    "files": 6867
+   }
+  }
+ },
+ {
+  "id": "django__django-18941",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "Urlize incorrectly handles punctuation in email addresses\nDescription\n\t \nSeveral punctuation characters (%, &, +, !, etc.) can\u2014and sometimes do\u2014appear in the local part of an email address (before the @). The urlize template filter doesn't correctly encode them, which can result in broken mailto links.\nExample (Django 5.1.4):\nfrom django.template.defaultfilters import urlize\nurlize(\"it%dept@example.org\")\n# '<a href=\"mailto:it%dept@example.org\">it%dept@example.org</a>'\n# Expected:\n# '<a href=\"mailto:it%25dept@example.org\">it%dept@example.org</a>'\nClicking the resulting mailto link might work as expected, or do nothing, or could launch a mail composer with a missing or incorrect email address, depending on the specific address, browser and email app. Sequences that could also be percent-encoded characters (like \"%de\" in the example) are especially prone to unpredictable results.\nThe mailto URI spec \u200bRFC 6068 requires percent encoding most punctuation in this situation (section 2, item 1; also see section 5, Encoding).\nProposed fix: apply urllib.parse.quote() to local where the \u200bmailto link is constructed in django.utils.html.Urlizer. (Although not strictly necessary, it wouldn't hurt to also quote domain there.)\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/utils/html.py::Urlizer::handle_word"
+  },
+  "rejected_alternates": [
+   "django/utils/html.py::escape",
+   "django/utils/html.py::escapejs",
+   "django/utils/html.py::json_script"
+  ],
+  "evidence": [
+   {
+    "path": "django/utils/html.py",
+    "contains": "def handle_word("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18941 (django/django @ 94436dee5), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18941",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "94436dee57ce677e6ffcbb0438e0441d5c261d62",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": false,
+   "statement_chars": 1229,
+   "corpus_fingerprint": {
+    "sha256": "f1fc4a15e1a1686093b012a43d39cca7378981956cf807761deb0bb74ecdd0e5",
+    "files": 6867
+   }
+  }
+ },
+ {
+  "id": "django__django-18911",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "Changing output_field for GeneratedField leads to ProgrammingError with Postgres 16.5+\nDescription\n\t \nConsider the following model and assume the initial migration has been applied:\nclass Order(models.Model): \n\torder_no = models.IntegerField() \n\titem_no = models.CharField(max_length=25) \n\tqty = models.IntegerField() \n\tcost = models.DecimalField(max_digits=10, decimal_places=2) \n\ttotal_cost = models.GeneratedField( \n\t\texpression=F(\"cost\") * F(\"qty\"), \n\t\toutput_field=models.BigIntegerField(), \n\t\tdb_persist=True, \n\t)\nDuring a code review we determined the output field should be a Decimal field and the field was modified as follows:\ntotal_cost = models.GeneratedField( \n\texpression=F(\"cost\") * F(\"qty\"), \n\toutput_field=models.DecimalField(decimal_places=2, max_digits=16), \n\tdb_persist=True, \n)\nAnd a new migration was generated:\nmigrations.AlterField( \n\tmodel_name='order', \n\tname='total_cost', \n\tfield=models.GeneratedField(db_persist=True, expression=django.db.models.expressions.CombinedExpression(models.F('cost'), '*', models.F('qty')), output_field=models.DecimalField(decimal_places=2, max_digits=16)), \n),\nIn Postgres 16.4 and earlier, this migration is applied without error. (I'm aware that the value of the total_cost field is not recomputed for existing records when this migration is applied.).\nStarting with Postgres 16.5 and up, this migration fails with the following error:\npsycopg2.errors.InvalidColumnDefinition: cannot specify USING when altering type of generated column\nDETAIL: Column \"total_cost\" is a generated column.\n...\ndjango.db.utils.ProgrammingError: cannot specify USING when altering type of generated column\nThis appears to be a result of the following change in Postgres 16.5 (\u200brelease notes): \nDisallow a\u00a0USING\u00a0clause when altering the type of a generated column (Peter Eisentraut)\u00a0[\u00a7](\u200bhttps://postgr.es/c/5867ee005)\nA generated column already has an expression specifying the column contents, so including\u00a0USING\u00a0doesn't make sense.\nThe Django \u200bdocumentation for GeneratedField makes it clear that \nThere are many database-specific restrictions on generated fields that Django doesn\u2019t validate and the database may raise an error\nFor this reason, I almost didn't open a ticket. However, there is logic in db/backends/base/schema.py that checks if the expression of a GeneratedField changed. Consider this migration (which changes the expression from multiplication to addition):\nmigrations.AlterField( \n\tmodel_name='order', \n\tname='total_cost', \n\tfield=models.GeneratedField(db_persist=True, expression=django.db.models.expressions.CombinedExpression(models.F('cost'), '+', models.F('qty')), output_field=models.BigIntegerField()), \n),\nAttempting to apply this migration will raise the following error (even in Postgres 16.4):\nValueError: Modifying GeneratedFields is not supported - the field sales.Order.total_cost must be removed and re-added with the new definition.\nThis error is more helpful. It explains the problem better and even suggests a workaround.\nShould we throw a similar error if the output_field of a GeneratedField is changed? Or add a tip to the documentation?\nThe above was tested with:\nDjango version 5.1.3\npsycopg2 version 2.9.10\nPostgres versions: 16.4, 16.5, 16.6, 17.0, and 17.2\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/db/backends/postgresql/schema.py::DatabaseSchemaEditor::_using_sql"
+  },
+  "rejected_alternates": [
+   "django/db/backends/postgresql/schema.py::DatabaseSchemaEditor",
+   "django/db/backends/postgresql/schema.py::execute",
+   "django/db/backends/postgresql/schema.py::quote_value"
+  ],
+  "evidence": [
+   {
+    "path": "django/db/backends/postgresql/schema.py",
+    "contains": "def _using_sql(self, new_field, old_field):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18911 (django/django @ 5e998d717), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18911",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "5e998d717f7b4220a1728bd49b66ca0162e2a6cb",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 3245,
+   "corpus_fingerprint": {
+    "sha256": "88f76f726c5c2229b9f9101a4fa3a421f5804754e1b54a66b6f1a545098c9887",
+    "files": 6863
+   }
+  }
+ },
+ {
+  "id": "django__django-18846",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "sqlmigrate prevents normal colorization of system checks\nDescription\n\t \nsqlmigrate forces no_color=True for the sake of not colorizing the sql keywords BEGIN; and COMMIT;, but this has the side effect of preventing system check output from being colorized.\n(To reproduce, begin with a project that will emit a system check, and run sqlmigrate.)\nSuggesting a small \u200bPR to preserve the non-colorization of BEGIN; and COMMIT; while still colorizing system checks.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/core/management/commands/sqlmigrate.py::Command::execute"
+  },
+  "rejected_alternates": [
+   "django/core/management/commands/sqlmigrate.py::Command",
+   "django/core/management/commands/sqlmigrate.py::add_arguments",
+   "django/core/management/commands/sqlmigrate.py::handle"
+  ],
+  "evidence": [
+   {
+    "path": "django/core/management/commands/sqlmigrate.py",
+    "contains": "def execute(self, *args, **options):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18846 (django/django @ 857b1048d), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18846",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "857b1048d53ebf5fc5581c110e85c212b81ca83a",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": false,
+   "statement_chars": 460,
+   "corpus_fingerprint": {
+    "sha256": "e592b897c97c068c8d56767dad18c6bb09d34ba0345c480172fc0c084adf37fa",
+    "files": 6839
+   }
+  }
+ },
+ {
+  "id": "django__django-18796",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "\"view on site\" URL doesn't accept non-integer ContentType pks\nDescription\n\t \nMost admin URL paths use the path converter to allow any type of ID, however, the \"view on site\" uses the int converter for content_type_id.\nThis doesn't work on MongoDB which uses ObjectIdAutoField (bson.ObjectId) for all models since AutoField isn't supported.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/contrib/admin/sites.py::AdminSite::get_urls"
+  },
+  "rejected_alternates": [
+   "django/contrib/admin/sites.py::AdminSite",
+   "django/contrib/admin/sites.py::__init__",
+   "django/contrib/admin/sites.py::__repr__"
+  ],
+  "evidence": [
+   {
+    "path": "django/contrib/admin/sites.py",
+    "contains": "def get_urls(self):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18796 (django/django @ 63dbe30d3), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18796",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "63dbe30d3363715deaf280214d75b03f6d65a571",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": false,
+   "statement_chars": 339,
+   "corpus_fingerprint": {
+    "sha256": "e36ccf24a4a989fa021bcdc61fbcc8f1f83c6acadbc7bd0244ea918b8ea9e32e",
+    "files": 6839
+   }
+  }
+ },
+ {
+  "id": "django__django-18795",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "System check for default database values with expressions prohibits non-expressions\nDescription\n\t \nSince its introduction in Django 5.0, \u200bthe fields.E011 system check for database backends that have DatabaseFeatures.supports_expression_defaults = False \u200brequires literal defaults to be wrapped in Value.\nThere are a number of test models that have \u200bint, float and \u200bstring db_defaults that will raise a system check error if DatabaseFeatures.supports_expression_defaults = False\nsince these models don't have required_db_features = {\"supports_expression_defaults\"}.\nI'm working on MongoDB which doesn't support any database defaults, literal or expressions.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/db/models/fields/__init__.py::Field::_check_db_default"
+  },
+  "rejected_alternates": [
+   "django/db/models/fields/__init__.py::Empty",
+   "django/db/models/fields/__init__.py::NOT_PROVIDED",
+   "django/db/models/fields/__init__.py::_load_field"
+  ],
+  "evidence": [
+   {
+    "path": "django/db/models/fields/__init__.py",
+    "contains": "def _check_db_default(self, databases=None, **kwargs):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18795 (django/django @ 2bc43ccbd), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18795",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "2bc43ccbdb28b9d87da172ef119ff3b48e6ff71a",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 656,
+   "corpus_fingerprint": {
+    "sha256": "69bdf43f12adea3b23225ebb2bed8f7e50de64abd8829c5b6860d46b01a9d733",
+    "files": 6839
+   }
+  }
+ },
+ {
+  "id": "django__django-18653",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "Improve non-first {% extends %} error message\nDescription\n\t \nCurrently if you put {% extends %} after another tag, the error looks like:\nTemplateSyntaxError: <ExtendsNode: extends 'base.html'> must be the first tag in the template.\nExtendsNode is a leaked internal detail. Showing its repr() is a bit confusing, especially for a beginner programmer.\nThe message would be clearer if it showed the actual text of the tag:\nTemplateSyntaxError: {% extends 'base.html' %} must be the first tag in the template.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/template/base.py::Parser::extend_nodelist"
+  },
+  "rejected_alternates": [
+   "django/template/base.py::TokenType",
+   "django/template/base.py::VariableDoesNotExist",
+   "django/template/base.py::__init__"
+  ],
+  "evidence": [
+   {
+    "path": "django/template/base.py",
+    "contains": "def extend_nodelist(self, nodelist, node, token):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-18653 (django/django @ e970bb7ca), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-18653",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "e970bb7ca71c00594b42a024a15a8ac007cc2c7a",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": false,
+   "statement_chars": 505,
+   "corpus_fingerprint": {
+    "sha256": "10c85b60c6c26fd32e548e04d8ad9f7ac2f30d6b4d9170c8b53d361dc1a17a29",
+    "files": 6834
+   }
+  }
+ },
+ {
+  "id": "django__django-17885",
+  "category": "Performance Issue",
+  "set": "holdout",
+  "question": "Make ModelAdmin.search_fields raise data errors on __exact lookups for non-string fields.\nDescription\n\t \nCurrently, \u200ball queries are done as string lookups which gives something like this on PostgreSQL, for example: (\"admin_views_pluggablesearchperson\".\"age\"::text) = UPPER(20)). It would be more efficient if the admin cast the search value to an integer and used that for the query.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "django/contrib/admin/options.py::ModelAdmin::get_search_results"
+  },
+  "rejected_alternates": [
+   "django/contrib/admin/options.py::ShowFacets",
+   "django/contrib/admin/options.py::get_content_type_for_model",
+   "django/contrib/admin/options.py::get_ul_class"
+  ],
+  "evidence": [
+   {
+    "path": "django/contrib/admin/options.py",
+    "contains": "def get_search_results(self, request, queryset, search_term):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance django__django-17885 (django/django @ 03c0a3de7), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/django__django-17885",
+  "covariates": {
+   "repo": "django/django",
+   "base_commit": "03c0a3de722c4a7de9f3edfeb26417ebc8b90fe9",
+   "gold_cardinality": 1,
+   "locbench_category": "Performance Issue",
+   "names_target": true,
+   "statement_chars": 384,
+   "corpus_fingerprint": {
+    "sha256": "0c580a88912fb313b4523dd03e7588efbca73ff9174782031a0cf184d575bc00",
+    "files": 6838
+   }
+  }
+ },
+ {
+  "id": "prowler-cloud__prowler-6119",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "False positive on `wafv2_webacl_with_rules` when when ACL provisioned with AWS Firewall Manager\n### Steps to Reproduce\r\n\r\n1. Depoloy ACL with AWS Firewall Manager including any rule group\r\n2. Run prowler against AWS account where ACL is provisioned with Firewall Manager\r\n3. Prowler will add that ACL as failed because the list of managed rules is empty, but it has AWS Firewall Manager provisioned rules\r\n\r\n\r\n### Expected behavior\r\n\r\nit's expected that ACL is managed centrally and may not have rules added directly\r\n\r\n### Actual Result with Screenshots or Logs\r\n\r\n![image](https://github.com/user-attachments/assets/bc4da90e-caf6-4748-9fd1-1cef8e4e41f4)\r\n\r\n![image](https://github.com/user-attachments/assets/54640d49-5e58-44c6-9801-3c1bd1fe9343)\r\n\r\n\r\n\r\n### How did you install Prowler?\r\n\r\nFrom pip package (pip install prowler)\r\n\r\n### Environment Resource\r\n\r\n4. EKS\r\n\r\n### OS used\r\n\r\n1. Amazon Linux 2023\r\n\r\n### Prowler version\r\n\r\n5.0.0\r\n\r\n### Pip version\r\n\r\n24.0\r\n\r\n### Context\r\n\r\n_No response_\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "prowler/providers/aws/services/wafv2/wafv2_service.py::WAFv2::_get_web_acl"
+  },
+  "rejected_alternates": [
+   "prowler/providers/aws/services/wafv2/wafv2_service.py::WAFv2",
+   "prowler/providers/aws/services/wafv2/wafv2_service.py::__init__",
+   "prowler/providers/aws/services/wafv2/wafv2_service.py::_list_web_acls_global"
+  ],
+  "evidence": [
+   {
+    "path": "prowler/providers/aws/services/wafv2/wafv2_service.py",
+    "contains": "def _get_web_acl(self, acl: str):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance prowler-cloud__prowler-6119 (prowler-cloud/prowler @ b984f0423), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/prowler-cloud__prowler-6119",
+  "covariates": {
+   "repo": "prowler-cloud/prowler",
+   "base_commit": "b984f0423a8ad80fffd5b9dc4853b034f4d5211e",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 998,
+   "corpus_fingerprint": {
+    "sha256": "16ab85d6e66c2766d1f692d9ed7610861e25f7056cf29a9584e8fa4c0499b211",
+    "files": 4920
+   }
+  }
+ },
+ {
+  "id": "prowler-cloud__prowler-5933",
+  "category": "Performance Issue",
+  "set": "holdout",
+  "question": "Prowler scan stuck on cloudtrail_threat_detection checks\n### Steps to Reproduce\n\nCommand: prowler aws --log-level DEBUG. \r\nCloud provider: aws\r\nEnvironment: SecurityAudit and ReadOnlyAccess levels to a single organization. Trying to run it using the security audit credentials. \r\nError: Program seems to hang up on cloudtrail_threat_detection_enumeration and cloudtrail_threat_detection_privilege_escalation tests\n\n### Expected behavior\n\nI entered my credentials and started the scan and it worked for a while until test 81 (cloudtrail_threat_detection_enumeration). I thought it was just getting hung up on that one test so i used the -e flag and targeted that test, then it started getting hung up on the cloudtrail_threat_detection_privilege_escalation. I've let it run for 15 minutes and it keeps getting stuck each time.\n\n### Actual Result with Screenshots or Logs\n\n![image](https://github.com/user-attachments/assets/e542e3e2-3459-4ba3-b692-971f87694d94)\r\n\n\n### How did you install Prowler?\n\nFrom pip package (pip install prowler)\n\n### Environment Resource\n\n7. Workstation\n\n### OS used\n\nUbutnu WSL\n\n### Prowler version\n\nProwler 4.6.0\n\n### Pip version\n\npip 24.0\n\n### Context\n\nFirst time using tool. Tried to read documentation / other issue requests to help fix issue myself.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "prowler/lib/check/checks_loader.py::load_checks_to_execute"
+  },
+  "rejected_alternates": [
+   "prowler/lib/check/checks_loader.py::update_checks_to_execute_with_aliases"
+  ],
+  "evidence": [
+   {
+    "path": "prowler/lib/check/checks_loader.py",
+    "contains": "def load_checks_to_execute("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance prowler-cloud__prowler-5933 (prowler-cloud/prowler @ b69a0d513), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/prowler-cloud__prowler-5933",
+  "covariates": {
+   "repo": "prowler-cloud/prowler",
+   "base_commit": "b69a0d51373572e33b3c416f8e73dae80735aeaa",
+   "gold_cardinality": 1,
+   "locbench_category": "Performance Issue",
+   "names_target": true,
+   "statement_chars": 1280,
+   "corpus_fingerprint": {
+    "sha256": "457e268e16d6b456f992d3f73c99aebe75f29c21dd6d0970f45eabc6dff387ae",
+    "files": 4875
+   }
+  }
+ },
+ {
+  "id": "prowler-cloud__prowler-5930",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "Could not run with argurment \"-s lambda\" or \"-s awslambda\"\n### Steps to Reproduce\n\nexport LOG_LEVEL=INFO && python prowler.py aws -s lambda\r\n\r\n\n\n### Expected behavior\n\nProwler should scan for awslambda service\n\n### Actual Result with Screenshots or Logs\n\n2024-11-27 13:57:25,877 [File: __main__.py:280]         [Module: __main__]       ERROR: There are no checks to execute. Please, check your input arguments\r\n\n\n### How did you install Prowler?\n\nCloning the repository from github.com (git clone)\n\n### Environment Resource\n\nLocal PC\n\n### OS used\n\nMacOS Sonoma 14.6.1\n\n### Prowler version\n\nProwler 5.0.0 (You are running the latest version, yay!)\n\n### Pip version\n\npip 24.3.1 \n\n### Context\n\n_No response_\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "prowler/lib/check/models.py::CheckMetadata::list_by_service"
+  },
+  "rejected_alternates": [
+   "prowler/lib/check/models.py::Code",
+   "prowler/lib/check/models.py::Recommendation",
+   "prowler/lib/check/models.py::Remediation"
+  ],
+  "evidence": [
+   {
+    "path": "prowler/lib/check/models.py",
+    "contains": "def list_by_service(bulk_checks_metadata: dict, service: str = None) -> set:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance prowler-cloud__prowler-5930 (prowler-cloud/prowler @ 03db9d3f7), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/prowler-cloud__prowler-5930",
+  "covariates": {
+   "repo": "prowler-cloud/prowler",
+   "base_commit": "03db9d3f74372f71da8dc14a6aca151727b7df55",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 704,
+   "corpus_fingerprint": {
+    "sha256": "2acdaacf610970f21fc34c009ae7dad19dee1f4fee60c17283a9b47aaed2cb64",
+    "files": 4875
+   }
+  }
+ },
+ {
+  "id": "prowler-cloud__prowler-5961",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "rds_service.py error\n### Steps to Reproduce\n\n1. Running prowler aws -log-level ERROR\r\n2. AWS\r\n3. Single Account\n\n### Expected behavior\n\nTo execute without throwing the error\n\n### Actual Result with Screenshots or Logs\n\n2024-11-28 10:20:18,851 [File: rds_service.py:458] [Module: rds_service] ERROR: eu-west-2 -- KeyError[449]: 'SourceType'\r\n\r\nWe have an postgress RDS 16.3 instance in eu-west-2 and the script is throwing this error\n\n### How did you install Prowler?\n\nFrom pip package (pip install prowler)\n\n### Environment Resource\n\n2. ECS Fargate task\n\n### OS used\n\n3. Alpine Linux\n\n### Prowler version\n\n4.6.0\n\n### Pip version\n\nna\n\n### Context\n\n_No response_\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "prowler/providers/aws/services/rds/rds_service.py::RDS::_describe_db_event_subscriptions"
+  },
+  "rejected_alternates": [
+   "prowler/providers/aws/services/rds/rds_service.py::RDS",
+   "prowler/providers/aws/services/rds/rds_service.py::__init__",
+   "prowler/providers/aws/services/rds/rds_service.py::_get_rds_arn_template"
+  ],
+  "evidence": [
+   {
+    "path": "prowler/providers/aws/services/rds/rds_service.py",
+    "contains": "def _describe_db_event_subscriptions(self, regional_client):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance prowler-cloud__prowler-5961 (prowler-cloud/prowler @ 6dea92386), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/prowler-cloud__prowler-5961",
+  "covariates": {
+   "repo": "prowler-cloud/prowler",
+   "base_commit": "6dea923866a3ab77b58e3fd3c8457f6bb67fb254",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": false,
+   "statement_chars": 660,
+   "corpus_fingerprint": {
+    "sha256": "9ae8dbe482d1ebfd99a0d94660703db0fc698a4410dd180e0182998879db8714",
+    "files": 4879
+   }
+  }
+ },
+ {
+  "id": "prowler-cloud__prowler-5814",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "CIS 1.8 5.7.2 fails even though seccomp profile is set to runTimeDefault\n### Steps to Reproduce\n\n1. Create a Pod with securityContext.seccompProfile.type: RunTimeDefault\r\n2. Run Prowler\r\n3. Prowler will complain on \"Pod <pod name> does not have docker/default seccomp profile enabled.\"\n\n### Expected behavior\n\nCIS 1.8 5.7.2 states \"Remediation: Use securityContext to enable the docker/default seccomp profile in your pod definitions. An example is as below: securityContext: seccompProfile: type: RuntimeDefault\"\r\n\r\nFrom the Talos documentation (from version 1.2.0 and above): Talos now runs Kubelet with the CRI default Seccomp Profile enabled.\r\nThis can be disabled by setting .machine.kubelet.defaultRuntimeSeccompProfileEnabled to false.\r\n\r\nI've checked that its set to true on all nodes.\n\n### Actual Result with Screenshots or Logs\n\npod manifest\r\n```\r\nkubectl -n kube-system get pod kube-apiserver-controlplane1 -ojsonpath='{.spec.containers[*].securityContext}'\r\n\r\n{\"allowPrivilegeEscalation\":false,\"capabilities\":{\"add\":[\"NET_BIND_SERVICE\"],\"drop\":[\"ALL\"]},\"seccompProfile\":{\"type\":\"RuntimeDefault\"}}\r\n```\r\n\r\nprowler json\r\n```\r\n\"message\": \"Pod kube-apiserver-controlplane1 does not have docker/default seccomp profile enabled.\",\r\n    \"status_detail\": \"Pod kube-apiserver-controlplane1 does not have docker/default seccomp profile enabled.\",\r\n```\n\n### How did you install Prowler?\n\nFrom brew (brew install prowler)\n\n### Environment Resource\n\nWorkstation\n\n### OS used\n\nmacOS 15.1\n\n### Prowler version\n\n4.5.3\n\n### Pip version\n\n24.3.1\n\n### Context\n\n_No response_\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "prowler/providers/kubernetes/services/core/core_seccomp_profile_docker_default/core_seccomp_profile_docker_default.py::core_seccomp_profile_docker_default::execute"
+  },
+  "rejected_alternates": [
+   "prowler/providers/kubernetes/services/core/core_seccomp_profile_docker_default/core_seccomp_profile_docker_default.py::core_seccomp_profile_docker_default"
+  ],
+  "evidence": [
+   {
+    "path": "prowler/providers/kubernetes/services/core/core_seccomp_profile_docker_default/core_seccomp_profile_docker_default.py",
+    "contains": "def execute(self) -> Check_Report_Kubernetes:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance prowler-cloud__prowler-5814 (prowler-cloud/prowler @ 572d5a1f2), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/prowler-cloud__prowler-5814",
+  "covariates": {
+   "repo": "prowler-cloud/prowler",
+   "base_commit": "572d5a1f2e2bd336c40721324a159f18fd413a58",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": false,
+   "statement_chars": 1566,
+   "corpus_fingerprint": {
+    "sha256": "57500b0c16d6c888b8780cc28ba589eaa9400329ae61fc38a9ecc618c86ca973",
+    "files": 4461
+   }
+  }
+ },
+ {
+  "id": "prowler-cloud__prowler-5811",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "Invalid WAF arn\n### Steps to Reproduce\n\nRun prowler on Docker against an account with global WAF enabled.\n\n### Expected behavior\n\nTo pass\n\n### Actual Result with Screenshots or Logs\n\n2024-11-18 10:09:43,933 [File: wafv2_service.py:122]    [Module: wafv2_service]  ERROR: us-east-1 -- WAFInvalidParameterException[105]: An error occurred (WAFInvalidParameterException) when calling the ListResourcesForWebACL operation: Error reason: The ARN isn't valid. A valid ARN begins with arn: and includes other information separated by colons or slashes., field: RESOURCE_ARN, parameter: arn:aws:wafv2:us-east-1:xxxxx:global/webacl/xxx/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxxx\r\n\r\n2024-11-18 10:09:43,934 [File: wafv2_service.py:122]    [Module: wafv2_service]  ERROR: us-east-1 -- WAFInvalidParameterException[105]: An error occurred (WAFInvalidParameterException) when calling the ListResourcesForWebACL operation: Error reason: The ARN isn't valid. A valid ARN begins with arn: and includes other information separated by colons or slashes., field: RESOURCE_ARN, parameter: arn:aws:wafv2:us-east-1:xxxxx:global/webacl/xxx/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxxx\r\n\r\n2024-11-18 10:09:43,938 [File: wafv2_service.py:122]    [Module: wafv2_service]  ERROR: us-east-1 -- WAFInvalidParameterException[105]: An error occurred (WAFInvalidParameterException) when calling the ListResourcesForWebACL operation: Error reason: The ARN isn't valid. A valid ARN begins with arn: and includes other information separated by colons or slashes., field: RESOURCE_ARN, parameter: arn:aws:wafv2:us-east-1:xxxxx:global/webacl/xxx/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxxx\n\n### How did you install Prowler?\n\nDocker (docker pull toniblyx/prowler)\n\n### Environment Resource\n\n3. Docker container locally\n\n### OS used\n\nOne inside docker\n\n### Prowler version\n\n4.5.3\n\n### Pip version\n\none inside docker image\n\n### Context\n\nWe have three global WAF, and three regional WAF. The three regional works, and the three global throws an malformed arn error.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "prowler/providers/aws/services/wafv2/wafv2_service.py::WAFv2::_list_resources_for_web_acl"
+  },
+  "rejected_alternates": [
+   "prowler/providers/aws/services/wafv2/wafv2_service.py::WAFv2",
+   "prowler/providers/aws/services/wafv2/wafv2_service.py::__init__",
+   "prowler/providers/aws/services/wafv2/wafv2_service.py::_list_web_acls_global"
+  ],
+  "evidence": [
+   {
+    "path": "prowler/providers/aws/services/wafv2/wafv2_service.py",
+    "contains": "def _list_resources_for_web_acl(self, acl):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance prowler-cloud__prowler-5811 (prowler-cloud/prowler @ 193b79c22), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/prowler-cloud__prowler-5811",
+  "covariates": {
+   "repo": "prowler-cloud/prowler",
+   "base_commit": "193b79c221275c59b9979bc2b47d53a0f04e32fc",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 2006,
+   "corpus_fingerprint": {
+    "sha256": "939dbdadb8b7a9d91c46bff90d68ffe58cedfc5b8efff0b414102bafd6c6215e",
+    "files": 4457
+   }
+  }
+ },
+ {
+  "id": "vllm-project__vllm-11138",
+  "category": "Feature Request",
+  "set": "holdout",
+  "question": "[Feature]: Allow Ray placement group more time to wait for resources to be ready\n### \ud83d\ude80 The feature, motivation and pitch\n\n```\r\nray start --head --dashboard-host 0.0.0.0 --disable-usage-stats --block  --num-gpus 1\r\n\r\npython -m vllm.entrypoints.openai.api_server     --model Qwen/Qwen2.5-1.5B-Instruct     --trust-remote-code     --distributed-executor-backend ray     --tensor-parallel-size 2\r\n```\r\n\r\nI am using a ray cluster as the distributed executor backend. However, my cluster sometimes takes time to be ready. there are multiple reasons\r\n- image downloading speed is different, some node has image cache and some does not.\r\n- node short of resources, node level autoscaler will make decision to bring up more nodes but it takes time for new ray node to join and form a cluster\r\n\r\nI do not want the engine to early exit. \r\n\r\n![image](https://github.com/user-attachments/assets/7a621963-21fb-4f16-9573-71299e951bad)\r\n\r\n![image](https://github.com/user-attachments/assets/5b06c173-1465-4675-a5a0-2627a3b8b18d)\r\n\n\n### Alternatives\n\n_No response_\n\n### Additional context\n\n_No response_\n\n### Before submitting a new issue...\n\n- [X] Make sure you already searched for relevant issues, and asked the chatbot living at the bottom right corner of the [documentation page](https://docs.vllm.ai/en/latest/), which can answer lots of frequently asked questions.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "vllm/executor/ray_utils.py::initialize_ray_cluster"
+  },
+  "rejected_alternates": [
+   "vllm/executor/ray_utils.py::RayWorkerWrapper",
+   "vllm/executor/ray_utils.py::__init__",
+   "vllm/executor/ray_utils.py::get_node_ip"
+  ],
+  "evidence": [
+   {
+    "path": "vllm/executor/ray_utils.py",
+    "contains": "def initialize_ray_cluster("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance vllm-project__vllm-11138 (vllm-project/vllm @ 85362f028), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/vllm-project__vllm-11138",
+  "covariates": {
+   "repo": "vllm-project/vllm",
+   "base_commit": "85362f028c0324d8d00b0438f29c3d9f64737b9a",
+   "gold_cardinality": 1,
+   "locbench_category": "Feature Request",
+   "names_target": true,
+   "statement_chars": 1354,
+   "corpus_fingerprint": {
+    "sha256": "b625ffbe5aaf11df698b22ca63ef09497543da593a6a12d0ec891c7aabcdae31",
+    "files": 1513
+   }
+  }
+ },
+ {
+  "id": "vllm-project__vllm-11073",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "[Bug]: Internal Server Error when echo'ing logprobs with sampling\n### Your current environment\r\n\r\n<details>\r\n<summary>The output of `python collect_env.py`</summary>\r\n\r\n```text\r\nYour output of `python collect_env.py` here\r\n```\r\n\r\n</details>\r\n\r\n\r\n### Model Input Dumps\r\n\r\n_No response_\r\n\r\n### \ud83d\udc1b Describe the bug\r\n\r\nSending an request that asks for prompt logprobs while also specifying certain sampling parameters can result in an Internal Server Error.  For example:\r\n```\r\ncurl -v http://localhost:8000/v1/completions \\\r\n  -H \"Content-Type: application/json\" \\\r\n  -d '{\r\n      \"model\": \"meta-llama/Llama-3.2-1B\",\r\n      \"prompt\": \"correct horse battery staple\",\r\n      \"echo\": 1,\r\n      \"logprobs\": 1,\r\n      \"temperature\": 1,\r\n      \"top_k\": 1\r\n  }'\r\n```\r\n\r\nResults in this stack trace:\r\n```\r\nINFO:     ::1:47926 - \"POST /v1/completions HTTP/1.1\" 500 Internal Server Error\r\nERROR:    Exception in ASGI application\r\nTraceback (most recent call last):\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py\", line 401, in run_asgi\r\n    result = await app(  # type: ignore[func-returns-value]\r\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/uvicorn/middleware/proxy_headers.py\", line 60, in __call__\r\n    return await self.app(scope, receive, send)\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/fastapi/applications.py\", line 1054, in __call__\r\n    await super().__call__(scope, receive, send)\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/applications.py\", line 113, in __call__\r\n    await self.middleware_stack(scope, receive, send)\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/middleware/errors.py\", line 187, in __call__\r\n    raise exc\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/middleware/errors.py\", line 165, in __call__\r\n    await self.app(scope, receive, _send)\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/middleware/cors.py\", line 85, in __call__\r\n    await self.app(scope, receive, send)\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/middleware/exceptions.py\", line 62, in __call__\r\n    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/_exception_handler.py\", line 53, in wrapped_app\r\n    raise exc\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/_exception_handler.py\", line 42, in wrapped_app\r\n    await app(scope, receive, sender)\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/routing.py\", line 715, in __call__\r\n    await self.middleware_stack(scope, receive, send)\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/routing.py\", line 735, in app\r\n    await route.handle(scope, receive, send)\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/routing.py\", line 288, in handle\r\n    await self.app(scope, receive, send)\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/routing.py\", line 76, in app\r\n    await wrap_app_handling_exceptions(app, request)(scope, receive, send)\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/_exception_handler.py\", line 53, in wrapped_app\r\n    raise exc\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/_exception_handler.py\", line 42, in wrapped_app\r\n    await app(scope, receive, sender)\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/routing.py\", line 73, in app\r\n    response = await f(request)\r\n               ^^^^^^^^^^^^^^^^\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/fastapi/routing.py\", line 301, in app\r\n    raw_response = await run_endpoint_function(\r\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/fastapi/routing.py\", line 212, in run_endpoint_function\r\n    return await dependant.call(**values)\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/vllm/entrypoints/openai/api_server.py\", line 337, in create_completion\r\n    return JSONResponse(content=generator.model_dump())\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/responses.py\", line 180, in __init__\r\n    super().__init__(content, status_code, headers, media_type, background)\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/responses.py\", line 43, in __init__\r\n    self.body = self.render(content)\r\n                ^^^^^^^^^^^^^^^^^^^^\r\n  File \"/opt/vllm/lib64/python3.12/site-packages/starlette/responses.py\", line 183, in render\r\n    return json.dumps(\r\n           ^^^^^^^^^^^\r\n  File \"/usr/lib64/python3.12/json/__init__.py\", line 238, in dumps\r\n    **kw).encode(obj)\r\n          ^^^^^^^^^^^\r\n  File \"/usr/lib64/python3.12/json/encoder.py\", line 200, in encode\r\n    chunks = self.iterencode(o, _one_shot=True)\r\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/usr/lib64/python3.12/json/encoder.py\", line 258, in iterencode\r\n    return _iterencode(o, 0)\r\n           ^^^^^^^^^^^^^^^^^\r\nValueError: Out of range float values are not JSON compliant: -inf\r\n```\r\n\r\nFrom what I can see this happens because the logprobs on at least one of the prompt tokens is -inf. The `top_k: 1` sampling parameter that makes the probablity of any token other than the top-1 0.\r\n\r\n### Before submitting a new issue...\r\n\r\n- [X] Make sure you already searched for relevant issues, and asked the chatbot living at the bottom right corner of the [documentation page](https://docs.vllm.ai/en/latest/), which can answer lots of frequently asked questions.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "vllm/entrypoints/openai/serving_completion.py::OpenAIServingCompletion::request_output_to_completion_response"
+  },
+  "rejected_alternates": [
+   "vllm/entrypoints/openai/serving_completion.py::OpenAIServingCompletion",
+   "vllm/entrypoints/openai/serving_completion.py::__init__",
+   "vllm/entrypoints/openai/serving_completion.py::create_completion"
+  ],
+  "evidence": [
+   {
+    "path": "vllm/entrypoints/openai/serving_completion.py",
+    "contains": "def request_output_to_completion_response("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance vllm-project__vllm-11073 (vllm-project/vllm @ 75f89dc44), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/vllm-project__vllm-11073",
+  "covariates": {
+   "repo": "vllm-project/vllm",
+   "base_commit": "75f89dc44c6e44cc28bae59d5b40a588735b507b",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 5639,
+   "corpus_fingerprint": {
+    "sha256": "15d86631592b9dba519b02bb891f1d32812c9a2f41ffbb24df911eaae3112a0f",
+    "files": 1508
+   }
+  }
+ },
+ {
+  "id": "vllm-project__vllm-10903",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "[Bug, V1]: LlaVa outputs wrong results in batch inference with V1 code\uff08V0 code is correct)\n### Your current environment\n\n<details>\r\n<summary>The output of `python collect_env.py`</summary>\r\n\r\n```text\r\nWarning: Your installation of OpenCV appears to be broken: module 'cv2.dnn' has no attribute 'DictValue'.Please follow the instructions at https://github.com/opencv/opencv-python/issues/884 to correct your environment. The import of cv2 has been skipped.\r\nWARNING 12-04 08:26:48 cuda.py:30] You are using a deprecated `pynvml` package. Please install `nvidia-ml-py` instead, and make sure to uninstall `pynvml`. When both of them are installed, `pynvml` will take precedence and cause errors. See https://pypi.org/project/pynvml for more information.\r\nCollecting environment information...\r\nPyTorch version: 2.5.1+cu124\r\nIs debug build: False\r\nCUDA used to build PyTorch: 12.4\r\nROCM used to build PyTorch: N/A\r\n\r\nOS: Ubuntu 22.04.4 LTS (x86_64)\r\nGCC version: (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0\r\nClang version: Could not collect\r\nCMake version: version 3.29.2\r\nLibc version: glibc-2.35\r\n\r\nPython version: 3.10.12 (main, Nov 20 2023, 15:14:05) [GCC 11.4.0] (64-bit runtime)\r\nPython platform: Linux-5.4.0-125-generic-x86_64-with-glibc2.35\r\nIs CUDA available: True\r\nCUDA runtime version: 12.4.131\r\nCUDA_MODULE_LOADING set to: LAZY\r\nGPU models and configuration:\r\nGPU 0: NVIDIA GeForce RTX 4090\r\nGPU 1: NVIDIA GeForce RTX 4090\r\nGPU 2: NVIDIA GeForce RTX 4090\r\nGPU 3: NVIDIA GeForce RTX 4090\r\nGPU 4: NVIDIA GeForce RTX 4090\r\nGPU 5: NVIDIA GeForce RTX 4090\r\nGPU 6: NVIDIA GeForce RTX 4090\r\nGPU 7: NVIDIA GeForce RTX 4090\r\n\r\nNvidia driver version: 535.54.03\r\ncuDNN version: Probably one of the following:\r\n/usr/lib/x86_64-linux-gnu/libcudnn.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_adv.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_cnn.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_engines_precompiled.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_engines_runtime_compiled.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_graph.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_heuristic.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_ops.so.9.1.0\r\nHIP runtime version: N/A\r\nMIOpen runtime version: N/A\r\nIs XNNPACK available: True\r\n\r\nCPU:\r\nArchitecture:                    x86_64\r\nCPU op-mode(s):                  32-bit, 64-bit\r\nAddress sizes:                   52 bits physical, 57 bits virtual\r\nByte Order:                      Little Endian\r\nCPU(s):                          96\r\nOn-line CPU(s) list:             0-95\r\nVendor ID:                       GenuineIntel\r\nModel name:                      Intel(R) Xeon(R) Gold 5318Y CPU @ 2.10GHz\r\nCPU family:                      6\r\nModel:                           106\r\nThread(s) per core:              2\r\nCore(s) per socket:              24\r\nSocket(s):                       2\r\nStepping:                        6\r\nFrequency boost:                 enabled\r\nCPU max MHz:                     2101.0000\r\nCPU min MHz:                     800.0000\r\nBogoMIPS:                        4200.00\r\nFlags:                           fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid dca sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb cat_l3 invpcid_single ssbd mba ibrs ibpb stibp ibrs_enhanced tpr_shadow vnmi flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb intel_pt avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local wbnoinvd dtherm ida arat pln pts avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg tme avx512_vpopcntdq rdpid md_clear pconfig flush_l1d arch_capabilities\r\nVirtualization:                  VT-x\r\nL1d cache:                       2.3 MiB (48 instances)\r\nL1i cache:                       1.5 MiB (48 instances)\r\nL2 cache:                        60 MiB (48 instances)\r\nL3 cache:                        72 MiB (2 instances)\r\nNUMA node(s):                    2\r\nNUMA node0 CPU(s):               0-23,48-71\r\nNUMA node1 CPU(s):               24-47,72-95\r\nVulnerability Itlb multihit:     Not affected\r\nVulnerability L1tf:              Not affected\r\nVulnerability Mds:               Not affected\r\nVulnerability Meltdown:          Not affected\r\nVulnerability Mmio stale data:   Mitigation; Clear CPU buffers; SMT vulnerable\r\nVulnerability Spec store bypass: Mitigation; Speculative Store Bypass disabled via prctl and seccomp\r\nVulnerability Spectre v1:        Mitigation; usercopy/swapgs barriers and __user pointer sanitization\r\nVulnerability Spectre v2:        Mitigation; Enhanced IBRS, IBPB conditional, RSB filling\r\nVulnerability Srbds:             Not affected\r\nVulnerability Tsx async abort:   Not affected\r\n\r\nVersions of relevant libraries:\r\n[pip3] numpy==1.26.4\r\n[pip3] nvidia-cublas-cu12==12.4.5.8\r\n[pip3] nvidia-cuda-cupti-cu12==12.4.127\r\n[pip3] nvidia-cuda-nvrtc-cu12==12.4.127\r\n[pip3] nvidia-cuda-runtime-cu12==12.4.127\r\n[pip3] nvidia-cudnn-cu12==9.1.0.70\r\n[pip3] nvidia-cudnn-frontend==1.3.0\r\n[pip3] nvidia-cufft-cu12==11.2.1.3\r\n[pip3] nvidia-curand-cu12==10.3.5.147\r\n[pip3] nvidia-cusolver-cu12==11.6.1.9\r\n[pip3] nvidia-cusparse-cu12==12.3.1.170\r\n[pip3] nvidia-dali-cuda120==1.37.1\r\n[pip3] nvidia-ml-py==12.560.30\r\n[pip3] nvidia-nccl-cu12==2.21.5\r\n[pip3] nvidia-nvimgcodec-cu12==0.2.0.7\r\n[pip3] nvidia-nvjitlink-cu12==12.4.127\r\n[pip3] nvidia-nvtx-cu12==12.4.127\r\n[pip3] nvidia-pyindex==1.0.9\r\n[pip3] onnx==1.16.0\r\n[pip3] optree==0.11.0\r\n[pip3] pynvml==11.4.1\r\n[pip3] pytorch-quantization==2.1.2\r\n[pip3] pytorch-triton==3.0.0+989adb9a2\r\n[pip3] pyzmq==26.0.3\r\n[pip3] torch==2.5.1\r\n[pip3] torch-tensorrt==2.4.0a0\r\n[pip3] torchvision==0.20.1\r\n[pip3] transformers==4.46.3\r\n[pip3] triton==3.1.0\r\n[conda] Could not collect\r\nROCM Version: Could not collect\r\nNeuron SDK Version: N/A\r\nvLLM Version: 0.6.4.post2.dev221+g3bc94cab\r\nvLLM Build Flags:\r\nCUDA Archs: 5.2 6.0 6.1 7.0 7.2 7.5 8.0 8.6 8.7 9.0+PTX; ROCm: Disabled; Neuron: Disabled\r\nGPU Topology:\r\nGPU0    GPU1    GPU2    GPU3    GPU4    GPU5    GPU6    GPU7    NIC0    NIC1    NIC2    NIC3    CPU Affinity    NUMA Affinity   GPU NUMA ID\r\nGPU0     X      PXB     PXB     PXB     SYS     SYS     SYS     SYS     PXB     PXB     SYS     SYS     0-23,48-71      0               N/A\r\nGPU1    PXB      X      PXB     PXB     SYS     SYS     SYS     SYS     PIX     PIX     SYS     SYS     0-23,48-71      0               N/A\r\nGPU2    PXB     PXB      X      PIX     SYS     SYS     SYS     SYS     PXB     PXB     SYS     SYS     0-23,48-71      0               N/A\r\nGPU3    PXB     PXB     PIX      X      SYS     SYS     SYS     SYS     PXB     PXB     SYS     SYS     0-23,48-71      0               N/A\r\nGPU4    SYS     SYS     SYS     SYS      X      NODE    NODE    NODE    SYS     SYS     NODE    NODE    24-47,72-95     1               N/A\r\nGPU5    SYS     SYS     SYS     SYS     NODE     X      PXB     PXB     SYS     SYS     PXB     PXB     24-47,72-95     1               N/A\r\nGPU6    SYS     SYS     SYS     SYS     NODE    PXB      X      PXB     SYS     SYS     PIX     PIX     24-47,72-95     1               N/A\r\nGPU7    SYS     SYS     SYS     SYS     NODE    PXB     PXB      X      SYS     SYS     PXB     PXB     24-47,72-95     1               N/A\r\nNIC0    PXB     PIX     PXB     PXB     SYS     SYS     SYS     SYS      X      PIX     SYS     SYS\r\nNIC1    PXB     PIX     PXB     PXB     SYS     SYS     SYS     SYS     PIX      X      SYS     SYS\r\nNIC2    SYS     SYS     SYS     SYS     NODE    PXB     PIX     PXB     SYS     SYS      X      PIX\r\nNIC3    SYS     SYS     SYS     SYS     NODE    PXB     PIX     PXB     SYS     SYS     PIX      X\r\n\r\nLegend:\r\n\r\n  X    = Self\r\n  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)\r\n  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node\r\n  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)\r\n  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)\r\n  PIX  = Connection traversing at most a single PCIe bridge\r\n  NV#  = Connection traversing a bonded set of # NVLinks\r\n\r\nNIC Legend:\r\n\r\n  NIC0: mlx5_0\r\n  NIC1: mlx5_1\r\n  NIC2: mlx5_2\r\n  NIC3: mlx5_3\r\n\r\nNVIDIA_VISIBLE_DEVICES=all\r\nCUBLAS_VERSION=12.4.5.8\r\nNVIDIA_REQUIRE_CUDA=cuda>=9.0\r\nCUDA_CACHE_DISABLE=1\r\nTORCH_CUDA_ARCH_LIST=5.2 6.0 6.1 7.0 7.2 7.5 8.0 8.6 8.7 9.0+PTX\r\nNCCL_VERSION=2.21.5\r\nNVIDIA_DRIVER_CAPABILITIES=compute,utility,video\r\nNVIDIA_PRODUCT_NAME=PyTorch\r\nCUDA_VERSION=12.4.1.003\r\nPYTORCH_VERSION=2.4.0a0+07cecf4\r\nPYTORCH_BUILD_NUMBER=0\r\nCUDNN_VERSION=9.1.0.70\r\nPYTORCH_HOME=/opt/pytorch/pytorch\r\nLD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/cv2/../../lib64:/usr/local/lib/python3.10/dist-packages/torch/lib:/usr/local/lib/python3.10/dist-packages/torch_tensorrt/lib:/usr/local/cuda/compat/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64\r\nNVIDIA_BUILD_ID=91431255\r\nCUDA_DRIVER_VERSION=550.54.15\r\nPYTORCH_BUILD_VERSION=2.4.0a0+07cecf4\r\nCUDA_HOME=/usr/local/cuda\r\nCUDA_HOME=/usr/local/cuda\r\nCUDA_MODULE_LOADING=LAZY\r\nNVIDIA_REQUIRE_JETPACK_HOST_MOUNTS=\r\nNVIDIA_PYTORCH_VERSION=24.05\r\nTORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1\r\n```\r\n\r\n</details>\r\n\n\n### Model Input Dumps\n\nVersion\uff1a\r\n0.6.4.post2.dev221+g3bc94cab\r\n\r\nTest Image\uff1a\r\n[test_img.zip](https://github.com/user-attachments/files/18004889/test_img.zip)\r\n\n\n### \ud83d\udc1b Describe the bug\n\n@WoosukKwon Here is an fatal bug on V1 offline batch inference\r\n\r\n```\r\nimport os\r\nfrom vllm import LLM, SamplingParams, envs\r\nfrom PIL import Image\r\nimport time\r\n\r\nprompt = \"USER: <image>\\nWhat is the content of this image?\\nASSISTANT:\"\r\n\r\nfname = 'animal.jpg' # get form the .zip file\r\nimage = Image.open(fname).convert('RGB')\r\n\r\nenvs.VLLM_USE_V1 = True\r\nllm = LLM(model='llava-1.5-7b-hf', trust_remote_code=True, dtype=\"bfloat16\", \r\n          tokenizer_mode=\"auto\", gpu_memory_utilization=0.9, max_model_len=1000, max_num_batched_tokens=1200)\r\n\r\nsampling_params = SamplingParams(temperature=0, max_tokens=128)\r\n\r\ninputs = {\r\n    \"prompt\": prompt,\r\n    \"multi_modal_data\": {\r\n        \"image\": image\r\n    }\r\n}\r\n\r\noutputs = llm.generate([inputs, inputs], sampling_params)\r\nfor output in outputs:\r\n    text = output.outputs[0].text\r\n    print(text)\r\n    print()\r\n\r\nprint(\"done\")\r\n```\r\n\r\nThe output is\r\n\r\n>  The image features a black and white panda bear sitting in a grassy area. The panda is eating grass, and it appears to be enjoying the meal. The scene is set in a lush green environment, with the panda being the main focus of the image.\r\n> \r\n>  ASSA TEXT\r\n\r\nThat is, though the two inputs are the same, the results are not the same.\r\n\r\nHere is my debug info:\r\n(1) If I comment ```envs.VLLM_USE_V1 = True```\uff0cI can get the two correct result\uff0cso the bug is in V1\r\n(2) If I ajust ```max_model_len``` larger(2 times seqlen)\uff0cI can get the two correct result\n\n### Before submitting a new issue...\n\n- [X] Make sure you already searched for relevant issues, and asked the chatbot living at the bottom right corner of the [documentation page](https://docs.vllm.ai/en/latest/), which can answer lots of frequently asked questions.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "vllm/v1/worker/gpu_model_runner.py::GPUModelRunner::_prepare_inputs"
+  },
+  "rejected_alternates": [
+   "vllm/v1/worker/gpu_model_runner.py::GPUModelRunner",
+   "vllm/v1/worker/gpu_model_runner.py::__init__",
+   "vllm/v1/worker/gpu_model_runner.py::_update_states"
+  ],
+  "evidence": [
+   {
+    "path": "vllm/v1/worker/gpu_model_runner.py",
+    "contains": "def _prepare_inputs(self, scheduler_output: \"SchedulerOutput\"):"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance vllm-project__vllm-10903 (vllm-project/vllm @ 82eb5ea8f), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/vllm-project__vllm-10903",
+  "covariates": {
+   "repo": "vllm-project/vllm",
+   "base_commit": "82eb5ea8f3bd3aabbe5c2fd43e37d263768603c5",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 11513,
+   "corpus_fingerprint": {
+    "sha256": "176efe9d202141edab799875620aa1ef524060a821c342071ad64ab9730f413a",
+    "files": 1476
+   }
+  }
+ },
+ {
+  "id": "vllm-project__vllm-10620",
+  "category": "Performance Issue",
+  "set": "holdout",
+  "question": "[Usage]: torch.compile still generates multiple subprocesses\n### Your current environment\n\n```text\r\nCollecting environment information...\r\nPyTorch version: 2.5.1+cu124\r\nIs debug build: False\r\nCUDA used to build PyTorch: 12.4\r\nROCM used to build PyTorch: N/A\r\n\r\nOS: Ubuntu 22.04.4 LTS (x86_64)\r\nGCC version: (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0\r\nClang version: Could not collect\r\nCMake version: version 3.30.5\r\nLibc version: glibc-2.35\r\n\r\nPython version: 3.10.15 (main, Oct  3 2024, 07:27:34) [GCC 11.2.0] (64-bit runtime)\r\nPython platform: Linux-5.15.0-122-generic-x86_64-with-glibc2.35\r\nIs CUDA available: True\r\nCUDA runtime version: 12.4.131\r\nCUDA_MODULE_LOADING set to: LAZY\r\nGPU models and configuration: \r\nGPU 0: NVIDIA A800-SXM4-80GB\r\nGPU 1: NVIDIA A800-SXM4-80GB\r\nGPU 2: NVIDIA A800-SXM4-80GB\r\nGPU 3: NVIDIA A800-SXM4-80GB\r\nGPU 4: NVIDIA A800-SXM4-80GB\r\nGPU 5: NVIDIA A800-SXM4-80GB\r\nGPU 6: NVIDIA A800-SXM4-80GB\r\nGPU 7: NVIDIA A800-SXM4-80GB\r\n\r\nNvidia driver version: 550.127.05\r\ncuDNN version: Probably one of the following:\r\n/usr/lib/x86_64-linux-gnu/libcudnn.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_adv.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_cnn.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_engines_precompiled.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_engines_runtime_compiled.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_graph.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_heuristic.so.9.1.0\r\n/usr/lib/x86_64-linux-gnu/libcudnn_ops.so.9.1.0\r\nHIP runtime version: N/A\r\nMIOpen runtime version: N/A\r\nIs XNNPACK available: True\r\n\r\nCPU:\r\nArchitecture:                         x86_64\r\nCPU op-mode(s):                       32-bit, 64-bit\r\nAddress sizes:                        46 bits physical, 57 bits virtual\r\nByte Order:                           Little Endian\r\nCPU(s):                               112\r\nOn-line CPU(s) list:                  0-111\r\nVendor ID:                            GenuineIntel\r\nModel name:                           Intel(R) Xeon(R) Gold 6330 CPU @ 2.00GHz\r\nCPU family:                           6\r\nModel:                                106\r\nThread(s) per core:                   2\r\nCore(s) per socket:                   28\r\nSocket(s):                            2\r\nStepping:                             6\r\nCPU max MHz:                          3100.0000\r\nCPU min MHz:                          800.0000\r\nBogoMIPS:                             4000.00\r\nFlags:                                fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid dca sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb cat_l3 invpcid_single intel_ppin ssbd mba ibrs ibpb stibp ibrs_enhanced tpr_shadow vnmi flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb intel_pt avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local split_lock_detect wbnoinvd dtherm ida arat pln pts avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg tme avx512_vpopcntdq la57 rdpid fsrm md_clear pconfig flush_l1d arch_capabilities\r\nVirtualization:                       VT-x\r\nL1d cache:                            2.6 MiB (56 instances)\r\nL1i cache:                            1.8 MiB (56 instances)\r\nL2 cache:                             70 MiB (56 instances)\r\nL3 cache:                             84 MiB (2 instances)\r\nNUMA node(s):                         2\r\nNUMA node0 CPU(s):                    0-27,56-83\r\nNUMA node1 CPU(s):                    28-55,84-111\r\nVulnerability Gather data sampling:   Mitigation; Microcode\r\nVulnerability Itlb multihit:          Not affected\r\nVulnerability L1tf:                   Not affected\r\nVulnerability Mds:                    Not affected\r\nVulnerability Meltdown:               Not affected\r\nVulnerability Mmio stale data:        Mitigation; Clear CPU buffers; SMT vulnerable\r\nVulnerability Reg file data sampling: Not affected\r\nVulnerability Retbleed:               Not affected\r\nVulnerability Spec rstack overflow:   Not affected\r\nVulnerability Spec store bypass:      Mitigation; Speculative Store Bypass disabled via prctl and seccomp\r\nVulnerability Spectre v1:             Mitigation; usercopy/swapgs barriers and __user pointer sanitization\r\nVulnerability Spectre v2:             Mitigation; Enhanced / Automatic IBRS; IBPB conditional; RSB filling; PBRSB-eIBRS SW sequence; BHI SW loop, KVM SW loop\r\nVulnerability Srbds:                  Not affected\r\nVulnerability Tsx async abort:        Not affected\r\n\r\nVersions of relevant libraries:\r\n[pip3] mypy==1.11.1\r\n[pip3] mypy-extensions==1.0.0\r\n[pip3] numpy==1.26.4\r\n[pip3] nvidia-cublas-cu12==12.4.5.8\r\n[pip3] nvidia-cuda-cupti-cu12==12.4.127\r\n[pip3] nvidia-cuda-nvrtc-cu12==12.4.127\r\n[pip3] nvidia-cuda-runtime-cu12==12.4.127\r\n[pip3] nvidia-cudnn-cu12==9.1.0.70\r\n[pip3] nvidia-cufft-cu12==11.2.1.3\r\n[pip3] nvidia-curand-cu12==10.3.5.147\r\n[pip3] nvidia-cusolver-cu12==11.6.1.9\r\n[pip3] nvidia-cusparse-cu12==12.3.1.170\r\n[pip3] nvidia-ml-py==12.560.30\r\n[pip3] nvidia-nccl-cu12==2.21.5\r\n[pip3] nvidia-nvjitlink-cu12==12.4.127\r\n[pip3] nvidia-nvtx-cu12==12.4.127\r\n[pip3] pyzmq==26.2.0\r\n[pip3] sentence-transformers==3.2.1\r\n[pip3] torch==2.5.1\r\n[pip3] torchvision==0.20.1\r\n[pip3] transformers==4.45.2\r\n[pip3] transformers-stream-generator==0.0.5\r\n[pip3] triton==3.1.0\r\n[conda] numpy                     1.26.4                   pypi_0    pypi\r\n[conda] nvidia-cublas-cu12        12.4.5.8                 pypi_0    pypi\r\n[conda] nvidia-cuda-cupti-cu12    12.4.127                 pypi_0    pypi\r\n[conda] nvidia-cuda-nvrtc-cu12    12.4.127                 pypi_0    pypi\r\n[conda] nvidia-cuda-runtime-cu12  12.4.127                 pypi_0    pypi\r\n[conda] nvidia-cudnn-cu12         9.1.0.70                 pypi_0    pypi\r\n[conda] nvidia-cufft-cu12         11.2.1.3                 pypi_0    pypi\r\n[conda] nvidia-curand-cu12        10.3.5.147               pypi_0    pypi\r\n[conda] nvidia-cusolver-cu12      11.6.1.9                 pypi_0    pypi\r\n[conda] nvidia-cusparse-cu12      12.3.1.170               pypi_0    pypi\r\n[conda] nvidia-ml-py              12.560.30                pypi_0    pypi\r\n[conda] nvidia-nccl-cu12          2.21.5                   pypi_0    pypi\r\n[conda] nvidia-nvjitlink-cu12     12.4.127                 pypi_0    pypi\r\n[conda] nvidia-nvtx-cu12          12.4.127                 pypi_0    pypi\r\n[conda] pyzmq                     26.2.0                   pypi_0    pypi\r\n[conda] sentence-transformers     3.2.1                    pypi_0    pypi\r\n[conda] torch                     2.5.1                    pypi_0    pypi\r\n[conda] torchvision               0.20.1                   pypi_0    pypi\r\n[conda] transformers              4.45.2                   pypi_0    pypi\r\n[conda] transformers-stream-generator 0.0.5                    pypi_0    pypi\r\n[conda] triton                    3.1.0                    pypi_0    pypi\r\nROCM Version: Could not collect\r\nNeuron SDK Version: N/A\r\nvLLM Version: 0.1.dev3566+g49628fe (git sha: 49628fe\r\nvLLM Build Flags:\r\nCUDA Archs: Not Set; ROCm: Disabled; Neuron: Disabled\r\nGPU Topology:\r\n\u001b[4mGPU0\tGPU1\tGPU2\tGPU3\tGPU4\tGPU5\tGPU6\tGPU7\tNIC0\tNIC1\tNIC2\tNIC3\tCPU Affinity\tNUMA Affinity\tGPU NUMA ID\u001b[0m\r\nGPU0\t X \tNV8\tNV8\tNV8\tNV8\tNV8\tNV8\tNV8\tPXB\tPXB\tSYS\tSYS\t0-27,56-83\t0\t\tN/A\r\nGPU1\tNV8\t X \tNV8\tNV8\tNV8\tNV8\tNV8\tNV8\tPXB\tPXB\tSYS\tSYS\t0-27,56-83\t0\t\tN/A\r\nGPU2\tNV8\tNV8\t X \tNV8\tNV8\tNV8\tNV8\tNV8\tNODE\tNODE\tSYS\tSYS\t0-27,56-83\t0\t\tN/A\r\nGPU3\tNV8\tNV8\tNV8\t X \tNV8\tNV8\tNV8\tNV8\tNODE\tNODE\tSYS\tSYS\t0-27,56-83\t0\t\tN/A\r\nGPU4\tNV8\tNV8\tNV8\tNV8\t X \tNV8\tNV8\tNV8\tSYS\tSYS\tPXB\tPXB\t28-55,84-111\t1\t\tN/A\r\nGPU5\tNV8\tNV8\tNV8\tNV8\tNV8\t X \tNV8\tNV8\tSYS\tSYS\tPXB\tPXB\t28-55,84-111\t1\t\tN/A\r\nGPU6\tNV8\tNV8\tNV8\tNV8\tNV8\tNV8\t X \tNV8\tSYS\tSYS\tNODE\tNODE\t28-55,84-111\t1\t\tN/A\r\nGPU7\tNV8\tNV8\tNV8\tNV8\tNV8\tNV8\tNV8\t X \tSYS\tSYS\tNODE\tNODE\t28-55,84-111\t1\t\tN/A\r\nNIC0\tPXB\tPXB\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\t X \tPIX\tSYS\tSYS\t\t\t\t\r\nNIC1\tPXB\tPXB\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tPIX\t X \tSYS\tSYS\t\t\t\t\r\nNIC2\tSYS\tSYS\tSYS\tSYS\tPXB\tPXB\tNODE\tNODE\tSYS\tSYS\t X \tPIX\t\t\t\t\r\nNIC3\tSYS\tSYS\tSYS\tSYS\tPXB\tPXB\tNODE\tNODE\tSYS\tSYS\tPIX\t X \t\t\t\t\r\n\r\nLegend:\r\n\r\n  X    = Self\r\n  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)\r\n  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node\r\n  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)\r\n  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)\r\n  PIX  = Connection traversing at most a single PCIe bridge\r\n  NV#  = Connection traversing a bonded set of # NVLinks\r\n\r\nNIC Legend:\r\n\r\n  NIC0: mlx5_0\r\n  NIC1: mlx5_1\r\n  NIC2: mlx5_2\r\n  NIC3: mlx5_3\r\n\r\nLD_LIBRARY_PATH=/root/anaconda3/envs/py310_vllm_dev/lib/python3.10/site-packages/cv2/../../lib64:\r\nCUDA_MODULE_LOADING=LAZY\r\n\r\n\r\n```\r\n\n\n### How would you like to use vllm\n\n## Description\r\nAfer merging https://github.com/vllm-project/vllm/pull/10482 , torch.compile still generates multiple subprocesses((similar to the issue described in #10480). \r\nI found that the number of threads for torch.compile is determined when `importing torch`(see:[compile_threads](https://github.com/pytorch/pytorch/blob/v2.5.1/torch/_inductor/config.py#L579)), so setting \r\n env`TORCHINDUCTOR_COMPILE_THREADS` after `importing torch` will not take effect\r\n## Example code\r\n###  multiple subprocesses\r\n```python\r\nimport os\r\nimport torch\r\nos.environ[\"TORCHINDUCTOR_COMPILE_THREADS\"] = \"1\"\r\n\r\n@torch.compile\r\ndef add(x: torch.tensor):\r\n    x = x + 2\r\n```\r\n### without  multiple subprocesses\r\n\r\n```python\r\nimport os\r\nos.environ[\"TORCHINDUCTOR_COMPILE_THREADS\"] = \"1\"\r\nimport torch\r\n@torch.compile\r\ndef add(x: torch.tensor):\r\n    x = x + 2\r\n\r\n```\r\n\r\n\n\n### Before submitting a new issue...\n\n- [X] Make sure you already searched for relevant issues, and asked the chatbot living at the bottom right corner of the [documentation page](https://docs.vllm.ai/en/latest/), which can answer lots of frequently asked questions.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "vllm/plugins/__init__.py::load_general_plugins"
+  },
+  "rejected_alternates": [
+   "vllm/plugins/__init__.py::set_current_vllm_config",
+   "vllm/plugins/__init__.py::get_current_vllm_config"
+  ],
+  "evidence": [
+   {
+    "path": "vllm/plugins/__init__.py",
+    "contains": "def load_general_plugins():"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance vllm-project__vllm-10620 (vllm-project/vllm @ 571841b7f), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/vllm-project__vllm-10620",
+  "covariates": {
+   "repo": "vllm-project/vllm",
+   "base_commit": "571841b7fcc67f8b1d171522f6249ed4224033e1",
+   "gold_cardinality": 1,
+   "locbench_category": "Performance Issue",
+   "names_target": false,
+   "statement_chars": 10333,
+   "corpus_fingerprint": {
+    "sha256": "c25a59fef860ad93af9bf8abd15f5dc75dc78b2517fcc43694f38c70add406de",
+    "files": 1431
+   }
+  }
+ },
+ {
+  "id": "vllm-project__vllm-10536",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "[Bug]: Error when calling vLLM with audio input using Qwen/Qwen2-Audio-7B-Instruct model\n### Your current environment\n\n<details>\r\n<summary>The output of `python collect_env.py`</summary>\r\n\r\n```text\r\nYour output of `python collect_env.py` here\r\n```\r\nCollecting environment information...\r\nPyTorch version: 2.5.1+cu124\r\nIs debug build: False\r\nCUDA used to build PyTorch: 12.4\r\nROCM used to build PyTorch: N/A\r\n\r\nOS: Ubuntu 22.04.5 LTS (x86_64)\r\nGCC version: (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0\r\nClang version: Could not collect\r\nCMake version: Could not collect\r\nLibc version: glibc-2.35\r\n\r\nPython version: 3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0] (64-bit runtime)\r\nPython platform: Linux-6.5.0-41-generic-x86_64-with-glibc2.35\r\nIs CUDA available: True\r\nCUDA runtime version: 12.4.131\r\nCUDA_MODULE_LOADING set to: LAZY\r\nGPU models and configuration: GPU 0: NVIDIA RTX A6000\r\nNvidia driver version: 550.54.14\r\ncuDNN version: Could not collect\r\nHIP runtime version: N/A\r\nMIOpen runtime version: N/A\r\nIs XNNPACK available: True\r\n\r\nCPU:\r\nArchitecture:                       x86_64\r\nCPU op-mode(s):                     32-bit, 64-bit\r\nAddress sizes:                      46 bits physical, 48 bits virtual\r\nByte Order:                         Little Endian\r\nCPU(s):                             112\r\nOn-line CPU(s) list:                0-111\r\nVendor ID:                          GenuineIntel\r\nModel name:                         Intel(R) Xeon(R) Gold 6238R CPU @ 2.20GHz\r\nCPU family:                         6\r\nModel:                              85\r\nThread(s) per core:                 2\r\nCore(s) per socket:                 28\r\nSocket(s):                          2\r\nStepping:                           7\r\nCPU max MHz:                        4000.0000\r\nCPU min MHz:                        1000.0000\r\nBogoMIPS:                           4400.00\r\nFlags:                              fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid dca sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb cat_l3 cdp_l3 invpcid_single intel_ppin ssbd mba ibrs ibpb stibp ibrs_enhanced tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm mpx rdt_a avx512f avx512dq rdseed adx smap clflushopt clwb intel_pt avx512cd avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local dtherm ida arat pln pts vnmi pku ospke avx512_vnni md_clear flush_l1d arch_capabilities\r\nVirtualization:                     VT-x\r\nL1d cache:                          1.8 MiB (56 instances)\r\nL1i cache:                          1.8 MiB (56 instances)\r\nL2 cache:                           56 MiB (56 instances)\r\nL3 cache:                           77 MiB (2 instances)\r\nNUMA node(s):                       2\r\nNUMA node0 CPU(s):                  0-27,56-83\r\nNUMA node1 CPU(s):                  28-55,84-111\r\nVulnerability Gather data sampling: Mitigation; Microcode\r\nVulnerability Itlb multihit:        KVM: Mitigation: VMX disabled\r\nVulnerability L1tf:                 Not affected\r\nVulnerability Mds:                  Not affected\r\nVulnerability Meltdown:             Not affected\r\nVulnerability Mmio stale data:      Mitigation; Clear CPU buffers; SMT vulnerable\r\nVulnerability Retbleed:             Mitigation; Enhanced IBRS\r\nVulnerability Spec rstack overflow: Not affected\r\nVulnerability Spec store bypass:    Mitigation; Speculative Store Bypass disabled via prctl\r\nVulnerability Spectre v1:           Mitigation; usercopy/swapgs barriers and __user pointer sanitization\r\nVulnerability Spectre v2:           Mitigation; Enhanced / Automatic IBRS; IBPB conditional; RSB filling; PBRSB-eIBRS SW sequence; BHI Syscall hardening, KVM SW loop\r\nVulnerability Srbds:                Not affected\r\nVulnerability Tsx async abort:      Mitigation; TSX disabled\r\n\r\nVersions of relevant libraries:\r\n[pip3] numpy==1.26.4\r\n[pip3] nvidia-cublas-cu12==12.4.5.8\r\n[pip3] nvidia-cuda-cupti-cu12==12.4.127\r\n[pip3] nvidia-cuda-nvrtc-cu12==12.4.127\r\n[pip3] nvidia-cuda-runtime-cu12==12.4.127\r\n[pip3] nvidia-cudnn-cu12==9.1.0.70\r\n[pip3] nvidia-cufft-cu12==11.2.1.3\r\n[pip3] nvidia-curand-cu12==10.3.5.147\r\n[pip3] nvidia-cusolver-cu12==11.6.1.9\r\n[pip3] nvidia-cusparse-cu12==12.3.1.170\r\n[pip3] nvidia-ml-py==12.560.30\r\n[pip3] nvidia-nccl-cu12==2.21.5\r\n[pip3] nvidia-nvjitlink-cu12==12.4.127\r\n[pip3] nvidia-nvtx-cu12==12.4.127\r\n[pip3] pyzmq==26.2.0\r\n[pip3] torch==2.5.1\r\n[pip3] torchvision==0.20.1\r\n[pip3] transformers==4.46.2\r\n[pip3] triton==3.1.0\r\n[conda] numpy                     1.26.4                   pypi_0    pypi\r\n[conda] nvidia-cublas-cu12        12.4.5.8                 pypi_0    pypi\r\n[conda] nvidia-cuda-cupti-cu12    12.4.127                 pypi_0    pypi\r\n[conda] nvidia-cuda-nvrtc-cu12    12.4.127                 pypi_0    pypi\r\n[conda] nvidia-cuda-runtime-cu12  12.4.127                 pypi_0    pypi\r\n[conda] nvidia-cudnn-cu12         9.1.0.70                 pypi_0    pypi\r\n[conda] nvidia-cufft-cu12         11.2.1.3                 pypi_0    pypi\r\n[conda] nvidia-curand-cu12        10.3.5.147               pypi_0    pypi\r\n[conda] nvidia-cusolver-cu12      11.6.1.9                 pypi_0    pypi\r\n[conda] nvidia-cusparse-cu12      12.3.1.170               pypi_0    pypi\r\n[conda] nvidia-ml-py              12.560.30                pypi_0    pypi\r\n[conda] nvidia-nccl-cu12          2.21.5                   pypi_0    pypi\r\n[conda] nvidia-nvjitlink-cu12     12.4.127                 pypi_0    pypi\r\n[conda] nvidia-nvtx-cu12          12.4.127                 pypi_0    pypi\r\n[conda] pyzmq                     26.2.0                   pypi_0    pypi\r\n[conda] torch                     2.5.1                    pypi_0    pypi\r\n[conda] torchvision               0.20.1                   pypi_0    pypi\r\n[conda] transformers              4.46.2                   pypi_0    pypi\r\n[conda] triton                    3.1.0                    pypi_0    pypi\r\nROCM Version: Could not collect\r\nNeuron SDK Version: N/A\r\nvLLM Version: 0.6.4.post1\r\nvLLM Build Flags:\r\nCUDA Archs: Not Set; ROCm: Disabled; Neuron: Disabled\r\nGPU Topology:\r\nGPU0    CPU Affinity    NUMA Affinity   GPU NUMA ID\r\nGPU0     X      0-27,56-83      0               N/A\r\n\r\nLegend:\r\n\r\n  X    = Self\r\n  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)\r\n  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node\r\n  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)\r\n  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)\r\n  PIX  = Connection traversing at most a single PCIe bridge\r\n  NV#  = Connection traversing a bonded set of # NVLinks\r\n\r\nNVIDIA_VISIBLE_DEVICES=GPU-dddb6fc8-c0bd-83b4-f471-4545f358331b\r\nNVIDIA_REQUIRE_CUDA=cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536\r\nNCCL_VERSION=2.21.5-1\r\nNVIDIA_DRIVER_CAPABILITIES=compute,display,graphics,utility,video\r\nNVIDIA_PRODUCT_NAME=CUDA\r\nCUDA_VERSION=12.4.1\r\nLD_LIBRARY_PATH=/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/cv2/../../lib64:/usr/local/nvidia/lib:/usr/local/nvidia/lib64\r\nCUDA_MODULE_LOADING=LAZY\r\n</details>\r\n\n\n### Model Input Dumps\n\n_No response_\n\n### \ud83d\udc1b Describe the bug\n\nI downloaded the [v0.6.4.post1](https://github.com/vllm-project/vllm/releases/tag/v0.6.4.post1)\r\n\r\nExecute the command:\r\n```bash\r\nvllm serve Qwen/Qwen2-Audio-7B-Instruct --dtype=bfloat16 --port=5000 --gpu_memory_utilization=0.8\r\n```\r\n\r\nI\u2019m encountering an error when trying to use **_vLLM serve_** with the Qwen/Qwen2-Audio-7B-Instruct model to process audio input.\r\nRun the following curl command:\r\n```bash\r\ncurl https://huxtwsgqgqkueq-5000.proxy.runpod.net/v1/chat/completions \\\r\n    -X POST \\\r\n    -H 'Content-Type: application/json' \\\r\n    -d '{\r\n        \"model\": \"Qwen/Qwen2-Audio-7B-Instruct\",\r\n        \"max_tokens\": 1024,\r\n        \"temperature\": 0.1,\r\n        \"messages\": [\r\n            {\r\n                \"role\": \"user\",\r\n                \"content\": [\r\n                    {\r\n                        \"type\": \"audio_url\",\r\n                        \"audio_url\": {\r\n                            \"url\": \"http://modelscope-open.oss-cn-hangzhou.aliyuncs.com/images/weather.wav\"\r\n                        }\r\n                    },\r\n                    {\r\n                        \"type\": \"text\",\r\n                        \"text\": \"Transcribe Text\"\r\n                    }\r\n                ]\r\n            }\r\n        ]\r\n    }'\r\n```\r\n\r\nObserve the error output:\r\n```\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py\", line 401, in run_asgi\r\n    result = await app(  # type: ignore[func-returns-value]\r\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py\", line 60, in __call__\r\n    return await self.app(scope, receive, send)\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/fastapi/applications.py\", line 1054, in __call__\r\n    await super().__call__(scope, receive, send)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/applications.py\", line 113, in __call__\r\n    await self.middleware_stack(scope, receive, send)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/middleware/errors.py\", line 187, in __call__\r\n    raise exc\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/middleware/errors.py\", line 165, in __call__\r\n    await self.app(scope, receive, _send)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/middleware/base.py\", line 185, in __call__\r\n    with collapse_excgroups():\r\n         ^^^^^^^^^^^^^^^^^^^^\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/contextlib.py\", line 158, in __exit__\r\n    self.gen.throw(value)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/_utils.py\", line 82, in collapse_excgroups\r\n    raise exc\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/middleware/base.py\", line 187, in __call__\r\n    response = await self.dispatch_func(request, call_next)\r\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/vllm/entrypoints/openai/api_server.py\", line 490, in add_request_id\r\n    response = await call_next(request)\r\n               ^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/middleware/base.py\", line 163, in call_next\r\n    raise app_exc\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/middleware/base.py\", line 149, in coro\r\n    await self.app(scope, receive_or_disconnect, send_no_error)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/middleware/cors.py\", line 85, in __call__\r\n    await self.app(scope, receive, send)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/middleware/exceptions.py\", line 62, in __call__\r\n    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/_exception_handler.py\", line 53, in wrapped_app\r\n    raise exc\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/_exception_handler.py\", line 42, in wrapped_app\r\n    await app(scope, receive, sender)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/routing.py\", line 715, in __call__\r\n    await self.middleware_stack(scope, receive, send)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/routing.py\", line 735, in app\r\n    await route.handle(scope, receive, send)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/routing.py\", line 288, in handle\r\n    await self.app(scope, receive, send)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/routing.py\", line 76, in app\r\n    await wrap_app_handling_exceptions(app, request)(scope, receive, send)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/_exception_handler.py\", line 53, in wrapped_app\r\n    raise exc\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/_exception_handler.py\", line 42, in wrapped_app\r\n    await app(scope, receive, sender)\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/starlette/routing.py\", line 73, in app\r\n    response = await f(request)\r\n               ^^^^^^^^^^^^^^^^\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/fastapi/routing.py\", line 301, in app\r\n    raw_response = await run_endpoint_function(\r\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/fastapi/routing.py\", line 212, in run_endpoint_function\r\n    return await dependant.call(**values)\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/vllm/entrypoints/openai/api_server.py\", line 347, in create_chat_completion\r\n    generator = await handler.create_chat_completion(request, raw_request)\r\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/vllm/entrypoints/openai/serving_chat.py\", line 238, in create_chat_completion\r\n    return await self.chat_completion_full_generator(\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/vllm/entrypoints/openai/serving_chat.py\", line 598, in chat_completion_full_generator\r\n    async for res in result_generator:\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/vllm/utils.py\", line 402, in iterate_with_cancellation\r\n    item = await awaits[0]\r\n           ^^^^^^^^^^^^^^^\r\n  File \"/workspace/miniconda3/envs/vllm/lib/python3.12/site-packages/vllm/engine/multiprocessing/client.py\", line 633, in _process_request\r\n    raise request_output\r\nKeyError: 'prompt'\r\n```\n\n### Before submitting a new issue...\n\n- [X] Make sure you already searched for relevant issues, and asked the chatbot living at the bottom right corner of the [documentation page](https://docs.vllm.ai/en/latest/), which can answer lots of frequently asked questions.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "vllm/model_executor/models/qwen2_audio.py::input_processor_for_qwen2_audio"
+  },
+  "rejected_alternates": [
+   "vllm/model_executor/models/qwen2_audio.py::Qwen2AudioInputs",
+   "vllm/model_executor/models/qwen2_audio.py::Qwen2AudioMultiModalProjector",
+   "vllm/model_executor/models/qwen2_audio.py::__init__"
+  ],
+  "evidence": [
+   {
+    "path": "vllm/model_executor/models/qwen2_audio.py",
+    "contains": "def input_processor_for_qwen2_audio("
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance vllm-project__vllm-10536 (vllm-project/vllm @ 8a93a598d), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/vllm-project__vllm-10536",
+  "covariates": {
+   "repo": "vllm-project/vllm",
+   "base_commit": "8a93a598d9ac265882e55432e7aef55c8bff23f4",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": true,
+   "statement_chars": 15962,
+   "corpus_fingerprint": {
+    "sha256": "3daaea4dfed62f4e52a59343d5321b35912982932bbe0f77c2f267f25abd0c9d",
+    "files": 1423
+   }
+  }
+ },
+ {
+  "id": "vllm-project__vllm-9974",
+  "category": "Bug Report",
+  "set": "holdout",
+  "question": "[Bug]: from vllm.platforms import current_platform infinite loop error with OpenVino Build. \n### Your current environment\n\nUnrelated\n\n### Model Input Dumps\n\nUnrelated\n\n### \ud83d\udc1b Describe the bug\n\nIn OpenVino Build, from vllm.platforms import current_platform for OpenVino will...\r\n * reference openvino.py in vllm.platforms.openvino.py as OpenVino is identified as current platform\r\n * openvino.py line 4 will reference from vllm.utils import print_warning_once\r\n * vllm.utils line 40 will reference from vllm.platforms import current_platform\r\n * Due to circular self-reference, will throw error\r\n\r\nThis impacts any vllm functionality on the openvino build due to vllm requiring detection of the current_platform.\r\n\r\nResolution: **removing print_warning_once dependency from openvino.py will fix, either by defining print function locally or removing logging altogether from openvino.py**\r\n\r\n\n\n### Before submitting a new issue...\n\n- [X] Make sure you already searched for relevant issues, and asked the chatbot living at the bottom right corner of the [documentation page](https://docs.vllm.ai/en/latest/), which can answer lots of frequently asked questions.\n\nName the function or method in this repository that must change to address the issue described above, as path::name.",
+  "expected_json": {
+   "answer": "vllm/platforms/openvino.py::OpenVinoPlatform::is_pin_memory_available"
+  },
+  "rejected_alternates": [
+   "vllm/platforms/openvino.py::OpenVinoPlatform",
+   "vllm/platforms/openvino.py::get_device_name",
+   "vllm/platforms/openvino.py::inference_mode"
+  ],
+  "evidence": [
+   {
+    "path": "vllm/platforms/openvino.py",
+    "contains": "def is_pin_memory_available(self) -> bool:"
+   }
+  ],
+  "author_notes": "LOC-BENCH V1 instance vllm-project__vllm-9974 (vllm-project/vllm @ 91c9ebbb1), curated upstream and not authored in this repository. The prose is the issue's own problem statement with one constant sentence appended; hints_text, patch and test_patch are excluded. Gold is the instance's edit_functions, verified against quality_pass.definitions at this commit.",
+  "corpus": "/Users/ja/dev/retrieval-study/runs/locbench-corpora/vllm-project__vllm-9974",
+  "covariates": {
+   "repo": "vllm-project/vllm",
+   "base_commit": "91c9ebbb1bfc39e98aa2bd444b9569e5f2f92c9e",
+   "gold_cardinality": 1,
+   "locbench_category": "Bug Report",
+   "names_target": false,
+   "statement_chars": 1157,
+   "corpus_fingerprint": {
+    "sha256": "03c9a6fe31d21429c271d386ac262adedc738635b9e3b7a97b73ce2a70e06fbf",
+    "files": 1332
+   }
+  }
+ }
+]

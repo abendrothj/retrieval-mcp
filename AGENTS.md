@@ -35,8 +35,16 @@ what keeps the published numbers true.
    knowledge of which arm is expected to win. Every suite in `experiments/suites/` predates this
    rule.
 
-9. **A suite's quality ties are quotable only after a degraded arm has scored worse on that
-   suite.** `runs/degrade-control-20260924` ran the held-out Django set against itself with the
+9. **A suite's null is quotable only after a targeted degradation has scored worse on that
+   suite, and the degradation must reach what the intervention removes.** For ranking that is a
+   shuffled page and it has been run. For file-set narrowing - type filters, extension ranking,
+   test down-ranking, generated-file exclusion - it is a deliberately over-narrow filter and it
+   has not, which matters because **every question set here has golds in exactly one extension**:
+   29 suites, six languages, never mixed, for two independent reasons (`cut_corpora.py` keeps one
+   suffix per scope, and a gold must be an indexable definition). So a type filter comes out free
+   on every suite in this record. The instrument that would price it needs questions whose gold is
+   code and whose evidence is not, which `validate_suite` already admits, on full checkouts, with
+   a two-pass oracle necessity gate. The original form of this law: `runs/degrade-control-20260924` ran the held-out Django set against itself with the
    row order scrambled - same binary, same bytes, `initialize` and `tools/list` untouched - and
    scored **29/29 against 29/29**, with the gold pushed to rank 10 in six trials and no answer
    changing. That suite measures whether the gold was on the page, not retrieval quality, so its
