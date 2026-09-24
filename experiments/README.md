@@ -2744,6 +2744,12 @@ questions nobody here wrote, with the arms differing in one flag.
 A rank maps to round trips in three tiers rather than linearly: the identity on the page costs no
 extra hop (and *where* on the page is nearly free - the shuffle control scored 29/29 against
 29/29), the right file without the identity costs one recovery hop, and neither costs a re-query.
+The instrument is `ranker_tiers.py`, and its matching is exact and structural - a row's identity
+against the gold's full `path::Name`, a row's path against the gold's path, both from
+`structuredContent`. `end_to_end.unretrieved` is deliberately not used: it is conjunctive over a
+request-plus-body concatenation, so a path the agent typed itself counts as retrieval, and a gold
+whose bare name appears anywhere in its own file collapses `identity_on_page` into `file_only` -
+which is exactly where this contrast lives.
 
 | condition | ranker | identity on page | file only | neither | right file on page |
 |---|---|---:|---:|---:|---:|
