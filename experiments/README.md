@@ -3018,6 +3018,58 @@ distributions behind those, median 46 / max 2,661 against median 18 / p90 185 / 
 worse for either figure alone than corpus-specificity would have been and is why they are pooled
 rather than reported side by side.
 
+### Why every delivery mechanism for it is now closed
+
+Four forms were available and all four are refused on measurement rather than on prior.
+
+**Substitution is refused by the agent.** Over the `cli-confirm` rollouts the CLI arm invoked
+`retrieval` 221 times in the counted repetitions and composed it into a pipeline **once in 524 uses
+across the full run, 0.2%**, despite a generated announcement that says rows are tab-separated so
+they pipe, mentions pipes three times, and documents grep-style exit codes. Told explicitly, in the
+prompt, it still treated the command as terminal.
+
+**Appending is the one live form, and whether it is live depends entirely on the corpus.** The
+question is whether the agent pipes the command that caps, so the only attributable cases are capped
+deliveries produced by a *single-stage* command: in a compound command the stages' outputs
+concatenate and no counter can say which stage hit the ceiling. On that subset:
+
+| run | corpus | capped, single-stage | the stage was piped | unattributable (compound) |
+|---|---|---:|---:|---:|
+| `cli-confirm-20260924` | etcd client, 311 files | 33 | **0** | 3 |
+| `cli-locbench-20260924` | full checkouts | 9 | **3** | 1 |
+| `cli-locbench-rerun-20260924` | full checkouts | 23 | **4** | 9 |
+
+**Zero of 33 on etcd, 7 of 32 on full checkouts, and all seven pipe into `head`** - `head -200`,
+`-240`, `-260`. That is the case for the append form and it is a real one: `head` bounds *lines*, so
+a few hundred long matching lines still clears 40 KB and caps anyway, which means the agent has
+already written the pipeline, already occupies the downstream position, and chose a stage that
+cannot see bytes. Substituting the stage for `head -260` is a one-token edit in a position it
+already uses, on calls that demonstrably fail. Counting compound commands as attributable inflates
+this to 12 of 32, which is the figure to avoid.
+
+**The composition rate is corpus-dependent too, and an earlier 6% reading of it was mine
+over-generalised from etcd.** Quote-aware - blanking quoted spans first, because `rg -n "a|b|c" .`
+is alternation and not composition, the defect already in this record one layer up - `native-control`
+pipes 17 of 270 commands on etcd (6%) and 58 of 110 and 195 of 357 on the two full-checkout runs
+(53%, 55%). Naive `|` counting gives 177 of 270 on etcd, 66%, so the artifact is real and is what
+makes an etcd-only reading look like a universal refusal. Mean sub-commands reproduce the record's
+1.95 at 1.96 on etcd and run to 3.01 on full checkouts; the composition is mostly `&&` and `;`, and
+piping is the minority idiom everywhere - but on the corpora where the ceiling actually binds it is
+a idiom the agent uses on a fifth of the calls that bind.
+
+**A static config cannot carry the safe lever, measured.** `--max-columns` is both
+config-expressible and coverage-lossless - it drops no file and no line, only line text - and on all
+36 distinct capped commands it reaches the ceiling **0 of 36 times at `-M 200` and 3 of 36 at
+`-M 120`, with identical `(file,line)` coverage 36 of 36 both ways.** So on etcd the bytes are in
+many matching lines across moderate files, not in long lines, and the one lossless flag a config can
+apply unconditionally does not get under the cap. That leaves a config only the file-removing flags,
+whose recall cost is the single thing this evidence base provably cannot price - which is why the
+configuration-file recommendation above is withdrawn rather than refined.
+
+**And the fourth form is not measurable here.** A shell function shadowing `rg` in the trial
+environment has zero engagement risk, because it captures the idiom the agent already uses, and is a
+confound that renders a result uninterpretable rather than merely caveated. It stays out.
+
 ## Answering a repository you cannot index
 
 The kernel probe left one fact that no ranking change could address: a whole-repository snapshot
